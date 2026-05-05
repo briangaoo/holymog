@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mogem
 
-## Getting Started
+AI-powered face rating. F- to S+ tier. Mog or get mogged.
 
-First, run the development server:
+Live: [mogem.vercel.app](https://mogem.vercel.app)
+
+## What it does
+
+Point your camera at your face. After a 3-second countdown, the app captures a frame, traces a live spiderweb of facial landmarks across your face, then drops a tier letter (F- through S+) plus an overall score and four sub-scores (jawline, eyes, skin, cheekbones).
+
+## How the score is computed
+
+Three independent sources are weighted into one final score:
+
+| Source                   | What it does                                                                 | Where it runs |
+| ------------------------ | ---------------------------------------------------------------------------- | ------------- |
+| **Golden ratio** (`lib/goldenRatio.ts`)   | Six phi-based facial proportion checks (face length/width, IPD/eye width, etc). | client / WASM |
+| **Proprietary** (`lib/proprietary.ts`)    | Bilateral symmetry, canthal tilt, gonial angle, facial thirds, facial fifths. | client / WASM |
+| **Vision** (`lib/fal.ts`)                 | NVIDIA Nemotron 3 Nano Omni via fal.ai — six 0–100 perceptual scores.         | server        |
+
+`lib/scoreEngine.ts` combines them into the four sub-scores (with weight redistribution when a source returns `null`), and `lib/tier.ts` maps the overall to one of 18 tiers.
+
+## Stack
+
+- Next.js 16 (App Router) · TypeScript strict · Tailwind 4
+- React 19, `useReducer` flow state machine — no state library
+- `@mediapipe/tasks-vision` for 478-point face landmarking
+- `@fal-ai/client` for the vision model
+- `@upstash/ratelimit` + `@upstash/redis` (10 req/min/IP)
+- Framer Motion + canvas-confetti for the reveal
+- Self-hosted Nohemi (sans) and IBM Plex Mono (numbers)
+
+## Run locally
 
 ```bash
+npm install
+cp .env.example .env.local   # fill in the values below
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open `http://localhost:3000`. Camera APIs require localhost or HTTPS, so you'll need a tunnel (ngrok, Vercel preview) to test on a phone.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Required environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+FAL_KEY=                   # https://fal.ai/dashboard/keys
+UPSTASH_REDIS_REST_URL=    # https://console.upstash.com → create Redis DB → REST API
+UPSTASH_REDIS_REST_TOKEN=
+NEXT_PUBLIC_APP_URL=       # https://mogem.vercel.app  (used by share)
+```
 
-## Learn More
+If `FAL_KEY` is missing the API returns a neutral fallback (50s) and the app degrades gracefully. If Upstash is missing the rate limiter is silently disabled (fine for local dev).
 
-To learn more about Next.js, take a look at the following resources:
+## Project layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/
+  layout.tsx              # html shell, metadata, fonts
+  page.tsx                # the entire app (single page) + state machine wiring
+  globals.css             # tailwind + a few keyframes
+  api/score/route.ts      # POST → fal.ai vision
+  fonts/nohemi/           # self-hosted Nohemi woff files
+components/               # Camera, Countdown, Spiderweb, Reveal, Share, etc
+hooks/                    # useFaceDetection, useFlowMachine, useShare
+lib/                      # scoring, tier, fal, ratelimit, share image
+types/index.ts            # shared types
+public/icons/             # brand SVGs (TikTok, IG, Snap, X, Discord)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploy to Vercel
 
-## Deploy on Vercel
+```bash
+npm i -g vercel
+vercel link
+vercel env add FAL_KEY
+vercel env add UPSTASH_REDIS_REST_URL
+vercel env add UPSTASH_REDIS_REST_TOKEN
+vercel deploy --prod
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Or press the button on Vercel and let the dashboard prompt you for env vars. Upstash can be added through the Marketplace and will auto-provision both env vars.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Privacy
+
+Photos are sent to fal.ai for analysis once per capture and discarded — Mogem never stores them. The shared image only contains your tier letter; sub-scores and the photo are never shared.
