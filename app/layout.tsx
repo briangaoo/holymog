@@ -1,22 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import localFont from 'next/font/local';
-import { IBM_Plex_Mono } from 'next/font/google';
+import { DM_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
-const nohemi = localFont({
-  variable: '--font-nohemi',
+const dmSans = DM_Sans({
+  variable: '--font-dm-sans',
+  subsets: ['latin'],
   display: 'swap',
-  src: [
-    { path: './fonts/nohemi/Nohemi-Thin.woff', weight: '100', style: 'normal' },
-    { path: './fonts/nohemi/Nohemi-ExtraLight.woff', weight: '200', style: 'normal' },
-    { path: './fonts/nohemi/Nohemi-Light.woff', weight: '300', style: 'normal' },
-    { path: './fonts/nohemi/Nohemi-Regular.woff', weight: '400', style: 'normal' },
-    { path: './fonts/nohemi/Nohemi-Medium.woff', weight: '500', style: 'normal' },
-    { path: './fonts/nohemi/Nohemi-SemiBold.woff', weight: '600', style: 'normal' },
-    { path: './fonts/nohemi/Nohemi-Bold.woff', weight: '700', style: 'normal' },
-    { path: './fonts/nohemi/Nohemi-ExtraBold.woff', weight: '800', style: 'normal' },
-    { path: './fonts/nohemi/Nohemi-Black.woff', weight: '900', style: 'normal' },
-  ],
+  weight: ['400', '500', '600', '700', '800', '900'],
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -61,7 +51,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${nohemi.variable} ${plexMono.variable} h-full bg-black`}
+      className={`${dmSans.variable} ${plexMono.variable} h-full bg-black`}
     >
       <body className="min-h-full bg-black text-white antialiased">{children}</body>
     </html>
