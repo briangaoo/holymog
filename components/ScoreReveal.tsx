@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { FinalScores } from '@/types';
-import { getTier } from '@/lib/tier';
+import { getTier, getTierDescriptor } from '@/lib/tier';
 import { SubScoreCard } from './SubScoreCard';
 import { Confetti } from './Confetti';
 
@@ -16,11 +16,13 @@ function easeOutCubic(t: number): number {
 
 type Props = {
   scores: FinalScores;
+  capturedImage: string;
   onRevealDone: () => void;
 };
 
-export function ScoreReveal({ scores, onRevealDone }: Props) {
+export function ScoreReveal({ scores, capturedImage, onRevealDone }: Props) {
   const tier = getTier(scores.overall);
+  const descriptor = getTierDescriptor(tier.letter);
   const [mainCount, setMainCount] = useState(0);
   const [bounce, setBounce] = useState(false);
 
@@ -55,9 +57,13 @@ export function ScoreReveal({ scores, onRevealDone }: Props) {
       }
     : { color: tier.color };
 
+  const descriptorColor = tier.isGradient ? '#a855f7' : tier.color;
+
   return (
-    <div className="flex w-full flex-col items-center gap-8" role="status" aria-live="polite">
+    <div className="flex w-full flex-col items-center gap-6" role="status" aria-live="polite">
       <Confetti fire color={tier.color} isGradient={tier.isGradient} />
+
+      <Avatar src={capturedImage} accent={tier.color} isGradient={tier.isGradient} />
 
       <motion.div
         initial={{ scale: 0.7, opacity: 0 }}
@@ -69,11 +75,11 @@ export function ScoreReveal({ scores, onRevealDone }: Props) {
             ? { duration: 0.3, times: [0, 0.5, 1] }
             : { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }
         }
-        className="text-center font-sans leading-none"
+        className="font-num text-center leading-none"
       >
         <div
           style={{
-            fontSize: 'clamp(180px, 56vw, 420px)',
+            fontSize: 'clamp(180px, 50vw, 380px)',
             fontWeight: 900,
             ...letterStyle,
           }}
@@ -83,12 +89,20 @@ export function ScoreReveal({ scores, onRevealDone }: Props) {
         </div>
       </motion.div>
 
-      <div
-        className="font-mono font-semibold tabular-nums text-white"
-        style={{ fontSize: 'clamp(56px, 16vw, 96px)' }}
-        aria-label={`Overall score ${scores.overall}`}
-      >
-        {mainCount}
+      <div className="flex flex-col items-center gap-1">
+        <div
+          className="font-num font-extrabold text-white"
+          style={{ fontSize: 'clamp(52px, 14vw, 80px)', lineHeight: 1 }}
+          aria-label={`Overall score ${scores.overall}`}
+        >
+          {mainCount}
+        </div>
+        <div
+          className="text-sm font-medium lowercase tracking-wide"
+          style={{ color: descriptorColor, opacity: 0.95 }}
+        >
+          {descriptor}
+        </div>
       </div>
 
       <motion.div
@@ -97,16 +111,45 @@ export function ScoreReveal({ scores, onRevealDone }: Props) {
         transition={{ duration: 0.3, delay: 0.2 }}
         className="grid w-full grid-cols-2 gap-3"
       >
-        <SubScoreCard label="Jawline" finalValue={scores.sub.jawline} startDelayMs={200} start />
-        <SubScoreCard label="Eyes" finalValue={scores.sub.eyes} startDelayMs={300} start />
-        <SubScoreCard label="Skin" finalValue={scores.sub.skin} startDelayMs={400} start />
+        <SubScoreCard label="Jawline" finalValue={scores.sub.jawline} startDelayMs={200} />
+        <SubScoreCard label="Eyes" finalValue={scores.sub.eyes} startDelayMs={300} />
+        <SubScoreCard label="Skin" finalValue={scores.sub.skin} startDelayMs={400} />
         <SubScoreCard
           label="Cheekbones"
           finalValue={scores.sub.cheekbones}
           startDelayMs={500}
-          start
         />
       </motion.div>
+    </div>
+  );
+}
+
+function Avatar({
+  src,
+  accent,
+  isGradient,
+}: {
+  src: string;
+  accent: string;
+  isGradient: boolean;
+}) {
+  const ringStyle: React.CSSProperties = isGradient
+    ? {
+        background:
+          'conic-gradient(from 90deg, #22d3ee, #a855f7, #22d3ee)',
+      }
+    : { background: accent };
+  return (
+    <div className="relative h-14 w-14 rounded-full p-[1.5px]" style={ringStyle}>
+      <div className="h-full w-full overflow-hidden rounded-full bg-black">
+        {/* mirror to match what the user saw on camera */}
+        <img
+          src={src}
+          alt=""
+          className="h-full w-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+        />
+      </div>
     </div>
   );
 }

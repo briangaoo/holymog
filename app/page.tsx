@@ -1,32 +1,100 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Share2 } from 'lucide-react';
+import Link from 'next/link';
+import { Share2, Trophy } from 'lucide-react';
 import { Camera, type CameraHandle } from '@/components/Camera';
 import { FaceDetectedPill } from '@/components/FaceDetectedPill';
 import { Countdown } from '@/components/Countdown';
 import { SpiderwebOverlay, SPIDERWEB_TOTAL_MS } from '@/components/SpiderwebOverlay';
 import { ScoreReveal } from '@/components/ScoreReveal';
+import { SubScoreCard } from '@/components/SubScoreCard';
 import { ShareSheet } from '@/components/ShareSheet';
 import { RetakeButton } from '@/components/RetakeButton';
 import { PrivacyModal } from '@/components/PrivacyModal';
+import { LeaderboardButton } from '@/components/LeaderboardButton';
+import { LeaderboardModal } from '@/components/LeaderboardModal';
+import { MoreDetail } from '@/components/MoreDetail';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFlowMachine } from '@/hooks/useFlowMachine';
 import { combineScores, computeClientScores, mockVisionScore } from '@/lib/scoreEngine';
-import { getTier } from '@/lib/tier';
-import type { FinalScores, Landmark, VisionScore } from '@/types';
+import { getTier, getTierDescriptor } from '@/lib/tier';
+import type { Blendshapes, CaptureExtras, FinalScores, HeadPose, Landmark, VisionScore } from '@/types';
 
 const CAPTURE_DELAY_MS = 3000;
 const MAPPING_MIN_MS = SPIDERWEB_TOTAL_MS;
+
+const STORAGE_KEY = 'mogem-last-result';
+const PRIVACY_KEY = 'mogem-privacy-acknowledged';
+
+type SavedResult = { scores: FinalScores; capturedImage: string; ts: number };
+
+function loadSavedResult(): SavedResult | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SavedResult>;
+    if (
+      !parsed.scores ||
+      typeof parsed.capturedImage !== 'string' ||
+      typeof parsed.scores.overall !== 'number'
+    ) {
+      return null;
+    }
+    return parsed as SavedResult;
+  } catch {
+    return null;
+  }
+}
+
+function saveResult(result: SavedResult) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+function clearSavedResult() {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 export default function Home() {
   const [state, dispatch] = useFlowMachine();
   const cameraHandleRef = useRef<CameraHandle | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
   const [videoSize, setVideoSize] = useState({ width: 720, height: 1280 });
+  // Privacy gate — camera mounts immediately, but face detection / countdown
+  // is paused until the user dismisses the privacy modal on first visit.
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
+  const [privacyChecked, setPrivacyChecked] = useState(false);
+
+  useEffect(() => {
+    try {
+      setPrivacyAcknowledged(!!window.localStorage.getItem(PRIVACY_KEY));
+    } catch {
+      setPrivacyAcknowledged(false);
+    }
+    setPrivacyChecked(true);
+  }, []);
+
+  const acknowledgePrivacy = useCallback(() => {
+    try {
+      window.localStorage.setItem(PRIVACY_KEY, '1');
+    } catch {
+      // ignore
+    }
+    setPrivacyAcknowledged(true);
+  }, []);
 
   const showCamera =
     state.type === 'streaming' ||
@@ -34,20 +102,27 @@ export default function Home() {
     state.type === 'mapping';
 
   const detectionActive =
-    state.type === 'streaming' || state.type === 'detected' || state.type === 'mapping';
+    privacyAcknowledged &&
+    (state.type === 'streaming' || state.type === 'detected' || state.type === 'mapping');
 
-  const { isDetected, multipleFaces, landmarks } = useFaceDetection(
-    videoRef,
-    detectionActive,
-  );
+  const { isDetected, multipleFaces, landmarks, blendshapes, headPose } =
+    useFaceDetection(videoRef, detectionActive);
 
-  // Latest landmarks ref — read at capture time, but does NOT cause effect re-runs
-  const latestLandmarksRef = useRef<Landmark[] | null>(null);
+  const latestDetectionRef = useRef<{
+    landmarks: Landmark[] | null;
+    blendshapes: Blendshapes | null;
+    headPose: HeadPose | null;
+  }>({ landmarks: null, blendshapes: null, headPose: null });
   useEffect(() => {
-    if (landmarks) latestLandmarksRef.current = landmarks;
-  }, [landmarks]);
+    if (landmarks) {
+      latestDetectionRef.current = {
+        landmarks,
+        blendshapes: blendshapes ?? latestDetectionRef.current.blendshapes,
+        headPose: headPose ?? latestDetectionRef.current.headPose,
+      };
+    }
+  }, [landmarks, blendshapes, headPose]);
 
-  // streaming → detected
   useEffect(() => {
     if (state.type === 'streaming' && isDetected && !multipleFaces) {
       dispatch({ type: 'FACE_STABLE' });
@@ -56,22 +131,24 @@ export default function Home() {
     }
   }, [state.type, isDetected, multipleFaces, dispatch]);
 
-  // detected → capture after CAPTURE_DELAY_MS (no landmarks dep so timer doesn't reset)
   useEffect(() => {
     if (state.type !== 'detected') return;
     const timeout = window.setTimeout(() => {
       const image = cameraHandleRef.current?.capture() ?? null;
-      const lm = latestLandmarksRef.current;
-      if (!image || !lm) {
+      const det = latestDetectionRef.current;
+      if (!image || !det.landmarks || !det.blendshapes || !det.headPose) {
         dispatch({ type: 'ERROR', message: 'Failed to capture frame' });
         return;
       }
-      dispatch({ type: 'CAPTURE', image, landmarks: lm });
+      const extras: CaptureExtras = {
+        blendshapes: det.blendshapes,
+        headPose: det.headPose,
+      };
+      dispatch({ type: 'CAPTURE', image, landmarks: det.landmarks, extras });
     }, CAPTURE_DELAY_MS);
     return () => window.clearTimeout(timeout);
   }, [state.type, dispatch]);
 
-  // mapping: client scoring + vision API + min animation duration
   useEffect(() => {
     if (state.type !== 'mapping') return;
     let cancelled = false;
@@ -82,6 +159,7 @@ export default function Home() {
         state.landmarks,
         videoSize.width,
         videoSize.height,
+        state.extras,
       );
 
       let vision: VisionScore;
@@ -94,9 +172,7 @@ export default function Home() {
         if (res.ok) {
           vision = (await res.json()) as VisionScore;
         } else {
-          const data = (await res.json().catch(() => ({}))) as {
-            fallback?: VisionScore;
-          };
+          const data = (await res.json().catch(() => ({}))) as { fallback?: VisionScore };
           vision = data.fallback ?? mockVisionScore();
         }
       } catch {
@@ -104,6 +180,21 @@ export default function Home() {
       }
 
       const final = combineScores(golden, proprietary, vision);
+
+      // Local debug log — appended to /tmp/mogem-debug.log on the server.
+      // Diff entries to see why one capture scored higher than another.
+      void fetch('/api/debug-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'main-scan',
+          final,
+          golden,
+          proprietary,
+          vision,
+        }),
+      });
+
       const elapsed = performance.now() - startedAt;
       const wait = Math.max(0, MAPPING_MIN_MS - elapsed);
       window.setTimeout(() => {
@@ -115,9 +206,8 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [state, dispatch]);
+  }, [state, dispatch, videoSize.width, videoSize.height]);
 
-  // Track screen size for spiderweb SVG
   useEffect(() => {
     const update = () =>
       setScreenSize({ width: window.innerWidth, height: window.innerHeight });
@@ -148,15 +238,38 @@ export default function Home() {
   }, [dispatch]);
 
   const handleRetake = useCallback(() => {
+    clearSavedResult();
     dispatch({ type: 'RETAKE' });
   }, [dispatch]);
 
+  // On first mount, hydrate from localStorage if a previous result was saved.
+  // Otherwise let the camera kick in.
+  const hydratedRef = useRef(false);
   useEffect(() => {
-    if (state.type === 'idle') dispatch({ type: 'CAMERA_READY' });
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    const saved = loadSavedResult();
+    if (saved) {
+      dispatch({
+        type: 'HYDRATE',
+        scores: saved.scores,
+        capturedImage: saved.capturedImage,
+      });
+    } else if (state.type === 'idle') {
+      dispatch({ type: 'CAMERA_READY' });
+    }
   }, [state.type, dispatch]);
 
-  const finalScores: FinalScores | null =
-    state.type === 'revealing' || state.type === 'complete' ? state.scores : null;
+  // Persist when entering `complete` state; clear on retake (handled in handleRetake).
+  useEffect(() => {
+    if (state.type === 'complete') {
+      saveResult({
+        scores: state.scores,
+        capturedImage: state.capturedImage,
+        ts: Date.now(),
+      });
+    }
+  }, [state]);
 
   const showHint = state.type === 'streaming' && !multipleFaces && !isDetected;
   const showFaceCountWarning = state.type === 'streaming' && multipleFaces;
@@ -164,9 +277,12 @@ export default function Home() {
 
   return (
     <div className="relative min-h-dvh bg-black">
-      <PrivacyModal />
+      <PrivacyModal
+        open={privacyChecked && !privacyAcknowledged}
+        onAcknowledge={acknowledgePrivacy}
+      />
 
-      {/* Always-visible wordmark */}
+      {/* Wordmark — subtle, only visible during camera and at top of results */}
       <header
         className="pointer-events-none fixed left-0 right-0 top-0 z-40 flex justify-center"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 14px)' }}
@@ -176,7 +292,7 @@ export default function Home() {
         </span>
       </header>
 
-      {/* Full-screen camera layer */}
+      {/* Full-screen camera — fixed inset-0 covers the entire viewport on every device */}
       {showCamera && (
         <div className="fixed inset-0 z-10 overflow-hidden bg-black">
           <Camera
@@ -230,7 +346,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Error overlay (full-screen) */}
       {state.type === 'error' && (
         <div className="fixed inset-0 z-30 flex flex-col items-center justify-center bg-black px-6 text-center">
           <p className="text-base text-white">camera unavailable</p>
@@ -238,9 +353,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Results layer (no camera) */}
+      {/* Results layer — full-screen, tier-tinted backdrop */}
       <AnimatePresence>
-        {showResults && finalScores && (
+        {showResults && (
           <motion.main
             key="results"
             initial={{ opacity: 0 }}
@@ -249,46 +364,114 @@ export default function Home() {
             transition={{ duration: 0.3 }}
             className="relative z-20 flex min-h-dvh w-full flex-col items-center bg-black"
             style={{
-              paddingTop: 'max(env(safe-area-inset-top), 60px)',
-              paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
+              paddingTop: 'max(env(safe-area-inset-top), 56px)',
+              paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
             }}
           >
-            <div className="flex w-full max-w-md flex-1 flex-col items-center justify-center gap-6 px-5">
-              {state.type === 'revealing' ? (
-                <ScoreReveal scores={finalScores} onRevealDone={handleRevealDone} />
-              ) : (
-                <CompleteView
-                  scores={finalScores}
-                  onRetake={handleRetake}
-                  onShare={() => setShareOpen(true)}
-                />
-              )}
-            </div>
+            <ResultsContent
+              state={state}
+              onRetake={handleRetake}
+              onShare={() => setShareOpen(true)}
+              onAddToLeaderboard={() => setLeaderboardOpen(true)}
+              onRevealDone={handleRevealDone}
+            />
           </motion.main>
         )}
       </AnimatePresence>
 
-      {finalScores && (
-        <ShareSheet
-          open={shareOpen}
-          onClose={() => setShareOpen(false)}
-          score={finalScores.overall}
-        />
+      {state.type === 'complete' && (
+        <>
+          <ShareSheet
+            open={shareOpen}
+            onClose={() => setShareOpen(false)}
+            score={state.scores.overall}
+          />
+          <LeaderboardModal
+            open={leaderboardOpen}
+            scores={state.scores}
+            capturedImage={state.capturedImage}
+            onClose={() => setLeaderboardOpen(false)}
+          />
+        </>
       )}
     </div>
   );
 }
 
-function CompleteView({
-  scores,
+type ResultsState =
+  | { type: 'revealing'; scores: FinalScores; capturedImage: string }
+  | { type: 'complete'; scores: FinalScores; capturedImage: string };
+
+function ResultsContent({
+  state,
   onRetake,
   onShare,
+  onAddToLeaderboard,
+  onRevealDone,
 }: {
-  scores: FinalScores;
+  state: ResultsState;
   onRetake: () => void;
   onShare: () => void;
+  onAddToLeaderboard: () => void;
+  onRevealDone: () => void;
+}) {
+  const tier = getTier(state.scores.overall);
+
+  // subtle radial tier-color glow behind the tier letter — anchors color identity
+  const ambientStyle = useMemo<React.CSSProperties>(() => {
+    const accent = tier.isGradient ? '#a855f7' : tier.color;
+    return {
+      backgroundImage: `radial-gradient(circle at 50% 32%, ${accent}24, rgba(0,0,0,0) 55%)`,
+    };
+  }, [tier.color, tier.isGradient]);
+
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden="true"
+        style={ambientStyle}
+      />
+
+      <div className="relative z-10 flex w-full max-w-md flex-1 flex-col items-center justify-center gap-6 px-5">
+        {state.type === 'revealing' ? (
+          <ScoreReveal
+            scores={state.scores}
+            capturedImage={state.capturedImage}
+            onRevealDone={onRevealDone}
+          />
+        ) : (
+          <CompleteView
+            scores={state.scores}
+            capturedImage={state.capturedImage}
+            onRetake={onRetake}
+            onShare={onShare}
+            onAddToLeaderboard={onAddToLeaderboard}
+          />
+        )}
+      </div>
+    </>
+  );
+}
+
+function CompleteView({
+  scores,
+  capturedImage,
+  onRetake,
+  onShare,
+  onAddToLeaderboard,
+}: {
+  scores: FinalScores;
+  capturedImage: string;
+  onRetake: () => void;
+  onShare: () => void;
+  onAddToLeaderboard: () => void;
 }) {
   const tier = getTier(scores.overall);
+  const descriptor = getTierDescriptor(tier.letter);
+  const descriptorColor = tier.isGradient ? '#a855f7' : tier.color;
+  const accent = tier.isGradient ? '#a855f7' : tier.color;
+
   const letterStyle: React.CSSProperties = tier.isGradient
     ? {
         backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
@@ -301,30 +484,47 @@ function CompleteView({
     : { color: tier.color };
 
   return (
-    <div className="flex w-full flex-col items-center gap-8">
+    <div className="flex w-full flex-col items-center gap-6">
+      <Avatar src={capturedImage} accent={tier.color} isGradient={tier.isGradient} />
+
       <div
-        className="font-sans leading-none"
-        style={{ fontSize: 'clamp(180px, 56vw, 420px)', fontWeight: 900, ...letterStyle }}
+        className="font-num leading-none"
+        style={{ fontSize: 'clamp(180px, 50vw, 380px)', fontWeight: 900, ...letterStyle }}
       >
         {tier.letter}
       </div>
-      <div
-        className="font-mono font-semibold tabular-nums text-white"
-        style={{ fontSize: 'clamp(56px, 16vw, 96px)', lineHeight: 1 }}
-      >
-        {scores.overall}
+
+      <div className="flex flex-col items-center gap-1">
+        <div
+          className="font-num font-extrabold text-white"
+          style={{ fontSize: 'clamp(52px, 14vw, 80px)', lineHeight: 1 }}
+        >
+          {scores.overall}
+        </div>
+        <div
+          className="text-sm font-medium lowercase tracking-wide"
+          style={{ color: descriptorColor, opacity: 0.95 }}
+        >
+          {descriptor}
+        </div>
       </div>
+
       <div className="grid w-full grid-cols-2 gap-3">
-        <SubScoreStatic label="Jawline" value={scores.sub.jawline} />
-        <SubScoreStatic label="Eyes" value={scores.sub.eyes} />
-        <SubScoreStatic label="Skin" value={scores.sub.skin} />
-        <SubScoreStatic label="Cheekbones" value={scores.sub.cheekbones} />
+        <SubScoreCard label="Jawline" finalValue={scores.sub.jawline} animate={false} />
+        <SubScoreCard label="Eyes" finalValue={scores.sub.eyes} animate={false} />
+        <SubScoreCard label="Skin" finalValue={scores.sub.skin} animate={false} />
+        <SubScoreCard
+          label="Cheekbones"
+          finalValue={scores.sub.cheekbones}
+          animate={false}
+        />
       </div>
+
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex w-full gap-3 pt-2"
+        className="flex w-full gap-3 pt-1"
       >
         <RetakeButton onClick={onRetake} />
         <button
@@ -338,27 +538,46 @@ function CompleteView({
           Share
         </button>
       </motion.div>
+
+      <div className="flex flex-col items-center gap-2 pt-1">
+        <LeaderboardButton onClick={onAddToLeaderboard} accent={accent} />
+        <Link
+          href="/leaderboard"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 transition-colors hover:text-white"
+        >
+          <Trophy size={12} aria-hidden />
+          view leaderboard
+        </Link>
+      </div>
+
+      {scores.vision && typeof scores.presentation === 'number' && (
+        <MoreDetail vision={scores.vision} presentation={scores.presentation} />
+      )}
     </div>
   );
 }
 
-function SubScoreStatic({ label, value }: { label: string; value: number }) {
+function Avatar({
+  src,
+  accent,
+  isGradient,
+}: {
+  src: string;
+  accent: string;
+  isGradient: boolean;
+}) {
+  const ringStyle: React.CSSProperties = isGradient
+    ? { background: 'conic-gradient(from 90deg, #22d3ee, #a855f7, #22d3ee)' }
+    : { background: accent };
   return (
-    <div className="flex h-[160px] flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
-        {label}
-      </div>
-      <div className="flex flex-1 items-end justify-center">
-        <span
-          className="font-mono font-semibold tabular-nums text-white"
-          style={{
-            fontSize: 'clamp(40px, 12vw, 64px)',
-            lineHeight: 1,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {value}
-        </span>
+    <div className="relative h-14 w-14 rounded-full p-[1.5px]" style={ringStyle}>
+      <div className="h-full w-full overflow-hidden rounded-full bg-black">
+        <img
+          src={src}
+          alt=""
+          className="h-full w-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+        />
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ const MODEL_URL =
 const WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm';
 
 let videoLandmarkerPromise: Promise<FaceLandmarker> | null = null;
+let imageLandmarkerPromise: Promise<FaceLandmarker> | null = null;
 
 export function getFaceLandmarker(): Promise<FaceLandmarker> {
   if (videoLandmarkerPromise) return videoLandmarkerPromise;
@@ -14,12 +15,27 @@ export function getFaceLandmarker(): Promise<FaceLandmarker> {
     return FaceLandmarker.createFromOptions(filesetResolver, {
       baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
       runningMode: 'VIDEO',
-      outputFaceBlendshapes: false,
-      outputFacialTransformationMatrixes: false,
+      outputFaceBlendshapes: true,
+      outputFacialTransformationMatrixes: true,
       numFaces: 1,
     });
   })();
   return videoLandmarkerPromise;
+}
+
+export function getFaceLandmarkerImage(): Promise<FaceLandmarker> {
+  if (imageLandmarkerPromise) return imageLandmarkerPromise;
+  imageLandmarkerPromise = (async () => {
+    const filesetResolver = await FilesetResolver.forVisionTasks(WASM_BASE);
+    return FaceLandmarker.createFromOptions(filesetResolver, {
+      baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
+      runningMode: 'IMAGE',
+      outputFaceBlendshapes: true,
+      outputFacialTransformationMatrixes: true,
+      numFaces: 1,
+    });
+  })();
+  return imageLandmarkerPromise;
 }
 
 export type LandmarkResult = {

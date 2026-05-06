@@ -1,31 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const STORAGE_KEY = 'mogem-privacy-acknowledged';
+type Props = {
+  open: boolean;
+  onAcknowledge: () => void;
+};
 
-export function PrivacyModal() {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    try {
-      const seen = window.localStorage.getItem(STORAGE_KEY);
-      if (!seen) setOpen(true);
-    } catch {
-      setOpen(true);
-    }
-  }, []);
-
-  const handleContinue = () => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, '1');
-    } catch {
-      // ignore
-    }
-    setOpen(false);
-  };
-
+export function PrivacyModal({ open, onAcknowledge }: Props) {
   return (
     <AnimatePresence>
       {open && (
@@ -51,8 +33,9 @@ export function PrivacyModal() {
             </h2>
             <div className="space-y-3 text-sm leading-relaxed text-zinc-400">
               <p>
-                When you take a photo, it&apos;s sent briefly to NVIDIA&apos;s vision model via
-                fal.ai for analysis, then discarded. Mogem doesn&apos;t store your photo.
+                When you take a photo, it&apos;s sent briefly to xAI&apos;s vision model for
+                analysis, then discarded. Mogem doesn&apos;t store your photo unless you opt in
+                to add it to the leaderboard.
               </p>
               <p>
                 When you share, only your tier letter is shared — never your photo or sub-scores.
@@ -60,7 +43,7 @@ export function PrivacyModal() {
             </div>
             <button
               type="button"
-              onClick={handleContinue}
+              onClick={onAcknowledge}
               aria-label="Continue"
               style={{ touchAction: 'manipulation' }}
               className="mt-6 h-12 w-full rounded-full bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 active:bg-zinc-200"

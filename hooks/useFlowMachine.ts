@@ -22,26 +22,40 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       return state;
     case 'CAPTURE':
       if (state.type === 'detected' || state.type === 'streaming') {
-        // First transition to capturing then immediately to mapping
         return {
           type: 'mapping',
           capturedImage: action.image,
           landmarks: action.landmarks,
+          extras: action.extras,
         };
       }
       return state;
     case 'MAPPING_DONE':
       if (state.type === 'mapping') {
-        return { type: 'revealing', scores: action.scores };
+        return {
+          type: 'revealing',
+          scores: action.scores,
+          capturedImage: state.capturedImage,
+        };
       }
       return state;
     case 'REVEAL_DONE':
       if (state.type === 'revealing') {
-        return { type: 'complete', scores: state.scores };
+        return {
+          type: 'complete',
+          scores: state.scores,
+          capturedImage: state.capturedImage,
+        };
       }
       return state;
     case 'RETAKE':
       return { type: 'streaming' };
+    case 'HYDRATE':
+      return {
+        type: 'complete',
+        scores: action.scores,
+        capturedImage: action.capturedImage,
+      };
     case 'ERROR':
       return { type: 'error', message: action.message };
     default:

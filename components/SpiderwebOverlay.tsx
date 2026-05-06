@@ -100,18 +100,20 @@ export function SpiderwebOverlay({
     return () => cancelAnimationFrame(raf);
   }, [startedAt]);
 
-  // object-contain mapping: video fits inside container, letterboxing on the longer axis
+  // object-cover mapping: video fills container, cropping the longer axis
   const { displayedW, displayedH, offsetX, offsetY } = useMemo(() => {
     const sa = containerWidth / containerHeight;
     const va = videoWidth / videoHeight;
     if (va > sa) {
-      const dW = containerWidth;
-      const dH = containerWidth / va;
-      return { displayedW: dW, displayedH: dH, offsetX: 0, offsetY: (containerHeight - dH) / 2 };
+      // video wider than container → fit height, overflow horizontally
+      const dH = containerHeight;
+      const dW = containerHeight * va;
+      return { displayedW: dW, displayedH: dH, offsetX: (containerWidth - dW) / 2, offsetY: 0 };
     }
-    const dH = containerHeight;
-    const dW = containerHeight * va;
-    return { displayedW: dW, displayedH: dH, offsetX: (containerWidth - dW) / 2, offsetY: 0 };
+    // video taller than container → fit width, overflow vertically
+    const dW = containerWidth;
+    const dH = containerWidth / va;
+    return { displayedW: dW, displayedH: dH, offsetX: 0, offsetY: (containerHeight - dH) / 2 };
   }, [containerWidth, containerHeight, videoWidth, videoHeight]);
 
   // Stable abstract list: which landmark pairs + timings (does not depend on landmark coords)

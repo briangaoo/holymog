@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { getScoreColor } from '@/lib/scoreColor';
 
 const COUNT_DURATION_MS = 2400;
 
@@ -11,18 +12,31 @@ function easeOutCubic(t: number): number {
 type Props = {
   label: string;
   finalValue: number;
-  startDelayMs: number;
-  start: boolean;
+  startDelayMs?: number;
+  animate?: boolean;
 };
 
-export function SubScoreCard({ label, finalValue, startDelayMs, start }: Props) {
-  const [displayed, setDisplayed] = useState(0);
+const NUMBER_FONT_STYLE: React.CSSProperties = {
+  fontSize: 'clamp(40px, 11vw, 56px)',
+  lineHeight: 1,
+};
+
+export function SubScoreCard({
+  label,
+  finalValue,
+  startDelayMs = 0,
+  animate = true,
+}: Props) {
+  const [displayed, setDisplayed] = useState(animate ? 0 : finalValue);
   const rafRef = useRef<number | null>(null);
   const delayTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!start) return;
-
+    if (!animate) {
+      setDisplayed(finalValue);
+      return;
+    }
+    setDisplayed(0);
     delayTimerRef.current = window.setTimeout(() => {
       const startTs = performance.now();
       const tick = () => {
@@ -39,24 +53,26 @@ export function SubScoreCard({ label, finalValue, startDelayMs, start }: Props) 
       if (delayTimerRef.current !== null) window.clearTimeout(delayTimerRef.current);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, [start, finalValue, startDelayMs]);
+  }, [animate, finalValue, startDelayMs]);
+
+  const fillColor = getScoreColor(displayed);
 
   return (
-    <div className="flex h-[160px] flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
-        {label}
-      </div>
-      <div className="flex flex-1 items-end justify-center">
-        <span
-          className="font-mono font-semibold tabular-nums text-white"
-          style={{
-            fontSize: 'clamp(40px, 12vw, 64px)',
-            lineHeight: 1,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
+    <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-col gap-1.5">
+        <div className="text-sm font-medium text-zinc-300">{label}</div>
+        <div className="font-num font-extrabold text-white" style={NUMBER_FONT_STYLE}>
           {displayed}
-        </span>
+        </div>
+      </div>
+      <div className="h-[10px] w-full overflow-hidden rounded-full bg-white/12">
+        <div
+          className="h-full rounded-full transition-[width,background-color] duration-200 ease-out"
+          style={{
+            width: `${Math.max(0, Math.min(100, displayed))}%`,
+            background: fillColor,
+          }}
+        />
       </div>
     </div>
   );

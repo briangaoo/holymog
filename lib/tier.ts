@@ -56,3 +56,28 @@ export const TIER_COLOR_TOKEN = {
   GREEN,
   S_GRADIENT,
 } as const;
+
+const DESCRIPTORS: Record<string, string> = {
+  'F-': 'ugly af',
+  F: 'subhuman',
+  'F+': 'chopped',
+  'D-': 'low-tier normie',
+  D: 'low-tier normie',
+  'D+': 'low-tier normie',
+  'C-': 'normie',
+  C: 'normie',
+  'C+': 'normie',
+  'B-': 'high-tier normie',
+  B: 'high-tier normie',
+  'B+': 'high-tier normie',
+  'A-': 'chadlite',
+  A: 'chadlite',
+  'A+': 'mogger',
+  'S-': 'chad',
+  S: 'heartbreaker',
+  'S+': 'brian',
+};
+
+export function getTierDescriptor(letter: string): string {
+  return DESCRIPTORS[letter] ?? '';
+}

@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from 'next';
-import { DM_Sans, IBM_Plex_Mono } from 'next/font/google';
+import { Space_Grotesk, DM_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
+
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+});
 
 const dmSans = DM_Sans({
   variable: '--font-dm-sans',
@@ -51,7 +58,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${plexMono.variable} h-full bg-black`}
+      className={`${spaceGrotesk.variable} ${dmSans.variable} ${plexMono.variable} h-full bg-black`}
     >
       <body className="min-h-full bg-black text-white antialiased">{children}</body>
     </html>

@@ -2,14 +2,28 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
-const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
-  audio: false,
-  video: {
-    facingMode: 'user',
-    width: { ideal: 720 },
-    height: { ideal: 1280 },
-  },
-};
+function buildConstraints(): MediaStreamConstraints {
+  // Match the camera resolution to the viewport orientation so object-cover
+  // only does a small crop instead of a 2-3× scale-up.
+  const portrait =
+    typeof window === 'undefined' ? true : window.innerHeight >= window.innerWidth;
+  return {
+    audio: false,
+    video: portrait
+      ? {
+          facingMode: 'user',
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
+          aspectRatio: { ideal: 9 / 16 },
+        }
+      : {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          aspectRatio: { ideal: 16 / 9 },
+        },
+  };
+}
 
 export type CameraHandle = {
   capture: () => string | null;
@@ -61,7 +75,7 @@ export const Camera = forwardRef<CameraHandle, Props>(function Camera(
 
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
+        const stream = await navigator.mediaDevices.getUserMedia(buildConstraints());
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -103,7 +117,7 @@ export const Camera = forwardRef<CameraHandle, Props>(function Camera(
       muted
       autoPlay
       aria-label="Live camera feed showing your face"
-      className="absolute inset-0 h-full w-full object-contain"
+      className="absolute inset-0 h-full w-full object-cover"
       style={{ transform: 'scaleX(-1)' }}
     />
   );

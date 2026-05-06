@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { analyzeFace } from '@/lib/fal';
+import { analyzeFace } from '@/lib/vision';
 import { getRatelimit } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'bad_dimensions' }, { status: 400 });
   }
 
-  if (!process.env.FAL_KEY) {
+  if (!process.env.XAI_API_KEY) {
     return NextResponse.json(
       {
         error: 'vision_unavailable',

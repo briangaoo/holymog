@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getFaceLandmarker } from '@/lib/faceLandmarker';
-import type { Landmark } from '@/types';
+import { extractBlendshapes, extractHeadPose } from '@/lib/mediapipeExtras';
+import type { Blendshapes, HeadPose, Landmark } from '@/types';
 
 const STABLE_FRAMES_REQUIRED = 3;
 
@@ -10,6 +11,8 @@ type DetectionState = {
   isDetected: boolean;
   multipleFaces: boolean;
   landmarks: Landmark[] | null;
+  blendshapes: Blendshapes | null;
+  headPose: HeadPose | null;
 };
 
 export function useFaceDetection(
@@ -20,6 +23,8 @@ export function useFaceDetection(
     isDetected: false,
     multipleFaces: false,
     landmarks: null,
+    blendshapes: null,
+    headPose: null,
   });
   const stableFramesRef = useRef(0);
   const rafRef = useRef<number | null>(null);
@@ -29,7 +34,13 @@ export function useFaceDetection(
   useEffect(() => {
     if (!enabled) {
       stableFramesRef.current = 0;
-      setState({ isDetected: false, multipleFaces: false, landmarks: null });
+      setState({
+        isDetected: false,
+        multipleFaces: false,
+        landmarks: null,
+        blendshapes: null,
+        headPose: null,
+      });
       return;
     }
 
@@ -51,7 +62,6 @@ export function useFaceDetection(
           rafRef.current = requestAnimationFrame(tick);
           return;
         }
-        // Run on every other frame
         frameToggleRef.current = !frameToggleRef.current;
         if (!frameToggleRef.current) {
           rafRef.current = requestAnimationFrame(tick);
@@ -72,22 +82,48 @@ export function useFaceDetection(
             stableFramesRef.current = 0;
             setState((prev) =>
               prev.isDetected || prev.multipleFaces
-                ? { isDetected: false, multipleFaces: false, landmarks: null }
+                ? {
+                    isDetected: false,
+                    multipleFaces: false,
+                    landmarks: null,
+                    blendshapes: null,
+                    headPose: null,
+                  }
                 : prev,
             );
           } else if (faces.length > 1) {
             stableFramesRef.current = 0;
-            setState({ isDetected: false, multipleFaces: true, landmarks: null });
+            setState({
+              isDetected: false,
+              multipleFaces: true,
+              landmarks: null,
+              blendshapes: null,
+              headPose: null,
+            });
           } else {
             stableFramesRef.current += 1;
             const lm = faces[0] as Landmark[];
+            const bs = extractBlendshapes(result);
+            const hp = extractHeadPose(result);
             if (stableFramesRef.current >= STABLE_FRAMES_REQUIRED) {
-              setState({ isDetected: true, multipleFaces: false, landmarks: lm });
+              setState({
+                isDetected: true,
+                multipleFaces: false,
+                landmarks: lm,
+                blendshapes: bs,
+                headPose: hp,
+              });
             } else {
               setState((prev) =>
                 prev.multipleFaces
-                  ? { isDetected: false, multipleFaces: false, landmarks: lm }
-                  : { ...prev, landmarks: lm },
+                  ? {
+                      isDetected: false,
+                      multipleFaces: false,
+                      landmarks: lm,
+                      blendshapes: bs,
+                      headPose: hp,
+                    }
+                  : { ...prev, landmarks: lm, blendshapes: bs, headPose: hp },
               );
             }
           }
