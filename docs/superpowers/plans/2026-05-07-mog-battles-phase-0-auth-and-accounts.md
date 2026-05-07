@@ -1,15 +1,15 @@
-# Mog Battles — Phase 0: Auth + Accounts Implementation Plan
+# Mog Battles — Phase 0: Auth + Account-Tagged Leaderboard Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add Supabase Auth–backed accounts (Google + Apple OAuth + email magic link), the `profiles` table, the `/account` page, and the `/api/account/link-key` endpoint. Anonymous-with-key flows continue to work unchanged. No battles yet — Phase 0 is pure infrastructure.
+**Goal:** Add Supabase Auth–backed accounts (Google + Apple OAuth + email magic link), the `profiles` table, the `/account` page, and gate the leaderboard behind sign-in. Existing 8-char Crockford key system is fully removed; leaderboard rows are now `user_id`-tagged with one entry per account. Pure anonymous users keep solo scanning; everything else requires an account.
 
-**Architecture:** All auth flows through Supabase Auth (already plumbed for our Postgres). `@supabase/ssr` gives us Next.js 16-compatible server + browser clients. A dedicated server callback route (`/auth/callback`) handles OAuth code exchange and magic-link verification, creates the `profiles` row on first sign-in, and silently auto-migrates any existing `holymog-account-key` from localStorage. The `/account` page is a three-tab UI; only the Settings tab has functionality in this phase.
+**Architecture:** All auth flows through Supabase Auth (already plumbed for our Postgres). `@supabase/ssr` gives us Next.js 16-compatible server + browser clients. A dedicated server callback route (`/auth/callback`) handles OAuth code exchange, magic-link verification, and creates the `profiles` row on first sign-in. The leaderboard table is migrated in a single SQL operation (truncate + drop `account_key` + add `user_id NOT NULL` + replace RLS). A handful of files (`lib/account.ts`, `hooks/useAccount.ts`, `components/AccountKeyCard.tsx`, `app/api/account/[key]/route.ts`) are deleted outright.
 
 **Tech Stack:** Next.js 16 App Router, React 19.2, Supabase Auth + Postgres, `@supabase/ssr`, Tailwind v4, framer-motion (existing).
 
-**Phasing roadmap (full picture, see spec for detail):**
-- **Phase 0 (this plan)** — Auth + Profiles + `/account` page. No battles.
+**Phasing roadmap (full picture, see spec):**
+- **Phase 0 (this plan)** — Auth + Profiles + account-tagged leaderboard. No battles.
 - **Phase 1** — Home page hub at `/`, scan moved to `/scan`, header on every non-`/scan` route.
 - **Phase 2** — LiveKit foundation + 1v1 public battles end-to-end (no ELO yet).
 - **Phase 3** — ELO + stats wiring (private + multiplayer).
@@ -30,27 +30,40 @@ Each subsequent phase gets its own plan written after the previous one ships.
 | `lib/supabase-browser.ts` | Browser-side Supabase client (auth-aware). Used in client components. |
 | `lib/supabase-admin.ts` | Service-role Supabase client for privileged ops (creating profiles bypassing RLS). |
 | `hooks/useUser.ts` | Reactive Supabase user state. Returns `{ user, loading, signOut }`. |
-| `app/auth/callback/route.ts` | Handles OAuth code exchange + magic-link token verification, creates profile, runs key auto-migration, redirects. |
+| `app/auth/callback/route.ts` | Handles OAuth code exchange + magic-link token verification, creates profile, redirects. |
+| `app/api/account/me/route.ts` | GET endpoint returning the current user's profile + their leaderboard entry (if any). |
 | `app/account/page.tsx` | The `/account` page shell: header, tabs, sign-out. Renders one of three tab components. |
-| `app/api/account/link-key/route.ts` | POST endpoint to link a key to the current authenticated profile. |
 | `components/AuthModal.tsx` | The three-button auth modal (Google / Apple / magic link). Opens on demand, dismissable. |
 | `components/AppHeader.tsx` | Wordmark + avatar/sign-in pill. Used on `/leaderboard` and `/account` in Phase 0; expands in Phase 1. |
-| `components/AccountAvatar.tsx` | The avatar circle (or sign-in pill if logged out). Has long-press / dropdown for sign out. |
+| `components/AccountAvatar.tsx` | The avatar circle (or sign-in pill if logged out). Tappable when logged in to navigate to `/account`. |
 | `components/AccountStatsTab.tsx` | Stats tab body. Phase 0 = empty-state placeholder. Real implementation in Phase 3. |
 | `components/AccountHistoryTab.tsx` | History tab body. Phase 0 = "coming soon" placeholder. |
-| `components/AccountSettingsTab.tsx` | Settings tab body: editable display name, paste-key form, sign out. |
-| `components/PasteKeyForm.tsx` | Reusable paste-key input + submit. Shared by AccountSettingsTab and post-auth toast. |
-| `docs/migrations/2026-05-07-phase-0-profiles.sql` | SQL migration: `profiles` table + RLS policies. User runs in Supabase SQL editor. |
+| `components/AccountSettingsTab.tsx` | Settings tab body: editable display name + sign out. (No key UI.) |
+| `docs/migrations/2026-05-07-phase-0-auth-and-leaderboard.sql` | SQL migration: profiles table + leaderboard schema overhaul + RLS. User runs in Supabase SQL editor. |
 
 **Modified files:**
 
 | Path | Changes |
 |---|---|
 | `package.json` | Add `@supabase/ssr` dependency. |
-| `app/leaderboard/page.tsx` | Wrap content with `<AppHeader />` so signed-in users see their avatar. |
+| `app/api/leaderboard/route.ts` | Auth-gate the `POST` (and `DELETE` if any). Switch from `account_key` to `auth.uid()`. Use upsert on `user_id`. Drop the new-key-generation branch entirely. |
+| `app/leaderboard/page.tsx` | Wrap content with `<AppHeader />`. The list rendering doesn't need to change since rows will start coming back with `user_id` instead of `account_key` (we don't render either). |
+| `components/LeaderboardModal.tsx` | Major rewrite: only opens for signed-in users, fetches prefill from `/api/account/me`, drops the linked-key chip, paste-key form, post-issuance `AccountKeyCard`, and `useAccount` hook. Submit flow no longer carries a `key` field. |
+| `app/page.tsx` | Where the modal is mounted, wrap the entrypoint with auth-gating: tapping "add to leaderboard" while logged out opens the auth modal first. |
+| `lib/supabase.ts` | Update `LeaderboardRow` type: drop `account_key`, add `user_id`. |
+| `lib/leaderboardCache.ts` | Update the cache shape if it references `account_key` anywhere; otherwise no change. |
 | `README.md` | Add Phase 0 to the documented architecture; bump phasing roadmap. |
 
-**Routes touched: only `/leaderboard`, `/account`, `/auth/callback`, `/api/account/link-key`. The `/`, `/scan`, `/mog` routes are untouched in Phase 0 (they get reorganised in Phase 1).**
+**Deleted files:**
+
+| Path | Reason |
+|---|---|
+| `lib/account.ts` | Crockford key generation/validation — no longer used. |
+| `hooks/useAccount.ts` | localStorage key trio — no longer used. |
+| `components/AccountKeyCard.tsx` | Post-issuance key card UI — no longer applicable. |
+| `app/api/account/[key]/route.ts` | Key-based account lookup — replaced by `/api/account/me`. |
+
+**Routes touched: `/leaderboard`, `/account`, `/auth/callback`, `/api/account/me`, `/api/leaderboard`, `/`. The `/scan`, `/mog` routes are still unchanged in Phase 0 (they get reorganised in Phase 1).**
 
 **Testing approach:** This codebase has no test suite. Following the existing pattern, verification per task is `npx tsc --noEmit` for compile correctness + manual smoke testing in the browser for UI tasks. The dev server should be running at `localhost:3002` throughout.
 
@@ -67,17 +80,12 @@ Each subsequent phase gets its own plan written after the previous one ships.
 Run: `npm install @supabase/ssr`
 Expected: package added at `^0.5.x` or similar; no warnings.
 
-- [ ] **Step 2: Verify install**
-
-Run: `cat package.json | grep ssr`
-Expected: line `"@supabase/ssr": "^x.y.z"` appears under dependencies.
-
-- [ ] **Step 3: Typecheck baseline**
+- [ ] **Step 2: Typecheck baseline**
 
 Run: `npx tsc --noEmit`
-Expected: no errors (the package exports types out of the box).
+Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add package.json package-lock.json
@@ -86,23 +94,33 @@ git commit -m "Add @supabase/ssr for Next 16 auth"
 
 ---
 
-## Task 2: Add migration SQL for `profiles` table
+## Task 2: Write the migration SQL
 
 **Files:**
-- Create: `docs/migrations/2026-05-07-phase-0-profiles.sql`
+- Create: `docs/migrations/2026-05-07-phase-0-auth-and-leaderboard.sql`
+
+This is a single migration that does five things: creates `profiles`, enables RLS on `profiles`, truncates `leaderboard`, swaps `account_key` for `user_id`, and replaces the leaderboard RLS policies. It does NOT include the storage-bucket wipe — that's manual since SQL doesn't reach storage.
 
 - [ ] **Step 1: Write the migration file**
 
-Create `docs/migrations/2026-05-07-phase-0-profiles.sql`:
+Create `docs/migrations/2026-05-07-phase-0-auth-and-leaderboard.sql`:
 
 ```sql
--- Phase 0 migration: profiles table + RLS.
--- Run this in the Supabase SQL editor as a one-shot.
+-- ============================================================
+-- Phase 0 migration: profiles + account-tagged leaderboard.
+-- Run in the Supabase SQL editor as a single transaction.
+--
+-- BREAKING: this truncates the leaderboard table. Make sure the
+-- holymog-faces storage bucket has also been emptied (manually,
+-- via Supabase Studio) before running.
+-- ============================================================
 
+begin;
+
+-- 1) profiles table.
 create table profiles (
   user_id            uuid primary key references auth.users(id) on delete cascade,
   display_name       text not null,
-  account_key        text references leaderboard(account_key),
   elo                int  not null default 1000,
   peak_elo           int  not null default 1000,
   matches_played     int  not null default 0,
@@ -116,19 +134,13 @@ create table profiles (
   updated_at         timestamptz not null default now()
 );
 
-create unique index profiles_account_key_idx
-  on profiles (account_key) where account_key is not null;
-
--- RLS
 alter table profiles enable row level security;
 
--- Anyone authenticated can read any profile (display name + ELO visible to opponents).
 create policy "profiles are readable by authenticated users"
   on profiles for select
   to authenticated
   using (true);
 
--- Only the user themselves can insert/update their own row.
 create policy "users can insert their own profile"
   on profiles for insert
   to authenticated
@@ -140,7 +152,6 @@ create policy "users can update their own profile"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
--- updated_at trigger
 create or replace function set_updated_at()
 returns trigger as $$
 begin
@@ -152,24 +163,74 @@ $$ language plpgsql;
 create trigger profiles_set_updated_at
   before update on profiles
   for each row execute function set_updated_at();
+
+-- 2) leaderboard breaking change: wipe + swap account_key for user_id.
+truncate table leaderboard;
+
+alter table leaderboard drop column if exists account_key;
+
+alter table leaderboard
+  add column user_id uuid not null references auth.users(id) on delete cascade;
+
+alter table leaderboard
+  add constraint leaderboard_one_row_per_user unique (user_id);
+
+-- 3) Replace leaderboard RLS so the world can read and authenticated users
+--    can write only their own row.
+alter table leaderboard enable row level security;
+
+drop policy if exists "leaderboard rows are world-readable" on leaderboard;
+drop policy if exists "users can insert their own leaderboard row" on leaderboard;
+drop policy if exists "users can update their own leaderboard row" on leaderboard;
+drop policy if exists "users can delete their own leaderboard row" on leaderboard;
+
+create policy "leaderboard rows are world-readable"
+  on leaderboard for select
+  using (true);
+
+create policy "users can insert their own leaderboard row"
+  on leaderboard for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "users can update their own leaderboard row"
+  on leaderboard for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "users can delete their own leaderboard row"
+  on leaderboard for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+commit;
 ```
 
-- [ ] **Step 2: Tell the user to run it**
+- [ ] **Step 2: Tell the user to run it (manual gate)**
 
-Print this message in the implementation summary so the user runs the SQL manually:
+Print:
 
-> Run the contents of `docs/migrations/2026-05-07-phase-0-profiles.sql` in the Supabase SQL editor. After it succeeds, run this to verify:
-> ```sql
-> select column_name from information_schema.columns
-> where table_name = 'profiles' order by ordinal_position;
-> ```
-> Expected: 14 columns including `user_id`, `display_name`, `account_key`, `elo`, `improvement_counts`, etc.
+> Two manual steps before continuing:
+>
+> 1. **Empty the `holymog-faces` storage bucket.** Supabase Studio → Storage → `holymog-faces` → select all → delete. (SQL doesn't reach storage; this has to be done in Studio.)
+>
+> 2. **Run the migration.** Paste `docs/migrations/2026-05-07-phase-0-auth-and-leaderboard.sql` into the Supabase SQL editor and execute. Verify with:
+>    ```sql
+>    select column_name from information_schema.columns
+>    where table_schema = 'public' and table_name = 'profiles' order by ordinal_position;
+>    select column_name from information_schema.columns
+>    where table_schema = 'public' and table_name = 'leaderboard' order by ordinal_position;
+>    ```
+>    Expected: `profiles` has 13 columns including `user_id`, `display_name`, `elo`, etc. `leaderboard` no longer has `account_key`; it has `user_id` instead.
+>
+> Confirm both steps before Task 3 proceeds.
 
-- [ ] **Step 3: Commit the SQL**
+- [ ] **Step 3: Commit the migration file**
 
 ```bash
-git add docs/migrations/2026-05-07-phase-0-profiles.sql
-git commit -m "Add Phase 0 migration: profiles table"
+git add docs/migrations/2026-05-07-phase-0-auth-and-leaderboard.sql
+git commit -m "Phase 0 migration: profiles + account-tagged leaderboard"
 ```
 
 ---
@@ -180,7 +241,7 @@ git commit -m "Add Phase 0 migration: profiles table"
 
 - [ ] **Step 1: Document the steps**
 
-Print this for the user. No code:
+Print:
 
 > In the Supabase dashboard for project `onnxwfkngqsoluevnanp`:
 >
@@ -197,7 +258,7 @@ Print this for the user. No code:
 >
 > **3c. Email magic link**
 > 1. **Authentication → Providers → Email → Enabled**, **Confirm email = false**, **Magic link = true**.
-> 2. Default Supabase SMTP works for now. (Optional later: connect Resend for branded sender + better deliverability.)
+> 2. Default Supabase SMTP works for now.
 >
 > **3d. Site URL + Redirect URLs**
 > 1. **Authentication → URL Configuration → Site URL** = `https://www.holymog.com`.
@@ -207,10 +268,11 @@ This is a manual gate — do NOT proceed to Task 4 until the user confirms provi
 
 ---
 
-## Task 4: Add Supabase Auth env var
+## Task 4: Add auth env vars
 
 **Files:**
 - Modify: `.env.local` (gitignored)
+- Vercel project env (manual)
 
 - [ ] **Step 1: Find the service role key**
 
@@ -221,23 +283,27 @@ User opens Supabase dashboard → **Project Settings → API** → copies the **
 Append to `.env.local`:
 
 ```
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...   # paste from Supabase dashboard
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+NEXT_PUBLIC_SUPABASE_URL=https://onnxwfkngqsoluevnanp.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<same anon key already in .env.local>
 ```
 
-- [ ] **Step 3: Restart the dev server**
+- [ ] **Step 3: Add to Vercel project env**
+
+User adds the same three vars in Vercel → Project Settings → Environment Variables for both `Production` and `Preview` envs.
+
+- [ ] **Step 4: Restart the dev server**
 
 ```bash
 lsof -nP -iTCP:3002 -sTCP:LISTEN -t | xargs -r kill
 npx next dev -p 3002 &
 ```
 
-Verify: `curl -sS -o /dev/null -w '%{http_code}' http://localhost:3002` returns `200`.
-
-This is a manual gate — do NOT proceed until env is set.
+Manual gate — confirm vars are set in both local and Vercel before Task 5.
 
 ---
 
-## Task 5: Create server-side Supabase client (auth-aware)
+## Task 5: Server-side Supabase client
 
 **Files:**
 - Create: `lib/supabase-server.ts`
@@ -273,21 +339,17 @@ export async function getSupabaseServer() {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add lib/supabase-server.ts
 git commit -m "Add server-side Supabase client (auth-aware)"
 ```
 
 ---
 
-## Task 6: Create browser-side Supabase client (auth-aware)
+## Task 6: Browser-side Supabase client
 
 **Files:**
 - Create: `lib/supabase-browser.ts`
@@ -301,10 +363,6 @@ import { createBrowserClient } from '@supabase/ssr';
 
 let cached: ReturnType<typeof createBrowserClient> | null = null;
 
-/**
- * Browser-side Supabase client. Singleton — reuses the same instance across
- * the React tree so the auth listener doesn't fire multiple times.
- */
 export function getSupabaseBrowser() {
   if (cached) return cached;
   cached = createBrowserClient(
@@ -315,34 +373,17 @@ export function getSupabaseBrowser() {
 }
 ```
 
-- [ ] **Step 2: Add NEXT_PUBLIC_ env vars**
-
-`SUPABASE_URL` and `SUPABASE_ANON_KEY` need browser-readable mirrors. Append to `.env.local`:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://onnxwfkngqsoluevnanp.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<same anon key already in .env.local>
-```
-
-- [ ] **Step 3: Restart dev server, typecheck**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
-lsof -nP -iTCP:3002 -sTCP:LISTEN -t | xargs -r kill
-npx next dev -p 3002 &
 npx tsc --noEmit
-```
-Expected: typecheck clean, dev server up.
-
-- [ ] **Step 4: Commit**
-
-```bash
 git add lib/supabase-browser.ts
 git commit -m "Add browser-side Supabase client"
 ```
 
 ---
 
-## Task 7: Create service-role admin client
+## Task 7: Service-role admin client
 
 **Files:**
 - Create: `lib/supabase-admin.ts`
@@ -374,21 +415,17 @@ export function getSupabaseAdmin(): SupabaseClient {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add lib/supabase-admin.ts
 git commit -m "Add service-role Supabase admin client"
 ```
 
 ---
 
-## Task 8: Add `useUser` hook
+## Task 8: `useUser` hook
 
 **Files:**
 - Create: `hooks/useUser.ts`
@@ -429,21 +466,17 @@ export function useUser() {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add hooks/useUser.ts
 git commit -m "Add useUser hook"
 ```
 
 ---
 
-## Task 9: Build `AuthModal` component
+## Task 9: `AuthModal` component
 
 **Files:**
 - Create: `components/AuthModal.tsx`
@@ -461,7 +494,7 @@ import { getSupabaseBrowser } from '@/lib/supabase-browser';
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Contextual subtitle, e.g. "to battle". */
+  /** Contextual subtitle, e.g. "to battle" or "to submit". */
   context?: string;
   /** Where to redirect after successful auth. Defaults to current path. */
   next?: string;
@@ -613,21 +646,17 @@ export function AuthModal({ open, onClose, context, next }: Props) {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add components/AuthModal.tsx
 git commit -m "Add AuthModal component (OAuth + magic link)"
 ```
 
 ---
 
-## Task 10: Build `/auth/callback` Route Handler
+## Task 10: `/auth/callback` Route Handler
 
 **Files:**
 - Create: `app/auth/callback/route.ts`
@@ -642,11 +671,6 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/**
- * Handles both OAuth code exchange and magic-link verification. On first sign-in
- * for a given user, creates the matching `profiles` row. Redirects to `?next=`
- * if provided, else `/account`.
- */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
@@ -668,12 +692,10 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get the freshly authenticated user.
     const { data: userData } = await supabase.auth.getUser();
     const user = userData.user;
 
     if (user) {
-      // Create profile if first time.
       const admin = getSupabaseAdmin();
       const { data: existing } = await admin
         .from('profiles')
@@ -684,8 +706,8 @@ export async function GET(request: Request) {
       if (!existing) {
         const meta = user.user_metadata ?? {};
         const fromOauth =
-          (typeof meta.name === 'string' && meta.name) ||
           (typeof meta.full_name === 'string' && meta.full_name) ||
+          (typeof meta.name === 'string' && meta.name) ||
           '';
         const emailLocal = (user.email ?? '').split('@')[0] ?? '';
         const displayName = (fromOauth || emailLocal || 'player').toLowerCase().slice(0, 24);
@@ -702,37 +724,204 @@ export async function GET(request: Request) {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add app/auth/callback/route.ts
 git commit -m "Add /auth/callback route handler"
 ```
 
 ---
 
-## Task 11: Build `/api/account/link-key` endpoint
+## Task 11: `/api/account/me` endpoint
 
 **Files:**
-- Create: `app/api/account/link-key/route.ts`
+- Create: `app/api/account/me/route.ts`
 
 - [ ] **Step 1: Write the route**
 
 ```ts
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase-server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { isValidAccountKey, normaliseAccountKey } from '@/lib/account';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type Body = { key?: unknown };
+/**
+ * Returns the current authenticated user's profile + their leaderboard
+ * row (if they have one). Used by the leaderboard modal to prefill.
+ */
+export async function GET() {
+  const supabase = await getSupabaseServer();
+  const { data: userData } = await supabase.auth.getUser();
+  const user = userData.user;
+  if (!user) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+
+  const [{ data: profile }, { data: entry }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('display_name, elo, peak_elo, matches_played, matches_won')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('leaderboard')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ]);
+
+  return NextResponse.json({
+    profile: profile ?? null,
+    entry: entry ?? null,
+  });
+}
+```
+
+- [ ] **Step 2: Typecheck + commit**
+
+```bash
+npx tsc --noEmit
+git add app/api/account/me/route.ts
+git commit -m "Add GET /api/account/me endpoint"
+```
+
+---
+
+## Task 12: Rewrite `/api/leaderboard` POST for auth-gated upsert
+
+**Files:**
+- Modify: `app/api/leaderboard/route.ts`
+
+The existing handler uses `account_key` and a service-role client. Rewrite to require an authenticated session, upsert by `user_id`, and remove all key-related code paths. The GET stays identical.
+
+- [ ] **Step 1: Replace the file body**
+
+Open `app/api/leaderboard/route.ts` and replace the contents with:
+
+```ts
+import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
+import {
+  FACES_BUCKET,
+  getSupabase,
+  type LeaderboardRow,
+} from '@/lib/supabase';
+import { getSupabaseServer } from '@/lib/supabase-server';
+import { getRatelimit } from '@/lib/ratelimit';
+import { getTier } from '@/lib/tier';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const MAX_NAME_LEN = 24;
+const MAX_RESULTS = 100;
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
+type PostBody = {
+  name?: unknown;
+  scores?: unknown;
+  imageBase64?: unknown;
+};
+
+type Scores = {
+  overall: number;
+  sub: { jawline: number; eyes: number; skin: number; cheekbones: number };
+};
+
+type UploadedPhoto = { path: string; url: string };
+
+function isInt0to100(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100;
+}
+
+function validateScores(s: unknown): Scores | null {
+  if (!s || typeof s !== 'object') return null;
+  const o = s as Record<string, unknown>;
+  const sub = o.sub as Record<string, unknown> | undefined;
+  if (
+    !isInt0to100(o.overall) ||
+    !sub ||
+    !isInt0to100(sub.jawline) ||
+    !isInt0to100(sub.eyes) ||
+    !isInt0to100(sub.skin) ||
+    !isInt0to100(sub.cheekbones)
+  ) {
+    return null;
+  }
+  return {
+    overall: Math.round(o.overall),
+    sub: {
+      jawline: Math.round(sub.jawline as number),
+      eyes: Math.round(sub.eyes as number),
+      skin: Math.round(sub.skin as number),
+      cheekbones: Math.round(sub.cheekbones as number),
+    },
+  };
+}
+
+async function uploadPhoto(
+  supabase: SupabaseClient,
+  imageBase64: string,
+): Promise<UploadedPhoto | { error: string; status: number }> {
+  const match = imageBase64.match(/^data:(image\/(?:jpeg|jpg|png));base64,(.+)$/);
+  if (!match) return { error: 'invalid_image', status: 400 };
+  const mime = match[1];
+  const buf = Buffer.from(match[2], 'base64');
+  if (buf.byteLength > MAX_IMAGE_BYTES) {
+    return { error: 'image_too_large', status: 413 };
+  }
+  const ext = mime === 'image/png' ? 'png' : 'jpg';
+  const path = `${randomUUID()}.${ext}`;
+  const { error: uploadErr } = await supabase.storage
+    .from(FACES_BUCKET)
+    .upload(path, buf, { contentType: mime, cacheControl: '3600' });
+  if (uploadErr) return { error: uploadErr.message, status: 500 };
+  const { data: pub } = supabase.storage.from(FACES_BUCKET).getPublicUrl(path);
+  return { path, url: pub.publicUrl };
+}
+
+async function deletePhoto(supabase: SupabaseClient, path: string | null) {
+  if (!path) return;
+  await supabase.storage.from(FACES_BUCKET).remove([path]).catch(() => {});
+}
+
+export async function GET(request: Request) {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return NextResponse.json({
+      entries: [] as LeaderboardRow[],
+      hasMore: false,
+      error: 'unconfigured',
+    });
+  }
+  const { searchParams } = new URL(request.url);
+  const pageParam = parseInt(searchParams.get('page') ?? '1', 10);
+  const page = Number.isFinite(pageParam) && pageParam >= 1 ? Math.floor(pageParam) : 1;
+  const from = (page - 1) * MAX_RESULTS;
+  const to = from + MAX_RESULTS - 1;
+
+  const { data, error } = await supabase
+    .from('leaderboard')
+    .select('*')
+    .order('overall', { ascending: false })
+    .range(from, to);
+  if (error) {
+    return NextResponse.json(
+      { entries: [], hasMore: false, error: error.message },
+      { status: 500 },
+    );
+  }
+  const entries = data ?? [];
+  return NextResponse.json({
+    entries,
+    hasMore: entries.length === MAX_RESULTS,
+    page,
+  });
+}
 
 export async function POST(request: Request) {
   const supabase = await getSupabaseServer();
@@ -742,181 +931,591 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
-  let body: Body;
+  const limiter = getRatelimit();
+  if (limiter) {
+    const ip = request.headers.get('x-forwarded-for') ?? user.id;
+    const result = await limiter.limit(`lb:${ip}`);
+    if (!result.success) {
+      return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+    }
+  }
+
+  let body: PostBody;
   try {
-    body = (await request.json()) as Body;
+    body = (await request.json()) as PostBody;
   } catch {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
-  const rawKey = typeof body.key === 'string' ? body.key : '';
-  if (!rawKey) {
-    return NextResponse.json({ linked: false });
+  const rawName = typeof body.name === 'string' ? body.name.trim() : '';
+  if (rawName.length === 0 || rawName.length > MAX_NAME_LEN) {
+    return NextResponse.json({ error: 'invalid_name' }, { status: 400 });
   }
-  const key = normaliseAccountKey(rawKey);
-  if (!isValidAccountKey(key)) {
-    return NextResponse.json({ error: 'invalid_key' }, { status: 400 });
+  const name = rawName.replace(/\s+/g, ' ').toLowerCase();
+
+  const scores = validateScores(body.scores);
+  if (!scores) {
+    return NextResponse.json({ error: 'invalid_scores' }, { status: 400 });
   }
 
-  const admin = getSupabaseAdmin();
+  const tier = getTier(scores.overall).letter;
+  const wantsPhoto =
+    typeof body.imageBase64 === 'string' && body.imageBase64.length > 0;
 
-  // Is this key already on a profile?
-  const { data: existingOwner } = await admin
-    .from('profiles')
-    .select('user_id')
-    .eq('account_key', key)
+  // Look up existing row.
+  const { data: existing, error: lookupErr } = await supabase
+    .from('leaderboard')
+    .select('id, image_path')
+    .eq('user_id', user.id)
     .maybeSingle();
-
-  if (existingOwner && existingOwner.user_id !== user.id) {
-    return NextResponse.json({ error: 'key_owned_by_other' }, { status: 409 });
-  }
-  if (existingOwner && existingOwner.user_id === user.id) {
-    return NextResponse.json({ linked: true, alreadyLinked: true, key });
+  if (lookupErr) {
+    return NextResponse.json({ error: lookupErr.message }, { status: 500 });
   }
 
-  // Update the user's profile.account_key.
-  const { error: updateErr } = await admin
-    .from('profiles')
-    .update({ account_key: key })
-    .eq('user_id', user.id);
-  if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  let imageUrl: string | null = null;
+  let imagePath: string | null = null;
+  if (wantsPhoto) {
+    const upload = await uploadPhoto(supabase, body.imageBase64 as string);
+    if ('error' in upload) {
+      return NextResponse.json({ error: upload.error }, { status: upload.status });
+    }
+    imageUrl = upload.url;
+    imagePath = upload.path;
   }
 
-  return NextResponse.json({ linked: true, key });
+  if (existing) {
+    // Update path.
+    const { data, error } = await supabase
+      .from('leaderboard')
+      .update({
+        name,
+        overall: scores.overall,
+        tier,
+        jawline: scores.sub.jawline,
+        eyes: scores.sub.eyes,
+        skin: scores.sub.skin,
+        cheekbones: scores.sub.cheekbones,
+        image_url: imageUrl,
+        image_path: imagePath,
+      })
+      .eq('user_id', user.id)
+      .select('*')
+      .single();
+    if (error) {
+      if (imagePath) void deletePhoto(supabase, imagePath);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    void deletePhoto(supabase, existing.image_path);
+    return NextResponse.json({ entry: data, isNew: false });
+  }
+
+  // Insert path.
+  const { data, error } = await supabase
+    .from('leaderboard')
+    .insert({
+      user_id: user.id,
+      name,
+      overall: scores.overall,
+      tier,
+      jawline: scores.sub.jawline,
+      eyes: scores.sub.eyes,
+      skin: scores.sub.skin,
+      cheekbones: scores.sub.cheekbones,
+      image_url: imageUrl,
+      image_path: imagePath,
+    })
+    .select('*')
+    .single();
+  if (error) {
+    if (imagePath) void deletePhoto(supabase, imagePath);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ entry: data, isNew: true });
 }
+```
+
+- [ ] **Step 2: Update `LeaderboardRow` type**
+
+Open `lib/supabase.ts` and replace the `LeaderboardRow` type:
+
+```ts
+export type LeaderboardRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  overall: number;
+  tier: string;
+  jawline: number;
+  eyes: number;
+  skin: number;
+  cheekbones: number;
+  image_url: string | null;
+  image_path: string | null;
+  created_at: string;
+};
+```
+
+- [ ] **Step 3: Typecheck**
+
+Run `npx tsc --noEmit`. Expected errors: callers of `LeaderboardRow.account_key` (LeaderboardModal, leaderboard cache, leaderboard page). They'll all be cleaned up in Tasks 13–15.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app/api/leaderboard/route.ts lib/supabase.ts
+git commit -m "Auth-gate leaderboard POST, upsert on user_id"
+```
+
+(Typecheck will be red until Task 15. That's expected — see commit-as-you-go in subsequent tasks.)
+
+---
+
+## Task 13: Delete the legacy key files
+
+**Files (deletes):**
+- Delete: `lib/account.ts`
+- Delete: `hooks/useAccount.ts`
+- Delete: `components/AccountKeyCard.tsx`
+- Delete: `app/api/account/[key]/route.ts`
+- Delete: `app/api/account/[key]/` (empty dir after the file is gone)
+
+- [ ] **Step 1: Delete the files**
+
+```bash
+rm lib/account.ts hooks/useAccount.ts components/AccountKeyCard.tsx app/api/account/[key]/route.ts
+rmdir app/api/account/\[key\]
 ```
 
 - [ ] **Step 2: Typecheck**
 
-Run: `npx tsc --noEmit`
-Expected: no errors.
+Run `npx tsc --noEmit`. Errors will reference the missing imports — every callsite gets fixed in Task 14.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Don't commit yet**
 
-```bash
-git add app/api/account/link-key/route.ts
-git commit -m "Add POST /api/account/link-key endpoint"
-```
+Hold the commit until Task 14 wraps the cleanup.
 
 ---
 
-## Task 12: Build `PasteKeyForm` reusable component
+## Task 14: Rewrite `LeaderboardModal` for the auth-gated world
 
 **Files:**
-- Create: `components/PasteKeyForm.tsx`
+- Modify: `components/LeaderboardModal.tsx`
 
-- [ ] **Step 1: Write the component**
+This component currently uses `useAccount` and the masked-key chip and the paste-key form and AccountKeyCard — none of which exist now. The new behavior: only opens for signed-in users; on open, fetches `/api/account/me` to prefill name + previous-score comparison; submits with no key field.
+
+- [ ] **Step 1: Replace the entire file**
+
+Replace `components/LeaderboardModal.tsx` with:
 
 ```tsx
 'use client';
 
-import { useState } from 'react';
 import {
-  ACCOUNT_KEY_LENGTH,
-  isValidAccountKey,
-  normaliseAccountKey,
-} from '@/lib/account';
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Check, X } from 'lucide-react';
+import type { FinalScores } from '@/types';
+import { getTier } from '@/lib/tier';
+import { getScoreColor } from '@/lib/scoreColor';
+import { useUser } from '@/hooks/useUser';
+import { clearLeaderboardCache } from '@/lib/leaderboardCache';
+
+const MAX_NAME_LEN = 24;
 
 type Props = {
-  /** Called on success with the linked key. */
-  onLinked: (key: string) => void;
-  /** Optional initial key for re-display. */
-  initialValue?: string;
+  open: boolean;
+  scores: FinalScores;
+  capturedImage: string;
+  onClose: () => void;
+  onSubmitted?: () => void;
 };
 
 type Status =
   | { kind: 'idle' }
   | { kind: 'submitting' }
-  | { kind: 'error'; message: string }
-  | { kind: 'success'; key: string };
+  | { kind: 'success' }
+  | { kind: 'error'; message: string };
 
-export function PasteKeyForm({ onLinked, initialValue = '' }: Props) {
-  const [value, setValue] = useState(initialValue);
+type PreviousEntry = {
+  name: string;
+  overall: number;
+  tier: string;
+  hasPhoto: boolean;
+};
+
+export function LeaderboardModal({
+  open,
+  scores,
+  capturedImage,
+  onClose,
+  onSubmitted,
+}: Props) {
+  const { user, loading: userLoading } = useUser();
+
+  const [name, setName] = useState('');
+  const [includePhoto, setIncludePhoto] = useState(false);
+  const [previous, setPrevious] = useState<PreviousEntry | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const [showLowercaseHint, setShowLowercaseHint] = useState(false);
 
-  const submit = async () => {
-    const key = normaliseAccountKey(value);
-    if (!isValidAccountKey(key)) {
-      setStatus({ kind: 'error', message: '8 letters or numbers' });
-      return;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const lowercaseHintTimerRef = useRef<number | null>(null);
+
+  const triggerLowercaseHint = useCallback(() => {
+    setShowLowercaseHint(true);
+    if (lowercaseHintTimerRef.current !== null) {
+      window.clearTimeout(lowercaseHintTimerRef.current);
     }
+    lowercaseHintTimerRef.current = window.setTimeout(() => {
+      setShowLowercaseHint(false);
+      lowercaseHintTimerRef.current = null;
+    }, 1800);
+  }, []);
+
+  // Reset state every open.
+  useLayoutEffect(() => {
+    if (!open) return;
+    setName('');
+    setIncludePhoto(false);
+    setPrevious(null);
+    setStatus({ kind: 'idle' });
+    setShowLowercaseHint(false);
+    if (lowercaseHintTimerRef.current !== null) {
+      window.clearTimeout(lowercaseHintTimerRef.current);
+      lowercaseHintTimerRef.current = null;
+    }
+    const t = window.setTimeout(() => inputRef.current?.focus(), 150);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
+  // Fetch /api/account/me to prefill once we know we're signed in.
+  useEffect(() => {
+    if (!open || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/account/me', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          profile?: { display_name?: string };
+          entry?: {
+            name: string;
+            overall: number;
+            tier: string;
+            image_url: string | null;
+          } | null;
+        };
+        if (cancelled) return;
+        if (data.profile?.display_name) setName(data.profile.display_name);
+        if (data.entry) {
+          setPrevious({
+            name: data.entry.name,
+            overall: data.entry.overall,
+            tier: data.entry.tier,
+            hasPhoto: !!data.entry.image_url,
+          });
+          setIncludePhoto(!!data.entry.image_url);
+        }
+      } catch {
+        // best-effort; modal still works without prefill
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user]);
+
+  const submit = useCallback(async () => {
+    const trimmed = name.trim();
+    if (trimmed.length === 0 || trimmed.length > MAX_NAME_LEN) return;
     setStatus({ kind: 'submitting' });
     try {
-      const res = await fetch('/api/account/link-key', {
+      const body: Record<string, unknown> = { name: trimmed, scores };
+      if (includePhoto) body.imageBase64 = capturedImage;
+
+      const res = await fetch('/api/leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key }),
+        body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as {
-        linked?: boolean;
-        alreadyLinked?: boolean;
         error?: string;
-        key?: string;
+        isNew?: boolean;
       };
+
       if (!res.ok) {
         const msg =
-          data.error === 'key_owned_by_other'
-            ? 'that key belongs to another account'
-            : data.error === 'invalid_key'
-              ? 'invalid key format'
-              : data.error === 'unauthenticated'
-                ? 'sign in first'
-                : 'could not link key';
+          data.error === 'rate_limited'
+            ? 'too many submissions, slow down'
+            : data.error === 'unauthenticated'
+              ? 'session expired, sign in again'
+              : data.error === 'leaderboard_unconfigured'
+                ? 'leaderboard not yet available'
+                : 'could not save, try again';
         setStatus({ kind: 'error', message: msg });
         return;
       }
-      if (data.linked && data.key) {
-        // persist locally so leaderboard modal flows pick it up
-        try {
-          window.localStorage.setItem('holymog-account-key', data.key);
-        } catch {
-          // ignore
-        }
-        setStatus({ kind: 'success', key: data.key });
-        onLinked(data.key);
-      }
+
+      clearLeaderboardCache();
+      onSubmitted?.();
+      setStatus({ kind: 'success' });
+      window.setTimeout(onClose, 900);
     } catch {
       setStatus({ kind: 'error', message: 'network error' });
     }
+  }, [name, scores, includePhoto, capturedImage, onSubmitted, onClose]);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') void submit();
   };
 
+  const newScore = scores.overall;
+  const newTier = getTier(newScore);
+  const delta = previous ? newScore - previous.overall : 0;
+  const submitLabel = previous
+    ? delta < 0
+      ? 'Replace anyway'
+      : 'Replace'
+    : 'Submit';
+  const submitDisabled =
+    status.kind === 'submitting' ||
+    status.kind === 'success' ||
+    name.trim().length === 0;
+
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => {
-            const next = normaliseAccountKey(e.target.value).slice(0, ACCOUNT_KEY_LENGTH);
-            setValue(next);
-            if (status.kind === 'error') setStatus({ kind: 'idle' });
-          }}
-          placeholder="ABCD1234"
-          maxLength={ACCOUNT_KEY_LENGTH}
-          className="flex-1 rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 font-mono text-sm tracking-[0.2em] text-white placeholder:text-zinc-600 focus:border-white/30 focus:outline-none uppercase placeholder:uppercase"
-          autoCapitalize="characters"
-          autoComplete="off"
-          spellCheck={false}
-          aria-label="Account key"
-        />
-        <button
-          type="button"
-          onClick={submit}
-          disabled={
-            status.kind === 'submitting' || value.length !== ACCOUNT_KEY_LENGTH
-          }
-          className="rounded-lg bg-white px-3 text-xs font-semibold text-black hover:bg-zinc-100 disabled:opacity-50"
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lb-title"
+          onClick={onClose}
         >
-          {status.kind === 'submitting' ? '…' : 'link'}
-        </button>
+          <motion.div
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 24, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl border border-white/10 bg-black p-6"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 id="lb-title" className="text-base font-semibold text-white">
+                Add to leaderboard
+              </h2>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {userLoading ? (
+              <p className="text-sm text-zinc-500">loading…</p>
+            ) : !user ? (
+              <p className="text-sm text-zinc-300">
+                sign in to submit. close this modal and tap "sign in" in the header.
+              </p>
+            ) : (
+              <>
+                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  you · {name || 'set a name'}
+                </div>
+
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={name}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const lowered = raw.toLowerCase();
+                    if (raw !== lowered) triggerLowercaseHint();
+                    setName(lowered.slice(0, MAX_NAME_LEN));
+                  }}
+                  onKeyDown={onKeyDown}
+                  placeholder="your name"
+                  maxLength={MAX_NAME_LEN}
+                  className="mb-1 w-full rounded-xl border border-white/15 bg-white/[0.04] px-3 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-white/30 focus:outline-none"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  aria-label="Name"
+                />
+                <p
+                  className="mb-3 text-[11px] transition-colors duration-300"
+                  style={{ color: showLowercaseHint ? '#facc15' : '#71717a' }}
+                >
+                  {showLowercaseHint ? 'names are lowercase' : 'e.g. brian gao'}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setIncludePhoto((v) => !v)}
+                  aria-pressed={includePhoto}
+                  className="mb-3 flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3 text-left transition-colors hover:bg-white/[0.05]"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
+                      includePhoto
+                        ? 'border-emerald-500 bg-emerald-500'
+                        : 'border-white/30 bg-transparent'
+                    }`}
+                    aria-hidden
+                  >
+                    {includePhoto && (
+                      <Check size={13} strokeWidth={3} className="text-black" />
+                    )}
+                  </span>
+                  <span className="flex-1">
+                    <span className="block text-sm text-white">
+                      also share my photo
+                    </span>
+                    <span className="block text-[11px] text-zinc-500">
+                      shows next to your name on the board
+                    </span>
+                  </span>
+                  {includePhoto && (
+                    <span className="overflow-hidden rounded-full border border-white/15">
+                      <img
+                        src={capturedImage}
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 object-cover"
+                      />
+                    </span>
+                  )}
+                </button>
+
+                {previous && (
+                  <ComparisonBlock
+                    prevOverall={previous.overall}
+                    prevTierLetter={previous.tier}
+                    newOverall={newScore}
+                    newTierLetter={newTier.letter}
+                    delta={delta}
+                  />
+                )}
+
+                {status.kind === 'error' && (
+                  <p className="mb-3 text-xs text-red-400">{status.message}</p>
+                )}
+                {status.kind === 'success' && (
+                  <p className="mb-3 text-xs text-emerald-400">
+                    {previous ? 'updated, see you on the board' : 'added, see you on the board'}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    style={{ touchAction: 'manipulation' }}
+                    className="h-11 flex-1 rounded-full border border-white/15 bg-white/[0.03] text-sm text-white hover:bg-white/[0.07]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submit}
+                    disabled={submitDisabled}
+                    style={{ touchAction: 'manipulation' }}
+                    className="h-11 flex-1 rounded-full bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 disabled:opacity-50"
+                  >
+                    {status.kind === 'submitting' ? 'saving…' : submitLabel}
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function ComparisonBlock({
+  prevOverall,
+  prevTierLetter,
+  newOverall,
+  newTierLetter,
+  delta,
+}: {
+  prevOverall: number;
+  prevTierLetter: string;
+  newOverall: number;
+  newTierLetter: string;
+  delta: number;
+}) {
+  const prevColor = getScoreColor(prevOverall);
+  const newColor = getScoreColor(newOverall);
+  const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '→';
+  const deltaColor = delta > 0 ? '#22c55e' : delta < 0 ? '#ef4444' : '#a1a1aa';
+
+  return (
+    <div className="mb-3 grid grid-cols-2 gap-2">
+      <Cell label="previous" score={prevOverall} tier={prevTierLetter} color={prevColor} />
+      <Cell
+        label="this scan"
+        score={newOverall}
+        tier={newTierLetter}
+        color={newColor}
+        accentRight={
+          <span
+            className="ml-1 font-num text-[11px] font-semibold tabular-nums"
+            style={{ color: deltaColor }}
+          >
+            {arrow} {delta > 0 ? '+' : ''}
+            {delta}
+          </span>
+        }
+      />
+    </div>
+  );
+}
+
+function Cell({
+  label,
+  score,
+  tier,
+  color,
+  accentRight,
+}: {
+  label: string;
+  score: number;
+  tier: string;
+  color: string;
+  accentRight?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+        {label}
       </div>
-      {status.kind === 'error' && (
-        <p className="text-[11px] text-red-400">{status.message}</p>
-      )}
-      {status.kind === 'success' && (
-        <p className="text-[11px] text-emerald-400">linked: {status.key}</p>
-      )}
+      <div className="mt-0.5 flex items-baseline gap-1.5">
+        <span
+          className="font-num text-2xl font-extrabold tabular-nums"
+          style={{ color }}
+        >
+          {score}
+        </span>
+        <span className="text-xs text-zinc-400 normal-case">{tier}</span>
+        {accentRight}
+      </div>
     </div>
   );
 }
@@ -924,19 +1523,62 @@ export function PasteKeyForm({ onLinked, initialValue = '' }: Props) {
 
 - [ ] **Step 2: Typecheck**
 
-Run: `npx tsc --noEmit`
-Expected: no errors.
+Run `npx tsc --noEmit`. Expected: clean. (The deletes from Task 13 + this rewrite together remove every key reference.)
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Commit Tasks 13 + 14 together**
 
 ```bash
-git add components/PasteKeyForm.tsx
-git commit -m "Add PasteKeyForm reusable component"
+git add -u
+git commit -m "Rewrite LeaderboardModal for account-gated submission; remove legacy key code"
 ```
 
 ---
 
-## Task 13: Build `AccountAvatar` component
+## Task 15: Auth-gate the "add to leaderboard" entrypoint on `/`
+
+**Files:**
+- Modify: `app/page.tsx`
+
+When a logged-out user taps "add to leaderboard" on the complete screen, open the AuthModal instead of LeaderboardModal. After they sign in, `?next=/` brings them back; they can re-open the modal manually.
+
+- [ ] **Step 1: Add the auth gate**
+
+In `app/page.tsx`, find the `onAddToLeaderboard` handler / button wiring near the `setLeaderboardOpen` calls. Wrap the open with an auth check using `useUser`:
+
+```tsx
+import { useUser } from '@/hooks/useUser';
+import { AuthModal } from '@/components/AuthModal';
+
+// ... inside Home():
+const { user } = useUser();
+const [authOpen, setAuthOpen] = useState(false);
+
+// ...
+const onAddToLeaderboard = () => {
+  if (user) {
+    setLeaderboardOpen(true);
+  } else {
+    setAuthOpen(true);
+  }
+};
+
+// in the JSX:
+<AuthModal open={authOpen} onClose={() => setAuthOpen(false)} context="to submit" next="/" />
+```
+
+(Replace the existing `onAddToLeaderboard` callback used by the LeaderboardButton.)
+
+- [ ] **Step 2: Typecheck + commit**
+
+```bash
+npx tsc --noEmit
+git add app/page.tsx
+git commit -m "Auth-gate leaderboard submission entrypoint on /"
+```
+
+---
+
+## Task 16: `AccountAvatar` component
 
 **Files:**
 - Create: `components/AccountAvatar.tsx`
@@ -952,9 +1594,7 @@ import { useUser } from '@/hooks/useUser';
 import { AuthModal } from './AuthModal';
 
 type Props = {
-  /** Where to come back to after sign-in (defaults to current path). */
   next?: string;
-  /** Subtitle, e.g. "to battle". */
   context?: string;
 };
 
@@ -986,7 +1626,6 @@ export function AccountAvatar({ next, context }: Props) {
     );
   }
 
-  // Logged in: small circular avatar (initials), tap → /account.
   const meta = user.user_metadata ?? {};
   const name =
     (typeof meta.full_name === 'string' && meta.full_name) ||
@@ -1014,21 +1653,17 @@ export function AccountAvatar({ next, context }: Props) {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add components/AccountAvatar.tsx
 git commit -m "Add AccountAvatar component"
 ```
 
 ---
 
-## Task 14: Build `AppHeader` wrapper
+## Task 17: `AppHeader` wrapper
 
 **Files:**
 - Create: `components/AppHeader.tsx`
@@ -1042,9 +1677,7 @@ import Link from 'next/link';
 import { AccountAvatar } from './AccountAvatar';
 
 type Props = {
-  /** Where AccountAvatar's auth modal should send the user post-sign-in. */
   authNext?: string;
-  /** Subtitle for the auth modal. */
   authContext?: string;
 };
 
@@ -1066,26 +1699,23 @@ export function AppHeader({ authNext, authContext }: Props) {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add components/AppHeader.tsx
 git commit -m "Add AppHeader wrapper"
 ```
 
 ---
 
-## Task 15: Build `AccountStatsTab` placeholder
+## Task 18: Account stats / history placeholders
 
 **Files:**
 - Create: `components/AccountStatsTab.tsx`
+- Create: `components/AccountHistoryTab.tsx`
 
-- [ ] **Step 1: Write the component**
+- [ ] **Step 1: Write `AccountStatsTab.tsx`**
 
 ```tsx
 'use client';
@@ -1106,26 +1736,7 @@ export function AccountStatsTab() {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add components/AccountStatsTab.tsx
-git commit -m "Add AccountStatsTab placeholder"
-```
-
----
-
-## Task 16: Build `AccountHistoryTab` placeholder
-
-**Files:**
-- Create: `components/AccountHistoryTab.tsx`
-
-- [ ] **Step 1: Write the component**
+- [ ] **Step 2: Write `AccountHistoryTab.tsx`**
 
 ```tsx
 'use client';
@@ -1145,21 +1756,17 @@ export function AccountHistoryTab() {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Typecheck + commit**
 
 ```bash
-git add components/AccountHistoryTab.tsx
-git commit -m "Add AccountHistoryTab placeholder"
+npx tsc --noEmit
+git add components/AccountStatsTab.tsx components/AccountHistoryTab.tsx
+git commit -m "Add account stats + history placeholders"
 ```
 
 ---
 
-## Task 17: Build `AccountSettingsTab`
+## Task 19: `AccountSettingsTab` (display name + sign out only)
 
 **Files:**
 - Create: `components/AccountSettingsTab.tsx`
@@ -1172,18 +1779,11 @@ git commit -m "Add AccountHistoryTab placeholder"
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/useUser';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
-import { PasteKeyForm } from './PasteKeyForm';
 
 const MAX_NAME_LEN = 24;
 
-type Profile = {
-  display_name: string;
-  account_key: string | null;
-};
-
 export function AccountSettingsTab() {
   const { user, signOut } = useUser();
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [nameStatus, setNameStatus] = useState<'idle' | 'saved' | 'error'>('idle');
@@ -1193,13 +1793,10 @@ export function AccountSettingsTab() {
     (async () => {
       const { data } = await getSupabaseBrowser()
         .from('profiles')
-        .select('display_name, account_key')
+        .select('display_name')
         .eq('user_id', user.id)
         .maybeSingle();
-      if (data) {
-        setProfile(data as Profile);
-        setName(data.display_name);
-      }
+      if (data?.display_name) setName(data.display_name);
     })();
   }, [user]);
 
@@ -1217,7 +1814,7 @@ export function AccountSettingsTab() {
       setNameStatus('error');
     } else {
       setNameStatus('saved');
-      setProfile((p) => (p ? { ...p, display_name: trimmed } : p));
+      setName(trimmed);
       window.setTimeout(() => setNameStatus('idle'), 1500);
     }
   };
@@ -1225,10 +1822,6 @@ export function AccountSettingsTab() {
   if (!user) {
     return <p className="text-sm text-zinc-500">not signed in</p>;
   }
-
-  const masked = profile?.account_key
-    ? `${profile.account_key.slice(0, 4)}••••`
-    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -1254,7 +1847,7 @@ export function AccountSettingsTab() {
           <button
             type="button"
             onClick={saveName}
-            disabled={savingName || name === profile?.display_name}
+            disabled={savingName}
             className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-zinc-100 disabled:opacity-50"
           >
             {savingName ? 'saving…' : 'save'}
@@ -1266,26 +1859,6 @@ export function AccountSettingsTab() {
         {nameStatus === 'error' && (
           <p className="text-[11px] text-red-400">could not save</p>
         )}
-      </section>
-
-      <section className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-            linked key
-          </p>
-          {masked ? (
-            <p className="mt-1 font-mono text-sm text-white normal-case">
-              {masked}
-            </p>
-          ) : (
-            <p className="mt-1 text-xs text-zinc-500">no key linked yet</p>
-          )}
-        </div>
-        <PasteKeyForm
-          onLinked={(key) =>
-            setProfile((p) => (p ? { ...p, account_key: key } : p))
-          }
-        />
       </section>
 
       <section className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
@@ -1302,21 +1875,17 @@ export function AccountSettingsTab() {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add components/AccountSettingsTab.tsx
 git commit -m "Add AccountSettingsTab"
 ```
 
 ---
 
-## Task 18: Build `/account` page
+## Task 20: `/account` page
 
 **Files:**
 - Create: `app/account/page.tsx`
@@ -1395,127 +1964,38 @@ export default function AccountPage() {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Typecheck + commit**
 
 ```bash
+npx tsc --noEmit
 git add app/account/page.tsx
 git commit -m "Add /account page"
 ```
 
 ---
 
-## Task 19: Wire same-device key auto-migration
-
-**Files:**
-- Modify: `app/auth/callback/route.ts` (server side cannot read localStorage; auto-migration must happen client-side after redirect).
-- Create: `app/account/AutoMigrateOnce.tsx` — small client island that runs once on mount.
-
-- [ ] **Step 1: Create the AutoMigrateOnce component**
-
-```tsx
-'use client';
-
-import { useEffect, useRef } from 'react';
-
-/**
- * On first render after sign-in, if localStorage has an account key, link it
- * to the current profile. Idempotent — server returns alreadyLinked if it's
- * already on the profile.
- */
-export function AutoMigrateOnce() {
-  const fired = useRef(false);
-  useEffect(() => {
-    if (fired.current) return;
-    fired.current = true;
-    let key: string | null = null;
-    try {
-      key = window.localStorage.getItem('holymog-account-key');
-    } catch {
-      return;
-    }
-    if (!key) return;
-    void fetch('/api/account/link-key', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key }),
-    }).catch(() => {
-      // best effort
-    });
-  }, []);
-  return null;
-}
-```
-
-- [ ] **Step 2: Mount it on the account page**
-
-Edit `app/account/page.tsx` — add an import and render `<AutoMigrateOnce />` inside the signed-in branch:
-
-```tsx
-import { AutoMigrateOnce } from './AutoMigrateOnce';
-
-// ... inside the signed-in `return (...)`:
-<main className="mx-auto w-full max-w-md px-5 py-6">
-  <AutoMigrateOnce />
-  {/* ...rest unchanged... */}
-</main>
-```
-
-- [ ] **Step 3: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no errors.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add app/account/AutoMigrateOnce.tsx app/account/page.tsx
-git commit -m "Auto-migrate localStorage key on /account mount"
-```
-
----
-
-## Task 20: Add `AppHeader` to `/leaderboard`
+## Task 21: `AppHeader` on `/leaderboard`
 
 **Files:**
 - Modify: `app/leaderboard/page.tsx`
 
 - [ ] **Step 1: Add the header**
 
-Replace the existing `<header>` block (lines starting with `<header className="mx-auto flex w-full max-w-md…">`) with:
+At the top of the file, add:
 
 ```tsx
 import { AppHeader } from '@/components/AppHeader';
-
-// ... inside the component:
-return (
-  <div
-    className="relative min-h-dvh bg-black px-5 pb-12"
-    style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}
-  >
-    <AppHeader authNext="/leaderboard" />
-
-    <main className="mx-auto w-full max-w-md py-4">
-      {/* ...existing main content unchanged... */}
-    </main>
-  </div>
-);
 ```
 
-Remove the now-redundant inner `<header>` with the back button and wordmark; the AppHeader provides them. (Actually — the leaderboard's "back" button matters; keep it. Move it into a row below AppHeader, or accept that the AppHeader's `holymog` link is the back affordance. Simplest: drop the old header entirely, since AppHeader's wordmark links to `/`.)
+In the rendered JSX, replace the existing inner `<header>` (the one with the back button + wordmark) with `<AppHeader authNext="/leaderboard" />`. Keep the rest of the layout unchanged.
 
 - [ ] **Step 2: Typecheck + visual smoke**
 
 ```bash
 npx tsc --noEmit
 ```
-Expected: clean.
 
-Manually open `http://localhost:3002/leaderboard` and confirm the header avatar shows "sign in" pill (logged-out) or initial avatar (logged-in).
+Manually open `http://localhost:3002/leaderboard`. Confirm the header avatar shows "sign in" pill (logged out) or initial avatar (logged in).
 
 - [ ] **Step 3: Commit**
 
@@ -1526,93 +2006,102 @@ git commit -m "Add AppHeader to /leaderboard"
 
 ---
 
-## Task 21: Add `AppHeader` env var helper to README
+## Task 22: Update README
 
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Update env var section**
+- [ ] **Step 1: Update env vars section**
 
-Edit the "Environment variables" section in `README.md` to add the new vars:
+Add these to the documented vars in `README.md`:
 
 ```bash
 # Required for auth (Phase 0+)
 NEXT_PUBLIC_SUPABASE_URL=                # mirror of SUPABASE_URL for the browser
 NEXT_PUBLIC_SUPABASE_ANON_KEY=           # mirror of SUPABASE_ANON_KEY for the browser
-SUPABASE_SERVICE_ROLE_KEY=               # service role key, server-only, used to create profiles
+SUPABASE_SERVICE_ROLE_KEY=               # service role key, server-only
 ```
 
-Also update the "Optional infrastructure" table — Supabase becomes Required for full functionality (anon access, leaderboard) and the service role becomes additionally required for accounts/battles.
+- [ ] **Step 2: Note the breaking change**
 
-- [ ] **Step 2: Bump phasing roadmap**
+Add a short paragraph near the top of the README:
 
-Add a short note near the bottom of the README:
+> ## Phase 0 (in progress, post 2026-05-07)
+>
+> Phase 0 introduces accounts. The 8-char Crockford key system is **fully removed** — leaderboard rows are now tagged by `user_id` and submitting requires sign-in. Existing leaderboard rows from the key era are wiped on the Phase 0 deploy. See `docs/superpowers/specs/2026-05-07-mog-battles-and-accounts-design.md` for the full design and `docs/superpowers/plans/2026-05-07-mog-battles-phase-0-auth-and-accounts.md` for the build plan.
+
+- [ ] **Step 3: Bump phasing roadmap**
 
 ```md
 ### Phasing roadmap
 
-The Mog Battles + Accounts feature is being built in 6 phases (see
-`docs/superpowers/specs/2026-05-07-mog-battles-and-accounts-design.md`).
-Phase 0 (auth + accounts + /account page) is in progress.
+The Mog Battles + Accounts feature is being built in 6 phases. Phase 0 (auth + accounts + account-tagged leaderboard) is in progress.
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add README.md
-git commit -m "Document Phase 0 env vars and phasing in README"
+git commit -m "Document Phase 0 in README"
 ```
 
 ---
 
-## Task 22: Smoke test end-to-end
+## Task 23: Smoke test end-to-end
 
 **Files:** none
 
-- [ ] **Step 1: Verify the dev server is running**
+- [ ] **Step 1: Verify dev server**
 
-Run: `lsof -nP -iTCP:3002 -sTCP:LISTEN | head` → should show a node process on 3002. If not, start it.
+```bash
+lsof -nP -iTCP:3002 -sTCP:LISTEN | head
+```
+Expect a node process. If not, start it.
 
-- [ ] **Step 2: Run the migration**
+- [ ] **Step 2: Verify the migration ran**
 
-Open Supabase SQL editor and run the contents of `docs/migrations/2026-05-07-phase-0-profiles.sql`. Verify with:
+In Supabase Studio SQL editor:
 
 ```sql
+select count(*) from profiles;          -- 0 if no one's signed up
+select count(*) from leaderboard;       -- 0 (was wiped)
 select column_name from information_schema.columns
-where table_schema = 'public' and table_name = 'profiles'
-order by ordinal_position;
+where table_schema='public' and table_name='leaderboard' order by ordinal_position;
 ```
 
-Expected: 14 columns. Pause if any are missing.
+Expected: `leaderboard` has `user_id` and no `account_key`. Pause if any are off.
 
 - [ ] **Step 3: Test sign-in via Google**
 
-In a fresh incognito window, open `http://localhost:3002/account`. Expect the auth modal to be open. Click "continue with google", authorize, get redirected back to `/account`. Confirm:
-- Header avatar now shows your initial.
-- Settings tab shows your display name (lowercased Google name).
-- `select * from profiles` in Supabase shows your row.
+In a fresh incognito window, open `http://localhost:3002/account`. Auth modal opens. Click "continue with google", authorize, get redirected to `/account`. Confirm:
+- Header avatar shows your initial.
+- Settings tab shows your display name (lowercased Google name, editable).
+- `select * from profiles` in Supabase shows your row with `user_id` and `display_name`.
 
 - [ ] **Step 4: Test magic link**
 
 Sign out, then click "email me a link" → enter an email → "send link" → status changes to "check your inbox" → click the email link → redirected to `/account` signed in. Confirm a new profile row was created (or existing one matched).
 
-- [ ] **Step 5: Test paste-key**
+- [ ] **Step 5: Test leaderboard submission as a signed-in user**
 
-In Settings tab, paste a valid 8-char Crockford key (or one that exists from a leaderboard submission). Click "link". Expect "linked: ABCD1234" success message. Confirm the row in `profiles` now has `account_key` populated.
+Navigate to `/`. Run a scan. Click "add to leaderboard". Modal opens with name prefilled from profile, no key UI anywhere. Submit. Confirm:
+- Modal shows success then auto-closes.
+- `select * from leaderboard` in Supabase shows your row with `user_id` matching `auth.users.id`.
 
-- [ ] **Step 6: Test conflict**
+- [ ] **Step 6: Test re-submission updates the same row**
 
-Try pasting a key that's already linked to another profile (manually update a different `profiles` row to claim a key first, then try). Expect 409 inline error: "that key belongs to another account".
+Run another scan with a different score. Click "add to leaderboard" again. Modal shows the previous-vs-new comparison block. Click Replace. Confirm `select * from leaderboard` still has exactly one row for your user_id, with the new overall score.
 
-- [ ] **Step 7: Test auto-migration**
+- [ ] **Step 7: Test logged-out leaderboard gating**
 
-Sign out. In another tab, submit a leaderboard entry as anonymous (this seeds `localStorage.holymog-account-key`). Then sign in to the account page again — the localStorage key should be auto-linked silently. Confirm the profile row shows the linked key.
+Sign out. Run a scan. Click "add to leaderboard". The auth modal opens with title "sign in to submit". Confirm no fetch to `/api/leaderboard` was made (Network tab shows the auth modal alone). Cancel the modal — the complete view stays put.
 
-- [ ] **Step 8: Test sign-out**
+- [ ] **Step 8: Test sign-out preserves anonymity**
 
-Click sign out in the Settings tab. Confirm:
+After sign out, confirm:
 - Header avatar reverts to "sign in" pill.
-- `localStorage.holymog-account-key` is still present (we don't clear it on sign-out).
+- The user can still scan freely.
+- localStorage no longer has `holymog-account-key` (the legacy key was deleted in Task 13's UI rewrite).
 
 - [ ] **Step 9: Push to production**
 
@@ -1627,23 +2116,25 @@ Phase 0 is shipped.
 ## Self-review
 
 **Spec coverage:**
-- §5 (auth flow) — covered by Tasks 9, 10, 19.
-- §6 (profiles table + RLS) — covered by Task 2.
-- §11 (`/api/account/link-key`) — covered by Task 11.
-- §10 settings tab — covered by Task 17.
-- Same-device key auto-migration — Task 19.
-- Cross-device paste flow — Tasks 12 + 17.
-- AppHeader on non-`/scan` routes — Tasks 14, 20.
-- Stats/history placeholders — Tasks 15, 16.
+- §5 (auth flow, simplified) — Tasks 9, 10.
+- §6 (profiles + leaderboard schema, breaking change) — Task 2.
+- §11.1 (`/api/account/me`) — Task 11.
+- §11.3 (auth-gated `POST /api/leaderboard`) — Task 12.
+- §10 (account page settings tab without key UI) — Task 19.
+- §12.1 (logged-out user submitting hits auth modal) — Tasks 9 + 15.
+- AppHeader on non-`/scan` routes — Tasks 17 + 21.
+- Stats/history placeholders — Task 18.
+- Removed key files cleanup — Task 13.
+- LeaderboardModal rewritten without keys — Task 14.
 
-**Spec items deferred to later phases (NOT in Phase 0, intentional):**
+**Spec items deferred to later phases (intentional):**
 - Stats tab actual implementation → Phase 3.
 - History tab → Phase 5.
 - Home page restructure → Phase 1.
 - Battles entirely → Phases 2–4.
 
-**Type consistency:** All component prop types match across files. `useUser` returns `{ user, loading, signOut }` and is consumed identically by `AccountAvatar`, `/account/page.tsx`, `AccountSettingsTab`. The `Profile` type in `AccountSettingsTab` matches the columns selected.
+**Type consistency:** `LeaderboardRow` updated in Task 12 step 2 — no leftover `account_key` references after Task 13/14 lands. `useUser` returns `{ user, loading, signOut }` consistently. `AccountAvatar` and `AppHeader` props match across components.
 
-**Placeholder scan:** No "TBD"/"TODO"/"implement later" anywhere. All code blocks are complete.
+**Placeholder scan:** No "TBD"/"TODO"/"implement later". All code blocks complete.
 
-**Scope check:** Each task is an isolated unit, 5–20 lines of code. The plan ends in a deployable state where signed-in users can manage their accounts but battles don't exist yet (which is exactly the spec's Phase 0 boundary).
+**Scope check:** Each task is an isolated unit. The plan ends in a deployable state where signed-in users can manage accounts and submit to the leaderboard, and battles don't exist yet (matches spec's Phase 0 boundary).
