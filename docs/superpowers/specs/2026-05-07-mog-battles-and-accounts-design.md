@@ -16,30 +16,29 @@ Add two major capabilities to holymog, additively over the existing solo-scan + 
 
    Each battle is **10 seconds**. Per-player scoring uses a **lighter Grok prompt** that returns `{ overall, improvement }`, where `improvement` is one of a fixed enum (jawline / eyes / skin / cheekbones / nose / hair). **10 real Grok calls + 10 synthetic = 20 visible score updates per player per battle**, mirroring the solo scan jitter pattern. **Highest peak score wins** (tiebreak: earliest joiner). Each tile shows a live "improvement" ticker that updates with the latest call.
 
-2. **Accounts** — optional sign-in via Supabase Auth (Google + Apple OAuth + email magic link). Unlocks:
+2. **Accounts** — sign-in via Supabase Auth (Google + Apple OAuth + email magic link), now **required for everything except solo scanning**. Unlocks:
+   - **Leaderboard submission** (auth-gated). Each account has at most one leaderboard entry, identified by `user_id`.
    - **Public battles + private parties** (both creating and joining are auth-gated).
    - **ELO** from public 1v1 battles (private parties never affect ELO — anti-farming).
    - **Private stats** — full 30-field breakdown of the user's best scan.
    - **Multiplayer stats** — ELO, peak ELO, W/L, streaks, "most-called weakness".
-   - **Account-tagged leaderboard entries** — the existing key-tagged system stays in place; accounts simply *link* their key, and the leaderboard surfaces the entry as theirs.
 
-The existing **anonymous + leaderboard-key** system stays intact for users who never sign in. They can continue to scan and submit/edit leaderboard entries exactly as today.
+There is no anonymous-with-key tier. The previous 8-char Crockford key system is **fully removed** — the leaderboard is account-tagged via `user_id` end to end. Pure anonymous users can still scan their own face but cannot submit to the leaderboard, do battles, or see stats.
 
 ---
 
 ## 2. Identity model
 
-Three strictly additive tiers:
+Two tiers:
 
-| Tier | What unlocks | Key needed? |
-|---|---|---|
-| **Pure anonymous** | Solo scans only | No |
-| **Anonymous + key** | + leaderboard submission/edit | Yes — auto-generated on first leaderboard submit |
-| **Signed in** | + public battles + private parties + ELO + private/multiplayer stats | Yes — auto-managed by the account |
+| Tier | What unlocks |
+|---|---|
+| **Pure anonymous** | Solo scans only — view tier reveal, sub-scores, share image, see breakdown locally. Cannot submit to leaderboard, do battles, or persist any state on the server. |
+| **Signed in** | Everything: leaderboard submission/edit, public battles, private parties (create + join), ELO, private + multiplayer stats. |
 
-Battles (both creating *and* joining, public *and* private) are auth-gated. Anonymous users tapping a battle entrypoint see the auth modal.
+Leaderboard submission, battles, and stats are all auth-gated. Anonymous users tapping any of those entrypoints see the auth modal first.
 
-**Account ↔ key linkage:** an account has *at most one* linked key (`profiles.account_key`). Keys exist solely to tag leaderboard rows; nothing else uses them. Multi-key linking is not in scope (deferred — re-linking a different key just replaces the previous link, the old leaderboard row becomes orphaned but still exists).
+**Identity is `user_id` end to end.** Leaderboard rows are owned by their `user_id` foreign key — no separate keys, no linking step, no migration. There is exactly one leaderboard entry per account; resubmitting updates that one row in place.
 
 ---
 
@@ -147,59 +146,20 @@ One modal, opened from three entry points (header avatar, battle entrypoint, acc
 
 The "email me a link" button expands inline into an email input + "send link" button. After send, status hint shown ("check your inbox"). On magic-link click in the email, the browser opens `/auth/callback?token=...` and same flow as OAuth resumes.
 
-### 5.3 Same-device key auto-migration (silent)
+### 5.3 Edge cases
 
-After a successful first sign-in, the callback route:
+- **Sign out:** clears Supabase auth state. The user reverts to pure anonymous — they can still scan, but the leaderboard modal closes if open and any battle in progress disconnects gracefully.
+- **Account deletion:** out of scope for v1. Reach out via the privacy contact if requested manually.
 
-```
-client (post-auth) →
-  POST /api/account/link-key { key: localStorage.holymog-account-key }
-   ↳ server: SELECT profile.account_key WHERE user_id = auth.uid()
-       → if null AND incoming key is unowned → UPDATE profile.account_key = key
-   ↳ server: 200 { linkedKey: "ABCD1234" }   // or { linked: false } if nothing to link
-```
+### 5.4 Auth state surface in existing UI
 
-User sees nothing. Their leaderboard row seamlessly becomes their account's row.
-
-If `profile.account_key` is already set (shouldn't happen on first sign-in but possible if they signed in elsewhere first), the existing link wins — no overwrite.
-
-### 5.4 Different-device key migration (paste flow)
-
-Two trigger points:
-
-1. **Post-sign-in toast** on a fresh device that had no key in localStorage: *"have a key from another device? link it →"*. Tappable, opens an inline input.
-2. **`/account` settings tab**, always available: *"linked key: [ABCD••••](edit) · paste a different key →"*.
-
-Form behaviour:
-
-```
-input → normalise (uppercase, strip whitespace + dashes)
-submit → POST /api/account/link-key { key }
-  ↳ server: validate Crockford regex
-  ↳ server: SELECT profile WHERE account_key = $key
-       → if a different user_id owns it: 409 conflict
-       → if same user already owns it: 200 { linked: true, alreadyLinked: true }
-  ↳ server: UPDATE profiles.account_key = $key WHERE user_id = auth.uid()
-  ↳ writes key into localStorage on the response
-  ↳ returns { linked: true }
-```
-
-### 5.5 Edge cases
-
-- **Key already linked to another account:** `409 conflict`. UI shows: *"that key belongs to another account."* No bypass.
-- **Re-pasting your own already-linked key:** idempotent — server detects and returns `{ alreadyLinked: true }`.
-- **Generating a key for an account that doesn't have one yet:** lazy. The first time a signed-in user without a linked key submits to the leaderboard, the existing `POST /api/leaderboard` flow generates the key as it does today, and the response *also* writes it into `profiles.account_key`.
-- **Sign out:** clears Supabase auth state, **keeps `localStorage.holymog-account-key`** intact. User reverts to anonymous-with-key — leaderboard row stays editable via the key alone.
-
-### 5.6 Auth state surface in existing UI
-
-The leaderboard modal's "linked to your account · ABCD••••" chip stays as-is regardless of auth state. From the user's perspective the modal behaves identically whether anonymous-with-key or signed-in. One component, no branching on auth.
+The leaderboard modal only opens for signed-in users. The "you · {display name}" identity chip stays at the top of the modal whenever it's open. There is no key, no masked-key chip, no paste-key form anywhere in the product.
 
 ---
 
 ## 6. Database schema
 
-All net-new tables on top of the current production schema. The existing `leaderboard` table is unchanged.
+The existing `leaderboard` table is **modified** to drop the legacy 8-char key system and switch to account-based ownership. New tables for accounts and battles. One destructive operation at deploy time — see §6.6 migration script.
 
 ### 6.1 `profiles`
 
@@ -207,7 +167,6 @@ All net-new tables on top of the current production schema. The existing `leader
 create table profiles (
   user_id            uuid primary key references auth.users(id) on delete cascade,
   display_name       text not null,
-  account_key        text references leaderboard(account_key),
   elo                int  not null default 1000,
   peak_elo           int  not null default 1000,
   matches_played     int  not null default 0,
@@ -221,9 +180,6 @@ create table profiles (
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
 );
-
-create unique index profiles_account_key_idx
-  on profiles (account_key) where account_key is not null;
 ```
 
 **RLS:**
@@ -231,6 +187,30 @@ create unique index profiles_account_key_idx
 - `insert/update`: only `auth.uid() = user_id`.
 
 The `improvement_counts` JSONB stores a histogram of which improvement labels Grok has assigned to this user across all their public battles. Used for the "most-called weakness" stat.
+
+### 6.1a `leaderboard` (modified, breaking change)
+
+The existing `leaderboard` table loses `account_key` and `image_path` is preserved. A new `user_id` column becomes the primary identity:
+
+```sql
+-- Run as part of the Phase 0 migration (§6.6).
+
+-- Drop the key-tagged columns from the legacy schema.
+alter table leaderboard drop column if exists account_key;
+-- (image_path stays; still used for storage cleanup on photo replace)
+
+-- New: account ownership.
+alter table leaderboard
+  add column user_id uuid not null references auth.users(id) on delete cascade,
+  add constraint leaderboard_one_row_per_user unique (user_id);
+
+-- Existing rows have no user_id, so we wipe the table and the photo bucket
+-- as part of the deploy. Spec §6.6 makes this explicit.
+```
+
+**RLS:**
+- `select`: open (the leaderboard is public).
+- `insert/update/delete`: only `auth.uid() = user_id`.
 
 ### 6.2 `battles`
 
@@ -305,7 +285,48 @@ Per-call results are broadcast over Supabase Realtime (ephemeral) and aggregated
 
 ### 6.6 Migration script
 
-A single SQL file (`docs/migrations/2026-05-07-battles-accounts.sql`) to be run in Supabase SQL editor. All migrations are additive — no destructive changes to existing tables.
+A single SQL file (`docs/migrations/2026-05-07-battles-accounts.sql`) to be run in Supabase SQL editor. **Includes one destructive step**: the existing `leaderboard` table is wiped before adding the `user_id NOT NULL` column, since legacy rows have no `auth.users` mapping. The `holymog-faces` storage bucket is also emptied.
+
+```sql
+-- 1. Wipe legacy leaderboard rows (they have no user_id).
+truncate table leaderboard;
+-- (separately: delete all objects in the holymog-faces storage bucket via
+--  Supabase Studio, since SQL doesn't reach storage — this is a manual step.)
+
+-- 2. Drop legacy key column.
+alter table leaderboard drop column if exists account_key;
+
+-- 3. Add account ownership + uniqueness constraint.
+alter table leaderboard
+  add column user_id uuid not null references auth.users(id) on delete cascade,
+  add constraint leaderboard_one_row_per_user unique (user_id);
+
+-- 4. Tighten leaderboard RLS for the new world.
+alter table leaderboard enable row level security;
+
+create policy "leaderboard rows are world-readable"
+  on leaderboard for select using (true);
+
+create policy "users can insert their own leaderboard row"
+  on leaderboard for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "users can update their own leaderboard row"
+  on leaderboard for update
+  to authenticated
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "users can delete their own leaderboard row"
+  on leaderboard for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+-- 5. profiles, battles, battle_participants, matchmaking_queue tables
+--    (defined in 6.1, 6.2, 6.3, 6.4 above — included in this same script).
+```
+
+The wipe is acceptable because per the previous discussion the production leaderboard has only test rows (which we already considered wiping for orientation-consistency reasons). All sign-ups post-Phase-0 start with empty entries and accumulate as users submit.
 
 ---
 
@@ -598,7 +619,6 @@ Three tabs:
 
 **Settings tab:**
 - Display name (editable, max 24 chars, lowercase enforced).
-- Linked key: shows current `account_key` masked, plus "paste a different key" form.
 - Sign out button.
 
 ---
@@ -607,7 +627,7 @@ Three tabs:
 
 ### 11.1 Auth-related (NEW)
 
-- `POST /api/account/link-key` — link a key to the current authenticated profile. Body: `{ key: string }`. Returns `{ linked: true, alreadyLinked?: true } | { error: string }`. Status: 200 / 400 / 409.
+- `GET /api/account/me` — return the current authenticated user's profile + their leaderboard entry (if any). Used to prefill the leaderboard modal on open. Returns `{ profile: { ... }, entry: LeaderboardRow | null }`. Status: 200 if signed in, 401 if not. No more key-based lookup endpoint — identity is the session.
 
 ### 11.2 Battle-related (NEW)
 
@@ -625,13 +645,14 @@ Three tabs:
 
 All require auth (Supabase session). Battle-specific endpoints additionally check participant membership via RLS or explicit subqueries.
 
-### 11.3 Existing endpoints (UNCHANGED)
+### 11.3 Existing endpoints (modified)
 
-- `POST /api/quick-score` — solo live meter.
+- `POST /api/quick-score` — solo live meter. Unchanged.
 - `POST /api/score` — solo full breakdown. **Modification:** when called by a signed-in user, also updates `profiles.best_scan{_overall}` if the new score exceeds the stored best.
-- `GET/POST /api/leaderboard` — paginated list + insert/update.
-- `GET /api/account/[key]` — leaderboard prefill lookup.
-- `POST/DELETE /api/debug-log` — local dev only.
+- `GET /api/leaderboard?page=N` — paginated list. Unchanged externally; rows now carry `user_id` instead of `account_key`.
+- `POST /api/leaderboard` — **breaking change.** Now requires an authenticated session. Body `{ name, scores, imageBase64? }` — no `key` field. Server inserts (or upserts on `user_id`) a row owned by `auth.uid()`. Returns `{ entry, isNew: boolean }`. 401 if unauthenticated.
+- `GET /api/account/[key]` — **REMOVED.** Replaced by `GET /api/account/me` (§11.1).
+- `POST/DELETE /api/debug-log` — local dev only. Unchanged.
 
 ---
 
@@ -640,8 +661,10 @@ All require auth (Supabase session). Battle-specific endpoints additionally chec
 ### 12.1 Logged-out user
 
 - Lands on `/`.
-- Taps "scan" → `/scan`. Solo flow, unchanged.
+- Taps "scan" → `/scan`. Solo flow works fully — they see their tier and breakdown locally.
+- After the scan, taps "submit to leaderboard" → auth modal opens with title "sign in to submit".
 - Taps "find a battle" → auth modal opens with title "sign in to battle".
+- Taps "leaderboard" → can read the public board fine; the "your rank" / "submit your score" affordances are replaced with "sign in to add yourself".
 
 ### 12.2 Logged-in user
 
@@ -655,7 +678,7 @@ All require auth (Supabase session). Battle-specific endpoints additionally chec
 
 - Tab 1 (stats): private + multiplayer.
 - Tab 2 (history): deferred.
-- Tab 3 (settings): display name, linked key, sign out.
+- Tab 3 (settings): display name, sign out.
 
 ---
 
@@ -663,13 +686,18 @@ All require auth (Supabase session). Battle-specific endpoints additionally chec
 
 End-to-end build, organised into shippable phases. Each ends in a deployable state.
 
-### Phase 0 — Auth + Profile + Account Page (no battles yet)
+### Phase 0 — Auth + Profile + Account-tagged leaderboard
 - Supabase Auth providers configured (Google, Apple, magic link).
 - `profiles` table + RLS + initial migrations.
+- **Breaking change to `leaderboard` table:** truncate, drop `account_key` column, add `user_id NOT NULL` with the unique-per-user constraint and the new RLS policies (§6.6 migration script).
+- Empty the `holymog-faces` storage bucket (legacy photos with no `user_id` owner).
 - Auth modal component + `/auth/callback` route.
-- Same-device key auto-migration on first sign-in.
-- `/account` page: settings tab (display name, paste-key, sign out). Stats tab placeholder.
+- `GET /api/account/me` endpoint (replaces `/api/account/[key]`).
+- `POST /api/leaderboard` rewritten: auth-gated, upserts on `user_id`, no key generation.
+- `LeaderboardModal` rewritten: only opens for signed-in users; uses `/api/account/me` for prefill; drops the linked-key chip and the paste-key form entirely.
+- `/account` page: settings tab (display name, sign out). Stats tab placeholder.
 - Header avatar component, wired up across non-`/scan` routes.
+- Removed: `lib/account.ts`, `hooks/useAccount.ts`, `components/AccountKeyCard.tsx`, `app/api/account/link-key/route.ts`, `app/api/account/[key]/route.ts` — all key-related code is deleted in this phase.
 
 ### Phase 1 — Home page + Route restructure
 - `/` becomes the hub.
@@ -723,7 +751,7 @@ Each phase is a discrete shippable unit. After each, we deploy to production beh
 - **Grok rate limits.** A 10-player party fires 100 calls in 10s = 10 RPS sustained. xAI's published rate limits should accommodate this but we should check the account's specific tier. If limits are hit, fallback to slower call cadence (e.g., one call per 1.5s = 6 real calls per battle instead of 10) — UI cadence already handles variable fire timing.
 - **Supabase Realtime broadcast volume.** ~1000 events per 10-player battle. Within free-tier quotas but worth instrumenting.
 - **Anonymous user funnel.** Anyone landing on home who isn't signed in can't use battles. Risk: people bounce. Mitigation: the locked battle card shows a brief preview / GIF / "live now" count to motivate sign-up.
-- **Cross-device key claim race.** Two devices simultaneously try to link the same unowned key. Covered by the unique partial index on `profiles.account_key`; one wins, the other gets 409.
+- **Conversion friction.** Forcing sign-in to submit to the leaderboard means anonymous users who scan and want to brag now hit a gate they didn't before. Mitigation: the AuthModal copy on the leaderboard CTA is deliberately frictionless ("sign in with google · 5 seconds") and OAuth is one tap on mobile.
 - **Malformed Grok JSON during a battle.** Reuse the existing solo flow's retry-with-strict-prefix logic. Final fallback: `{ overall: 50, improvement: 'eyes' }` (neutral).
 - **Display name conflicts on leaderboard.** Multiple accounts can have the same `display_name`. Not enforced unique. Acceptable — leaderboard ordering is by score, names are just display.
 - **LiveKit identity vs Supabase user_id.** LiveKit room participants are identified by a `participantIdentity` string. Use `user_id` as the identity. On token issuance, embed `display_name` in the token's metadata so the grid component can label tiles without an extra lookup.
@@ -737,7 +765,6 @@ Each phase is a discrete shippable unit. After each, we deploy to production beh
 
 Explicitly NOT in this design:
 
-- Multi-key linking on a single account (only one linked key allowed; re-link replaces).
 - Friend lists, friend-only matchmaking.
 - Skill-based matchmaking (current public match is FIFO; no ELO-bracket pairing).
 - Spectator mode for private parties.
@@ -757,8 +784,8 @@ The feature is considered shipped when:
 1. A signed-in user can scan, view their best scan breakdown, and see their score on the leaderboard tagged to their account.
 2. Two signed-in users on different devices can find each other via public matchmaking, see each other's video, and battle to completion. Each gets correct ELO updates.
 3. A signed-in host can create a private party, share the code, have up to 9 friends join, start the battle, and see a 10-tile Zoom-style grid with live scores.
-4. An anonymous user with a key can still use the leaderboard exactly as today.
-5. A pure anonymous user can still scan exactly as today.
+4. An anonymous user can scan exactly as today; tapping "submit to leaderboard" or any battle entrypoint cleanly opens the auth modal with the right contextual title.
+5. After signing in, a user can submit one leaderboard entry (with optional photo) tied to their `user_id`. Resubmitting updates the same row in place.
 6. The home page is a coherent hub, not the scan page.
 7. Sign-in works via Google, Apple, and email magic link.
 8. All `/account` stats are accurate and populated.
