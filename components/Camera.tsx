@@ -1,6 +1,58 @@
 'use client';
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import type { Landmark } from '@/types';
+
+const MIN_DIM = 256;
+
+/**
+ * Compute a face-centred crop box from MediaPipe landmarks. The bbox of all
+ * 478 points is expanded with extra padding above (for hair) and to the sides
+ * (for ears), and a smaller pad below (chin/neck). Ensures each dimension is
+ * at least MIN_DIM so the result passes /api/score validation.
+ */
+function computeFaceCrop(
+  landmarks: Landmark[],
+  imgW: number,
+  imgH: number,
+): { x: number; y: number; w: number; h: number } {
+  let minX = 1,
+    minY = 1,
+    maxX = 0,
+    maxY = 0;
+  for (const p of landmarks) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const fx = minX * imgW;
+  const fy = minY * imgH;
+  const fw = (maxX - minX) * imgW;
+  const fh = (maxY - minY) * imgH;
+  const padTop = fh * 0.55;
+  const padBottom = fh * 0.25;
+  const padSide = fw * 0.4;
+  let x = Math.max(0, fx - padSide);
+  let y = Math.max(0, fy - padTop);
+  let x2 = Math.min(imgW, fx + fw + padSide);
+  let y2 = Math.min(imgH, fy + fh + padBottom);
+
+  // Ensure both dims ≥ MIN_DIM by expanding around the centre.
+  const expand = (lo: number, hi: number, max: number, min: number): [number, number] => {
+    const cur = hi - lo;
+    if (cur >= min) return [lo, hi];
+    const c = (lo + hi) / 2;
+    let nlo = Math.max(0, c - min / 2);
+    let nhi = Math.min(max, nlo + min);
+    if (nhi - nlo < min) nlo = Math.max(0, nhi - min);
+    return [nlo, nhi];
+  };
+  [x, x2] = expand(x, x2, imgW, MIN_DIM);
+  [y, y2] = expand(y, y2, imgH, MIN_DIM);
+
+  return { x, y, w: x2 - x, h: y2 - y };
+}
 
 function buildConstraints(): MediaStreamConstraints {
   // Match the camera resolution to the viewport orientation so object-cover
@@ -26,7 +78,10 @@ function buildConstraints(): MediaStreamConstraints {
 }
 
 export type CameraHandle = {
-  capture: () => string | null;
+  /** Capture the current video frame as a JPEG data URL. If `landmarks` are
+   *  passed, the frame is cropped to a face-centred bounding box (with hair /
+   *  ear / chin padding) so that only the detected person is sent to vision. */
+  capture: (landmarks?: Landmark[]) => string | null;
 };
 
 type Props = {
@@ -54,17 +109,27 @@ export const Camera = forwardRef<CameraHandle, Props>(function Camera(
   }, [onReady, onError, onDimensions]);
 
   useImperativeHandle(ref, () => ({
-    capture: () => {
+    capture: (landmarks?: Landmark[]) => {
       const video = videoRef.current;
       if (!video || video.readyState < 2) return null;
-      const canvas = document.createElement('canvas');
       const w = video.videoWidth;
       const h = video.videoHeight;
-      canvas.width = w;
-      canvas.height = h;
+      if (w <= 0 || h <= 0) return null;
+
+      const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
-      ctx.drawImage(video, 0, 0, w, h);
+
+      if (landmarks && landmarks.length === 478) {
+        const c = computeFaceCrop(landmarks, w, h);
+        canvas.width = Math.round(c.w);
+        canvas.height = Math.round(c.h);
+        ctx.drawImage(video, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h);
+      } else {
+        canvas.width = w;
+        canvas.height = h;
+        ctx.drawImage(video, 0, 0, w, h);
+      }
       return canvas.toDataURL('image/jpeg', 0.92);
     },
   }));

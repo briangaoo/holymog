@@ -26,12 +26,12 @@ export function ShareCard({ score }: Props) {
           : `radial-gradient(circle at 50% 50%, ${tier.color}33, rgba(0,0,0,0) 60%)`,
       }}
     >
-      <div className="absolute top-4 font-mono text-xs text-white/60">mogem</div>
+      <div className="absolute top-4 font-mono text-xs text-white/60">holymog</div>
       <div className="font-sans text-[120px] font-black leading-none" style={letterStyle}>
         {tier.letter}
       </div>
       <div className="absolute bottom-4 px-2 text-center font-mono text-[10px] text-white/70">
-        rate yours at mogem.vercel.app
+        rate yours at holymog.com
       </div>
     </div>
   );

@@ -42,7 +42,7 @@ export async function generateShareImage(score: number): Promise<Blob> {
   ctx.font = '600 48px "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('mogem', cx, 140);
+  ctx.fillText('holymog', cx, 140);
 
   // Tier letter
   ctx.save();
@@ -70,7 +70,7 @@ export async function generateShareImage(score: number): Promise<Blob> {
   ctx.font = '500 36px "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('rate yours at mogem.vercel.app', cx, H - 140);
+  ctx.fillText('rate yours at holymog.com', cx, H - 140);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {

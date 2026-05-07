@@ -173,7 +173,7 @@ export function LeaderboardModal({
               <p className="mb-3 text-xs text-red-400">{status.message}</p>
             )}
             {status.kind === 'success' && (
-              <p className="mb-3 text-xs text-emerald-400">added — see you on the board</p>
+              <p className="mb-3 text-xs text-emerald-400">added, see you on the board</p>
             )}
 
             <div className="flex gap-2">

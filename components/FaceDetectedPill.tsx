@@ -13,7 +13,8 @@ export function FaceDetectedPill({ visible }: Props) {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -32, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-          className="absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full bg-emerald-500/90 px-4 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur"
+          className="absolute left-1/2 z-20 -translate-x-1/2 rounded-full bg-emerald-500/90 px-4 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur"
+          style={{ top: 'calc(max(env(safe-area-inset-top), 14px) + 36px)' }}
           role="status"
           aria-live="polite"
         >

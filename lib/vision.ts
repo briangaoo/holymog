@@ -1,11 +1,11 @@
 import type { VisionScore } from '@/types';
 
 const XAI_ENDPOINT = 'https://api.x.ai/v1/chat/completions';
-// Grok 4.20 non-reasoning — better per-call quality than 4.1, ~0.7-0.9s.
+// Grok 4.20 non-reasoning, better per-call quality than 4.1, ~0.7-0.9s.
 // Paired with 2-frame averaging that's 6 calls in parallel ≈ ~1.5s wall.
 const DEFAULT_MODEL = 'grok-4.20-0309-non-reasoning';
 
-const ANCHOR_RUBRIC = `CRITICAL CALIBRATION — read carefully.
+const ANCHOR_RUBRIC = `CRITICAL CALIBRATION, read carefully.
 
 Imagine ranking the face you're scoring against 1,000 random adults. The score reflects this rank:
 
@@ -14,7 +14,7 @@ Imagine ranking the face you're scoring against 1,000 random adults. The score r
   Rank 16-50  (top 5%, "could book modeling work")             → 88-94
   Rank 51-150 (top 15%, "hot", strangers compliment)           → 80-87
   Rank 151-350 (top 35%, above average / cute)                 → 70-79
-  Rank 351-650 (the middle 30%, average — median person)       → 55-69
+  Rank 351-650 (the middle 30%, average, median person)       → 55-69
   Rank 651-800 (slightly below average, plain)                 → 42-54
   Rank 801-900 (notably unattractive)                          → 28-41
   Rank 901-970 (significantly unattractive)                    → 14-27
@@ -22,23 +22,23 @@ Imagine ranking the face you're scoring against 1,000 random adults. The score r
   Rank 996-1000                                                → 0-4
 
 If the face has the structural hallmarks of a working professional fashion model
-— sharp jawline, defined cheekbones, hunter eyes / strong canthal tilt, balanced
-proportions, clear skin, strong overall harmony — they are AT MINIMUM 95.
+- sharp jawline, defined cheekbones, hunter eyes / strong canthal tilt, balanced
+proportions, clear skin, strong overall harmony, they are AT MINIMUM 95.
 Top-tier working models hit 96-98. The 99-100 range is reserved for the single
-most exceptional outlier. Do NOT park at 92-94 thinking "could book work" — if
+most exceptional outlier. Do NOT park at 92-94 thinking "could book work", if
 the face is at that level, it IS pro model material, score 95+.
 
 Default bias: when in doubt between two adjacent bands for an attractive face, choose
 the HIGHER band. The score reflects the FACE, not the photo quality.
 
 For attractive faces, EXPECT many features to score 90+ together. Real beauty is
-high across multiple dimensions — do not artificially lower features to "spread"
+high across multiple dimensions, do not artificially lower features to "spread"
 the scores. Spread is fine when there's a real weakness; it's wrong when there isn't.
 
 For unattractive faces, EXPECT many features to score below 50 together. Real flaws
-compound — do not artificially raise features to "spread" the scores upward.
+compound, do not artificially raise features to "spread" the scores upward.
 
-EXPRESSION HANDLING — read carefully:
+EXPRESSION HANDLING, read carefully:
   - Smiling is NOT a distortion. A natural smile, including showing teeth, should
     not lower any score. Score the UNDERLYING facial structure.
   - When a feature is temporarily reshaped by an expression (lips spread wide while
@@ -46,14 +46,14 @@ EXPRESSION HANDLING — read carefully:
     score those features low. Either score the structure as you'd see it neutral,
     or score 65-75 (above-average neutral) if you genuinely cannot tell.
   - Lighting / angle / partial obscurity is also NOT a flaw. Don't penalize a
-    feature you can't see well — score 60-70 instead of low.
+    feature you can't see well, score 60-70 instead of low.
   - Cropped or out-of-frame features (e.g. ears not visible) → 70.
   - Charisma, photogenic quality, and a warm presence DO count toward
     overall_attractiveness, feature_harmony, and confidence.
 
-DELIBERATE distortion is different — apply the checklist below ONLY for these.
+DELIBERATE distortion is different, apply the checklist below ONLY for these.
 
-Distortion checklist — if ANY are present, score 5-25 across EVERY field, ignore the rank scale:
+Distortion checklist, if ANY are present, score 5-25 across EVERY field, ignore the rank scale:
   - recessed/jutted jaw, double chin from posture
   - mouth contorted unnaturally, jaw open, tongue out (NOT a normal smile)
   - eyes squeezed shut deliberately
@@ -197,7 +197,18 @@ Output ONLY this JSON (no prose, no markdown):
 /* ----------------------------- helpers ------------------------------------ */
 
 type XaiChoice = { message?: { content?: string | Array<{ type?: string; text?: string }> } };
-type XaiResponse = { choices?: XaiChoice[] };
+type XaiUsage = { prompt_tokens?: number; completion_tokens?: number };
+type XaiResponse = { choices?: XaiChoice[]; usage?: XaiUsage };
+
+export type TokenUsage = { input: number; output: number };
+
+function emptyTokens(): TokenUsage {
+  return { input: 0, output: 0 };
+}
+
+function addTokens(a: TokenUsage, b: TokenUsage): TokenUsage {
+  return { input: a.input + b.input, output: a.output + b.output };
+}
 
 function tryParseJSON(text: string): unknown {
   let trimmed = text.trim();
@@ -236,10 +247,20 @@ function validateCategory<K extends string>(
   return out;
 }
 
-async function callGrok(dataUrl: string, prompt: string): Promise<string> {
+type GrokCallOptions = {
+  detail?: 'high' | 'low';
+  model?: string;
+};
+
+async function callGrok(
+  dataUrl: string,
+  prompt: string,
+  options: GrokCallOptions = {},
+): Promise<{ text: string; tokens: TokenUsage }> {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) throw new Error('XAI_API_KEY is not set');
-  const model = process.env.XAI_MODEL ?? DEFAULT_MODEL;
+  const model = options.model ?? process.env.XAI_MODEL ?? DEFAULT_MODEL;
+  const detail = options.detail ?? 'high';
 
   const res = await fetch(XAI_ENDPOINT, {
     method: 'POST',
@@ -256,7 +277,7 @@ async function callGrok(dataUrl: string, prompt: string): Promise<string> {
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: dataUrl, detail: 'high' } },
+            { type: 'image_url', image_url: { url: dataUrl, detail } },
           ],
         },
       ],
@@ -270,26 +291,35 @@ async function callGrok(dataUrl: string, prompt: string): Promise<string> {
 
   const data = (await res.json()) as XaiResponse;
   const content = data.choices?.[0]?.message?.content;
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content.map((p) => (typeof p?.text === 'string' ? p.text : '')).join('');
+  let text = '';
+  if (typeof content === 'string') text = content;
+  else if (Array.isArray(content)) {
+    text = content.map((p) => (typeof p?.text === 'string' ? p.text : '')).join('');
   }
-  return '';
+  const tokens: TokenUsage = {
+    input: data.usage?.prompt_tokens ?? 0,
+    output: data.usage?.completion_tokens ?? 0,
+  };
+  return { text, tokens };
 }
 
 async function callCategory<K extends string>(
   dataUrl: string,
   prompt: string,
   keys: readonly K[],
-): Promise<Record<K, number> | null> {
+): Promise<{ result: Record<K, number> | null; tokens: TokenUsage }> {
+  let tokens = emptyTokens();
   try {
-    const text = await callGrok(dataUrl, prompt);
-    const parsed = validateCategory(tryParseJSON(text), keys);
-    if (parsed) return parsed;
-    const text2 = await callGrok(dataUrl, STRICT_PREFIX + prompt);
-    return validateCategory(tryParseJSON(text2), keys);
+    const first = await callGrok(dataUrl, prompt);
+    tokens = addTokens(tokens, first.tokens);
+    const parsed = validateCategory(tryParseJSON(first.text), keys);
+    if (parsed) return { result: parsed, tokens };
+
+    const second = await callGrok(dataUrl, STRICT_PREFIX + prompt);
+    tokens = addTokens(tokens, second.tokens);
+    return { result: validateCategory(tryParseJSON(second.text), keys), tokens };
   } catch {
-    return null;
+    return { result: null, tokens };
   }
 }
 
@@ -310,7 +340,7 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   return `data:${mime};base64,${base64}`;
 }
 
-export async function analyzeFace(blob: Blob): Promise<VisionScore> {
+export async function analyzeFace(blob: Blob): Promise<{ vision: VisionScore; tokens: TokenUsage }> {
   const dataUrl = await blobToDataUrl(blob);
 
   const [structure, features, surface] = await Promise.all([
@@ -319,34 +349,77 @@ export async function analyzeFace(blob: Blob): Promise<VisionScore> {
     callCategory(dataUrl, SURFACE_PROMPT, SURFACE_KEYS),
   ]);
 
-  const anyFailed = !structure || !features || !surface;
+  const tokens = [structure, features, surface].reduce(
+    (acc, c) => addTokens(acc, c.tokens),
+    emptyTokens(),
+  );
+  const anyFailed = !structure.result || !features.result || !surface.result;
 
-  return {
-    ...(structure ?? neutralFor(STRUCTURE_KEYS)),
-    ...(features ?? neutralFor(FEATURES_KEYS)),
-    ...(surface ?? neutralFor(SURFACE_KEYS)),
+  const vision = {
+    ...(structure.result ?? neutralFor(STRUCTURE_KEYS)),
+    ...(features.result ?? neutralFor(FEATURES_KEYS)),
+    ...(surface.result ?? neutralFor(SURFACE_KEYS)),
     ...(anyFailed ? { fallback: true } : {}),
   } as VisionScore;
+
+  return { vision, tokens };
 }
 
 /**
  * Analyze N face frames in parallel and average the per-field scores.
+ * Tokens are summed across all underlying calls.
  */
-export async function analyzeFaces(blobs: Blob[]): Promise<VisionScore> {
+export async function analyzeFaces(
+  blobs: Blob[],
+): Promise<{ vision: VisionScore; tokens: TokenUsage }> {
   if (blobs.length === 0) throw new Error('analyzeFaces requires at least 1 blob');
 
   const results = await Promise.all(blobs.map((b) => analyzeFace(b)));
-  const anyFallback = results.some((r) => r.fallback);
+  const tokens = results.reduce((acc, r) => addTokens(acc, r.tokens), emptyTokens());
+  const anyFallback = results.some((r) => r.vision.fallback);
 
   const out = {} as Record<string, number>;
   for (const k of ALL_KEYS) {
     let sum = 0;
-    for (const r of results) sum += r[k] as number;
+    for (const r of results) sum += r.vision[k] as number;
     out[k] = Math.round(sum / results.length);
   }
 
   return {
-    ...(out as unknown as VisionScore),
-    ...(anyFallback ? { fallback: true } : {}),
+    vision: {
+      ...(out as unknown as VisionScore),
+      ...(anyFallback ? { fallback: true } : {}),
+    },
+    tokens,
   };
+}
+
+/* --------------------------- Quick (live) score --------------------------- */
+
+const QUICK_PROMPT = `Score this face's overall attractiveness 0-100. Use this rank scale (rank 1 = most attractive of 1000 random adults):
+  Rank 1      → 99-100        Rank 2-15   → 95-99   (working pro model)
+  Rank 16-50  → 88-94          Rank 51-150 → 80-87  (hot)
+  Rank 151-350 → 70-79          Rank 351-650 → 55-69 (median)
+  Rank 651-800 → 42-54          Rank 801-900 → 28-41
+  Rank 901-970 → 14-27          Rank 971-995 → 5-13   Rank 996-1000 → 0-4
+If the face is clearly making a deliberately distorted/contorted face (eyes squeezed shut, jaw recessed, tongue out, hair pulled over face), score 5-25.
+A natural smile is NOT distortion.
+
+Output ONLY: {"overall": <integer 0-100>}`;
+
+export async function analyzeQuick(
+  blob: Blob,
+): Promise<{ overall: number; tokens: TokenUsage }> {
+  const dataUrl = await blobToDataUrl(blob);
+
+  const { text, tokens } = await callGrok(dataUrl, QUICK_PROMPT, {
+    detail: 'low',
+  });
+
+  const parsed = tryParseJSON(text) as { overall?: number } | null;
+  let overall = 50;
+  if (parsed && typeof parsed.overall === 'number' && Number.isFinite(parsed.overall)) {
+    overall = Math.max(0, Math.min(100, Math.round(parsed.overall)));
+  }
+  return { overall, tokens };
 }

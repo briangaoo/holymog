@@ -26,4 +26,4 @@ export type LeaderboardRow = {
   created_at: string;
 };
 
-export const FACES_BUCKET = 'mogem-faces';
+export const FACES_BUCKET = 'holymog-faces';

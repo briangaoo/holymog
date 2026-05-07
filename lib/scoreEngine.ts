@@ -39,7 +39,7 @@ function visionContribution(v: VisionScore, key: SubKey): number {
   }
 }
 
-/** 5th composite — fields that don't belong to a specific facial region but
+/** 5th composite, fields that don't belong to a specific facial region but
  *  matter for overall attractiveness (hair, posture, confidence, holistic). */
 export function computePresentation(v: VisionScore): number {
   return avg([

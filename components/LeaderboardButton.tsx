@@ -9,7 +9,7 @@ type Props = {
 };
 
 /**
- * The "extrovert friend" button — visible and inviting, but not loud.
+ * The "extrovert friend" button, visible and inviting, but not loud.
  * Plays one subtle bounce on entry to draw the eye, then settles.
  */
 export function LeaderboardButton({ onClick, accent }: Props) {

@@ -4,7 +4,7 @@ import { promises as fs } from 'fs';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const LOG_PATH = '/tmp/mogem-debug.log';
+const LOG_PATH = '/tmp/holymog-debug.log';
 
 export async function POST(request: Request) {
   try {

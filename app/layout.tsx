@@ -24,19 +24,19 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Mogem — rate yourself F- to S+',
+  title: 'holymog, rate yourself F- to S+',
   description: 'AI-powered face rating. Are you mogging or getting mogged?',
-  metadataBase: new URL('https://mogem.vercel.app'),
+  metadataBase: new URL('https://holymog.com'),
   openGraph: {
-    title: 'Mogem',
+    title: 'holymog',
     description: 'AI-powered face rating. F- to S+ tier.',
-    url: 'https://mogem.vercel.app',
-    siteName: 'Mogem',
+    url: 'https://holymog.com',
+    siteName: 'holymog',
     images: ['/og.svg'],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Mogem',
+    title: 'holymog',
     images: ['/og.svg'],
   },
 };

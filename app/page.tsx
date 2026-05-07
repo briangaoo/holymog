@@ -7,7 +7,7 @@ import { Share2, Trophy } from 'lucide-react';
 import { Camera, type CameraHandle } from '@/components/Camera';
 import { FaceDetectedPill } from '@/components/FaceDetectedPill';
 import { Countdown } from '@/components/Countdown';
-import { SpiderwebOverlay, SPIDERWEB_TOTAL_MS } from '@/components/SpiderwebOverlay';
+import { SpiderwebOverlay } from '@/components/SpiderwebOverlay';
 import { ScoreReveal } from '@/components/ScoreReveal';
 import { SubScoreCard } from '@/components/SubScoreCard';
 import { ShareSheet } from '@/components/ShareSheet';
@@ -15,18 +15,52 @@ import { RetakeButton } from '@/components/RetakeButton';
 import { PrivacyModal } from '@/components/PrivacyModal';
 import { LeaderboardButton } from '@/components/LeaderboardButton';
 import { LeaderboardModal } from '@/components/LeaderboardModal';
+import { LiveMeter, LivePageBorder } from '@/components/LiveMeter';
 import { MoreDetail } from '@/components/MoreDetail';
+import { getScoreColor } from '@/lib/scoreColor';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFlowMachine } from '@/hooks/useFlowMachine';
 import { combineScores, mockVisionScore } from '@/lib/scoreEngine';
 import { getTier, getTierDescriptor } from '@/lib/tier';
 import type { FinalScores, Frame, Landmark, VisionScore } from '@/types';
 
-const CAPTURE_DELAY_MS = 3000;
-const MAPPING_MIN_MS = SPIDERWEB_TOTAL_MS;
+// 3-second countdown → 5-second live scan phase = 8 second total scan window.
+// First live call fires 1 second before the countdown ends so the result lands
+// exactly when the countdown disappears (live meter appears with a score, no flash).
+const COUNTDOWN_MS = 3000;
+const SCAN_MS = 5000;
+const TOTAL_DELAY_MS = COUNTDOWN_MS + SCAN_MS;
+const WARMUP_BEFORE_END = 1000;
+// 5 real Grok calls at 1-second intervals + 5 synthetic (jittered) updates
+// in between = 10 visible updates over the scan phase, but only 5 API calls.
+const REAL_CALL_COUNT = 5;
+const REAL_INTERVAL_MS = 1000;
+const SYNTHETIC_OFFSET_MS = 500;
+const TOTAL_DISPLAY_COUNT = REAL_CALL_COUNT * 2;
+// Spiderweb runs during the scan phase (alongside the live meter), not during
+// mapping, so mapping just waits for the heavy /api/score call to complete.
+const MAPPING_MIN_MS = 0;
 
-const STORAGE_KEY = 'mogem-last-result';
-const PRIVACY_KEY = 'mogem-privacy-acknowledged';
+type TokenAccum = {
+  liveInput: number;
+  liveOutput: number;
+  liveCalls: number;
+  proInput: number;
+  proOutput: number;
+  proCalls: number;
+};
+
+const EMPTY_TOKENS: TokenAccum = {
+  liveInput: 0,
+  liveOutput: 0,
+  liveCalls: 0,
+  proInput: 0,
+  proOutput: 0,
+  proCalls: 0,
+};
+
+const STORAGE_KEY = 'holymog-last-result';
+const PRIVACY_KEY = 'holymog-privacy-acknowledged';
 
 type SavedResult = { scores: FinalScores; capturedImage: string; ts: number };
 
@@ -73,7 +107,19 @@ export default function Home() {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
   const [videoSize, setVideoSize] = useState({ width: 720, height: 1280 });
-  // Privacy gate — camera mounts immediately, but face detection / countdown
+
+  // Live meter (during scan phase): score is set by real Grok calls + synthetic
+  // jitter updates in between.
+  const [liveScore, setLiveScore] = useState<number | null>(null);
+  const [liveDisplayCount, setLiveDisplayCount] = useState(0);
+  const [tokens, setTokens] = useState<TokenAccum>(EMPTY_TOKENS);
+  // Track every score already shown this scan so jitter never lands on a
+  // duplicate.
+  const shownScoresRef = useRef<Set<number>>(new Set());
+  // Most recent REAL Grok score, synthetic updates anchor on this so
+  // they never drift far from truth.
+  const lastRealScoreRef = useRef<number | null>(null);
+  // Privacy gate, camera mounts immediately, but face detection / countdown
   // is paused until the user dismisses the privacy modal on first visit.
   const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const [privacyChecked, setPrivacyChecked] = useState(false);
@@ -123,41 +169,144 @@ export default function Home() {
     }
   }, [state.type, isDetected, multipleFaces, dispatch]);
 
-  // Multi-frame capture: 2 frames evenly spaced across the 3-second countdown.
-  // Both go to /api/score; Grok averages structure/features/surface across them.
+  // Scan flow:
+  //   t=0     → 'detected', countdown starts (3, 2, 1)
+  //   t=2000  → real call 1 fires (warmup; result lands ~countdown end)
+  //   t=3000  → countdown ends, warmup result lands → live meter appears
+  //   t=3000..7500 → real calls every 1000ms + synthetic updates 500ms after
+  //                  each real call. 5 real + 5 synthetic = 10 visible updates.
+  //   t=4500, 6500 → 2 frames captured for the heavy /api/score call
+  //   t=8000  → CAPTURE dispatched → mapping state takes over
+  //   (countdown end → CAPTURE = exactly 5 seconds, no buffer)
   useEffect(() => {
     if (state.type !== 'detected') return;
 
-    const TARGET_FRAMES = 2;
-    const captureTimes = Array.from({ length: TARGET_FRAMES }, (_, i) =>
-      Math.round(((i + 1) / TARGET_FRAMES) * CAPTURE_DELAY_MS),
-    );
+    setLiveScore(null);
+    setLiveDisplayCount(0);
+    setTokens(EMPTY_TOKENS);
+    shownScoresRef.current = new Set();
+    lastRealScoreRef.current = null;
+
     const captured: Frame[] = [];
     const timers: number[] = [];
+    let cancelled = false;
 
-    for (const t of captureTimes) {
+    /** Pick a value not already in the shown set, jittering ±1..5 around an anchor. */
+    const pickUnique = (anchor: number): number => {
+      const shown = shownScoresRef.current;
+      let displayed = Math.max(0, Math.min(100, Math.round(anchor)));
+      let attempts = 0;
+      while (shown.has(displayed) && attempts < 12) {
+        const direction = Math.random() < 0.5 ? -1 : 1;
+        const magnitude = 1 + Math.floor(Math.random() * 5);
+        displayed = Math.max(0, Math.min(100, anchor + direction * magnitude));
+        attempts++;
+      }
+      shown.add(displayed);
+      return displayed;
+    };
+
+    // Real Grok calls, 5 total, every 1000ms starting 1s before countdown ends.
+    const firstRealAt = COUNTDOWN_MS - WARMUP_BEFORE_END; // 2000ms
+    for (let i = 0; i < REAL_CALL_COUNT; i++) {
+      const fireT = firstRealAt + i * REAL_INTERVAL_MS;
+
+      timers.push(
+        window.setTimeout(async () => {
+          if (cancelled) return;
+          const image = cameraHandleRef.current?.capture(
+            latestLandmarksRef.current ?? undefined,
+          );
+          if (!image) return;
+          try {
+            const res = await fetch('/api/quick-score', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ imageBase64: image }),
+            });
+            if (cancelled || !res.ok) return;
+            const inTok = Number(res.headers.get('X-Tokens-Input') ?? 0);
+            const outTok = Number(res.headers.get('X-Tokens-Output') ?? 0);
+            const data = (await res.json()) as { overall?: number };
+            if (typeof data.overall === 'number') {
+              const grokScore = Math.max(0, Math.min(100, Math.round(data.overall)));
+              lastRealScoreRef.current = grokScore;
+              const displayed = pickUnique(grokScore);
+              setLiveScore(displayed);
+              setLiveDisplayCount((c) => c + 1);
+            }
+            setTokens((prev) => ({
+              ...prev,
+              liveInput: prev.liveInput + inTok,
+              liveOutput: prev.liveOutput + outTok,
+              liveCalls: prev.liveCalls + 1,
+            }));
+          } catch {
+            // best-effort
+          }
+        }, fireT),
+      );
+    }
+
+    // Synthetic updates, fire 500ms after each real call's expected response.
+    // Anchored to the most recent real Grok score; jittered for variety.
+    for (let i = 0; i < REAL_CALL_COUNT; i++) {
+      const t = firstRealAt + i * REAL_INTERVAL_MS + REAL_INTERVAL_MS + SYNTHETIC_OFFSET_MS;
+      // i=0 → 3500, i=1 → 4500, ..., i=4 → 7500
       timers.push(
         window.setTimeout(() => {
-          const image = cameraHandleRef.current?.capture() ?? null;
+          if (cancelled) return;
+          const anchor = lastRealScoreRef.current;
+          if (anchor === null) return; // no real score yet, skip
+          const displayed = pickUnique(anchor);
+          setLiveScore(displayed);
+          setLiveDisplayCount((c) => c + 1);
+        }, t),
+      );
+    }
+
+    // 2 frames for the heavy /api/score breakdown call.
+    const heavyCaptureTimes = [
+      COUNTDOWN_MS + Math.round(SCAN_MS * 0.3), // t=4500
+      COUNTDOWN_MS + Math.round(SCAN_MS * 0.7), // t=6500
+    ];
+    for (const t of heavyCaptureTimes) {
+      timers.push(
+        window.setTimeout(() => {
           const lm = latestLandmarksRef.current;
+          const image = cameraHandleRef.current?.capture(lm ?? undefined) ?? null;
           if (image && lm) captured.push({ image, landmarks: lm });
         }, t),
       );
     }
 
+    // Scan phase ends EXACTLY at TOTAL_DELAY_MS (countdown + scan = 8000ms).
     const finalize = window.setTimeout(() => {
       if (captured.length === 0) {
         dispatch({ type: 'ERROR', message: 'Failed to capture any frames' });
         return;
       }
       dispatch({ type: 'CAPTURE', frames: captured });
-    }, CAPTURE_DELAY_MS + 60);
+    }, TOTAL_DELAY_MS);
 
     return () => {
+      cancelled = true;
       for (const t of timers) window.clearTimeout(t);
       window.clearTimeout(finalize);
     };
   }, [state.type, dispatch]);
+
+  // Track scan phase (post-countdown) so the live meter only appears after the
+  // countdown disappears.
+  const [scanPhase, setScanPhase] = useState(false);
+  useEffect(() => {
+    if (state.type !== 'detected') {
+      setScanPhase(false);
+      return;
+    }
+    const t = window.setTimeout(() => setScanPhase(true), COUNTDOWN_MS);
+    return () => window.clearTimeout(t);
+  }, [state.type]);
 
   useEffect(() => {
     if (state.type !== 'mapping') return;
@@ -168,24 +317,46 @@ export default function Home() {
       const { frames } = state;
 
       let vision: VisionScore;
+      let tokensSnapshot: TokenAccum = EMPTY_TOKENS;
+
       try {
         const res = await fetch('/api/score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ images: frames.map((f) => f.image) }),
         });
-        vision = res.ok ? ((await res.json()) as VisionScore) : mockVisionScore();
+        if (res.ok) {
+          const inTok = Number(res.headers.get('X-Tokens-Input') ?? 0);
+          const outTok = Number(res.headers.get('X-Tokens-Output') ?? 0);
+          setTokens((prev) => {
+            tokensSnapshot = {
+              ...prev,
+              proInput: prev.proInput + inTok,
+              proOutput: prev.proOutput + outTok,
+              proCalls: prev.proCalls + frames.length * 3,
+            };
+            return tokensSnapshot;
+          });
+          vision = (await res.json()) as VisionScore;
+        } else {
+          vision = mockVisionScore();
+        }
       } catch {
         vision = mockVisionScore();
       }
 
       const final = combineScores(vision);
 
-      // Local debug log — appended to /tmp/mogem-debug.log on the server.
+      // Local debug log, appended to /tmp/holymog-debug.log on the server.
       void fetch('/api/debug-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: 'main-scan', final, vision }),
+        body: JSON.stringify({
+          source: 'main-scan',
+          final,
+          vision,
+          tokens: tokensSnapshot,
+        }),
       });
 
       const elapsed = performance.now() - startedAt;
@@ -275,17 +446,17 @@ export default function Home() {
         onAcknowledge={acknowledgePrivacy}
       />
 
-      {/* Wordmark — subtle, only visible during camera and at top of results */}
+      {/* Wordmark, subtle, only visible during camera and at top of results */}
       <header
         className="pointer-events-none fixed left-0 right-0 top-0 z-40 flex justify-center"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 14px)' }}
       >
         <span className="font-mono text-sm lowercase text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-          mogem
+          holymog
         </span>
       </header>
 
-      {/* Full-screen camera — fixed inset-0 covers the entire viewport on every device */}
+      {/* Full-screen camera, fixed inset-0 covers the entire viewport on every device */}
       {showCamera && (
         <div className="fixed inset-0 z-10 overflow-hidden bg-black">
           <Camera
@@ -299,21 +470,48 @@ export default function Home() {
 
           <FaceDetectedPill visible={state.type === 'detected'} />
 
-          {state.type === 'detected' && <Countdown durationMs={CAPTURE_DELAY_MS} />}
-
-          {state.type === 'mapping' && screenSize.width > 0 && (
-            <SpiderwebOverlay
-              landmarks={
-                (landmarks as Landmark[] | null) ??
-                (state.frames[state.frames.length - 1]?.landmarks as Landmark[])
-              }
-              containerWidth={screenSize.width}
-              containerHeight={screenSize.height}
-              videoWidth={videoSize.width}
-              videoHeight={videoSize.height}
-              visible
-            />
+          {state.type === 'detected' && !scanPhase && (
+            <Countdown durationMs={COUNTDOWN_MS} />
           )}
+
+          {/* Live meter + page border stay up from scan-phase start through
+              the mapping/API call until the reveal page appears. */}
+          <LiveMeter
+            score={liveScore}
+            visible={scanPhase || state.type === 'mapping'}
+            progress={liveDisplayCount}
+            total={TOTAL_DISPLAY_COUNT}
+          />
+          <LivePageBorder
+            color={
+              (scanPhase || state.type === 'mapping') && liveScore !== null
+                ? getScoreColor(liveScore)
+                : null
+            }
+          />
+
+          {/* Spiderweb runs alongside the live bar (5 seconds during scan
+              phase) and stays visible into the mapping phase while the heavy
+              call resolves. */}
+          {(scanPhase || state.type === 'mapping') &&
+            screenSize.width > 0 &&
+            (landmarks ||
+              (state.type === 'mapping' &&
+                state.frames[state.frames.length - 1]?.landmarks)) && (
+              <SpiderwebOverlay
+                landmarks={
+                  (landmarks as Landmark[] | null) ??
+                  ((state.type === 'mapping'
+                    ? state.frames[state.frames.length - 1]?.landmarks
+                    : null) as Landmark[])
+                }
+                containerWidth={screenSize.width}
+                containerHeight={screenSize.height}
+                videoWidth={videoSize.width}
+                videoHeight={videoSize.height}
+                visible
+              />
+            )}
 
           <AnimatePresence>
             {showHint && (
@@ -349,7 +547,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Results layer — full-screen, tier-tinted backdrop */}
+      {/* Results layer, full-screen, tier-tinted backdrop */}
       <AnimatePresence>
         {showResults && (
           <motion.main
@@ -366,6 +564,7 @@ export default function Home() {
           >
             <ResultsContent
               state={state}
+              tokens={tokens}
               onRetake={handleRetake}
               onShare={() => setShareOpen(true)}
               onAddToLeaderboard={() => setLeaderboardOpen(true)}
@@ -400,12 +599,14 @@ type ResultsState =
 
 function ResultsContent({
   state,
+  tokens,
   onRetake,
   onShare,
   onAddToLeaderboard,
   onRevealDone,
 }: {
   state: ResultsState;
+  tokens: TokenAccum;
   onRetake: () => void;
   onShare: () => void;
   onAddToLeaderboard: () => void;
@@ -413,7 +614,7 @@ function ResultsContent({
 }) {
   const tier = getTier(state.scores.overall);
 
-  // subtle radial tier-color glow behind the tier letter — anchors color identity
+  // subtle radial tier-color glow behind the tier letter, anchors color identity
   const ambientStyle = useMemo<React.CSSProperties>(() => {
     const accent = tier.isGradient ? '#a855f7' : tier.color;
     return {
@@ -440,6 +641,7 @@ function ResultsContent({
           <CompleteView
             scores={state.scores}
             capturedImage={state.capturedImage}
+            tokens={tokens}
             onRetake={onRetake}
             onShare={onShare}
             onAddToLeaderboard={onAddToLeaderboard}
@@ -453,16 +655,19 @@ function ResultsContent({
 function CompleteView({
   scores,
   capturedImage,
+  tokens,
   onRetake,
   onShare,
   onAddToLeaderboard,
 }: {
   scores: FinalScores;
   capturedImage: string;
+  tokens: TokenAccum;
   onRetake: () => void;
   onShare: () => void;
   onAddToLeaderboard: () => void;
 }) {
+  const tokensForDetail = tokens.liveCalls + tokens.proCalls > 0 ? tokens : undefined;
   const tier = getTier(scores.overall);
   const descriptor = getTierDescriptor(tier.letter);
   const descriptorColor = tier.isGradient ? '#a855f7' : tier.color;
@@ -547,7 +752,11 @@ function CompleteView({
       </div>
 
       {scores.vision && typeof scores.presentation === 'number' && (
-        <MoreDetail vision={scores.vision} presentation={scores.presentation} />
+        <MoreDetail
+          vision={scores.vision}
+          presentation={scores.presentation}
+          tokens={tokensForDetail}
+        />
       )}
     </div>
   );

@@ -8,7 +8,7 @@ export type SubScores = {
 };
 
 export type VisionScore = {
-  // Structure (call 1) — bone structure & proportions
+  // Structure (call 1), bone structure & proportions
   jawline_definition: number;
   chin_definition: number;
   cheekbone_prominence: number;
@@ -19,7 +19,7 @@ export type VisionScore = {
   ear_shape: number;
   facial_thirds_visual: number;
 
-  // Features (call 2) — individual focal features
+  // Features (call 2), individual focal features
   eye_size: number;
   eye_shape: number;
   eye_bags: number;
@@ -31,7 +31,7 @@ export type VisionScore = {
   lip_proportion: number;
   philtrum: number;
 
-  // Surface (call 3) — skin, hair, pose, holistic
+  // Surface (call 3), skin, hair, pose, holistic
   skin_clarity: number;
   skin_evenness: number;
   skin_tone: number;

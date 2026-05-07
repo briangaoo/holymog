@@ -135,8 +135,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const score = await analyzeFaces(blobs);
-    return NextResponse.json(score);
+    const { vision, tokens } = await analyzeFaces(blobs);
+    return NextResponse.json(vision, {
+      headers: {
+        'X-Tokens-Input': String(tokens.input),
+        'X-Tokens-Output': String(tokens.output),
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'vision_error';
     return NextResponse.json({ error: message }, { status: 502 });

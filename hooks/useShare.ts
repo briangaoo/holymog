@@ -4,16 +4,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { generateShareImage } from '@/lib/shareImageGenerator';
 import { getTier } from '@/lib/tier';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mogem.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.com';
 
 function getShareText(tier: string, url: string): string {
   if (['F-', 'F', 'F+', 'D-', 'D', 'D+'].includes(tier))
-    return `I got ${tier} on Mogem 💀 mog or get mogged: ${url}`;
+    return `I got ${tier} on holymog 💀 mog or get mogged: ${url}`;
   if (['C-', 'C', 'C+'].includes(tier))
-    return `I got ${tier} on Mogem. mid. ${url}`;
+    return `I got ${tier} on holymog. mid. ${url}`;
   if (['B-', 'B', 'B+', 'A-', 'A', 'A+'].includes(tier))
-    return `I got ${tier} on Mogem 🔥 ${url}`;
-  return `I got ${tier} on Mogem. genetically mogging y'all 👑 ${url}`;
+    return `I got ${tier} on holymog 🔥 ${url}`;
+  return `I got ${tier} on holymog. genetically mogging y'all 👑 ${url}`;
 }
 
 type Toast = { id: number; message: string };
@@ -54,7 +54,7 @@ export function useShare(score: number) {
   const nativeShare = useCallback(async () => {
     try {
       const blob = await ensureBlob();
-      const file = new File([blob], `mogem-${tier}.png`, { type: 'image/png' });
+      const file = new File([blob], `holymog-${tier}.png`, { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], text: shareText, url: APP_URL });
         return;
@@ -94,7 +94,7 @@ export function useShare(score: number) {
   }, [showToast]);
 
   const copyImageFor = useCallback(
-    (platform: string) => copyImage(`Image copied — paste in ${platform}`),
+    (platform: string) => copyImage(`Image copied, paste in ${platform}`),
     [copyImage],
   );
 

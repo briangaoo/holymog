@@ -34,23 +34,23 @@ type Group = {
   closed?: boolean;
 };
 
-// Compressed to ~1.5s total — keeps the visual but doesn't gate result reveal.
+// 5-second animation matching the live-scan phase duration.
 const GROUPS: Group[] = [
-  { name: 'face', indices: FACE_OUTLINE, start: 0.0, end: 0.45, closed: true },
-  { name: 'leftEye', indices: LEFT_EYE, start: 0.3, end: 0.7, closed: true },
-  { name: 'rightEye', indices: RIGHT_EYE, start: 0.3, end: 0.7, closed: true },
-  { name: 'leftBrow', indices: LEFT_BROW, start: 0.3, end: 0.7 },
-  { name: 'rightBrow', indices: RIGHT_BROW, start: 0.3, end: 0.7 },
-  { name: 'nose', indices: NOSE, start: 0.55, end: 0.9 },
-  { name: 'lips', indices: LIPS, start: 0.7, end: 1.05, closed: true },
-  { name: 'jaw', indices: JAW, start: 0.85, end: 1.2 },
+  { name: 'face', indices: FACE_OUTLINE, start: 0.0, end: 1.4, closed: true },
+  { name: 'leftEye', indices: LEFT_EYE, start: 0.9, end: 2.3, closed: true },
+  { name: 'rightEye', indices: RIGHT_EYE, start: 0.9, end: 2.3, closed: true },
+  { name: 'leftBrow', indices: LEFT_BROW, start: 0.9, end: 2.3 },
+  { name: 'rightBrow', indices: RIGHT_BROW, start: 0.9, end: 2.3 },
+  { name: 'nose', indices: NOSE, start: 1.8, end: 3.0 },
+  { name: 'lips', indices: LIPS, start: 2.5, end: 3.7, closed: true },
+  { name: 'jaw', indices: JAW, start: 3.2, end: 4.4 },
 ];
 
-const LINE_DURATION_MS = 200;
-const TOTAL_MS = 1500;
-const FADE_OUT_MS = 200;
-const CROSS_START_MS = 1100;
-const CROSS_END_MS = 1450;
+const LINE_DURATION_MS = 500;
+const TOTAL_MS = 5000;
+const FADE_OUT_MS = 300;
+const CROSS_START_MS = 3800;
+const CROSS_END_MS = 4900;
 
 const STROKE = '#a1a1aa'; // zinc-400 grey
 const STROKE_WIDTH = 2.5;

@@ -34,11 +34,17 @@ export function PrivacyModal({ open, onAcknowledge }: Props) {
             <div className="space-y-3 text-sm leading-relaxed text-zinc-400">
               <p>
                 When you take a photo, it&apos;s sent briefly to xAI&apos;s vision model for
-                analysis, then discarded. Mogem doesn&apos;t store your photo unless you opt in
-                to add it to the leaderboard.
+                analysis, then discarded. holymog doesn&apos;t store your photo unless you opt
+                in to attach it to a leaderboard entry.
               </p>
               <p>
-                When you share, only your tier letter is shared — never your photo or sub-scores.
+                When you share to social media, only your tier letter is shared, never your
+                photo or sub-scores.
+              </p>
+              <p>
+                If you choose to add yourself to the leaderboard, your name, overall score,
+                tier, and sub-scores are saved publicly. Your photo is saved only if you
+                opt in.
               </p>
             </div>
             <button

@@ -42,3 +42,5 @@ next-env.d.ts
 
 # local agent / editor state
 .claude/
+CLAUDE.md
+AGENTS.md

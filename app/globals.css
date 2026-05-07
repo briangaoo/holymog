@@ -52,7 +52,7 @@ body {
   animation: glow-soft 2.4s ease-in-out infinite;
 }
 
-/* Display digits + tier letter — DM Sans Extra Bold with tabular numerics */
+/* Display digits + tier letter, DM Sans Extra Bold with tabular numerics */
 .font-num {
   font-family: var(--font-dm-sans), system-ui, -apple-system, sans-serif;
   font-variant-numeric: tabular-nums lining-nums;

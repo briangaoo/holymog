@@ -11,8 +11,8 @@
   </defs>
   <rect width="1200" height="630" fill="#000"/>
   <rect width="1200" height="630" fill="url(#bg)"/>
-  <text x="600" y="115" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="32" fill="#ffffff" fill-opacity="0.6">mogem</text>
+  <text x="600" y="115" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="32" fill="#ffffff" fill-opacity="0.6">holymog</text>
   <text x="600" y="370" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="240" font-weight="900" fill="url(#g)">S+</text>
   <text x="600" y="540" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="36" fill="#ffffff" fill-opacity="0.85">rate yourself F- to S+</text>
-  <text x="600" y="585" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="22" fill="#ffffff" fill-opacity="0.6">mogem.vercel.app</text>
+  <text x="600" y="585" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="22" fill="#ffffff" fill-opacity="0.6">holymog.com</text>
 </svg>

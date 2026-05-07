@@ -58,7 +58,7 @@ export default function LeaderboardPage() {
           <ChevronLeft size={16} aria-hidden />
           back
         </Link>
-        <span className="font-mono text-sm lowercase text-white">mogem</span>
+        <span className="font-mono text-sm lowercase text-white">holymog</span>
         <span className="w-12" aria-hidden />
       </header>
 
@@ -106,7 +106,7 @@ export default function LeaderboardPage() {
   );
 }
 
-/** Deterministic colored circle with the user's first letter — same name
+/** Deterministic colored circle with the user's first letter, same name
  *  always produces the same color (hash → hue). */
 function InitialAvatar({ name }: { name: string }) {
   const trimmed = name.trim();

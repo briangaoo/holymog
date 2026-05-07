@@ -12,7 +12,7 @@ export function getRatelimit(): Ratelimit | null {
     redis: Redis.fromEnv(),
     limiter: Ratelimit.slidingWindow(10, '1 m'),
     analytics: true,
-    prefix: 'mogem',
+    prefix: 'holymog',
   });
   return cachedLimiter;
 }

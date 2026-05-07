@@ -69,12 +69,36 @@ const SECTIONS: Section[] = [
   },
 ];
 
+export type TokenSummary = {
+  liveInput: number;
+  liveOutput: number;
+  liveCalls: number;
+  proInput: number;
+  proOutput: number;
+  proCalls: number;
+};
+
 type Props = {
   vision: VisionScore;
   presentation: number;
+  tokens?: TokenSummary;
 };
 
-export function MoreDetail({ vision, presentation }: Props) {
+// Grok 4.20 non-reasoning pricing (xAI): $1.25 / 1M input, $2.50 / 1M output.
+const COST_INPUT_PER_M = 1.25;
+const COST_OUTPUT_PER_M = 2.5;
+
+function formatNumber(n: number): string {
+  return n.toLocaleString();
+}
+
+function formatCost(input: number, output: number): string {
+  const dollars = (input * COST_INPUT_PER_M + output * COST_OUTPUT_PER_M) / 1_000_000;
+  if (dollars < 0.0001) return '<$0.0001';
+  return `$${dollars.toFixed(4)}`;
+}
+
+export function MoreDetail({ vision, presentation, tokens }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -107,6 +131,35 @@ export function MoreDetail({ vision, presentation }: Props) {
             className="overflow-hidden"
           >
             <div className="flex flex-col gap-4 pt-3">
+              {tokens && (
+                <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5 text-[12px]">
+                  <header className="mb-2">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                      Token usage (this scan)
+                    </h3>
+                  </header>
+                  <div className="flex flex-col gap-1.5">
+                    <TokenRow
+                      label={`live · ${tokens.liveCalls} calls`}
+                      input={tokens.liveInput}
+                      output={tokens.liveOutput}
+                    />
+                    <TokenRow
+                      label={`pro · ${tokens.proCalls} calls`}
+                      input={tokens.proInput}
+                      output={tokens.proOutput}
+                    />
+                    <div className="my-1 border-t border-white/5" />
+                    <TokenRow
+                      label="total"
+                      input={tokens.liveInput + tokens.proInput}
+                      output={tokens.liveOutput + tokens.proOutput}
+                      bold
+                    />
+                  </div>
+                </section>
+              )}
+
               {SECTIONS.map((section, idx) => (
                 <section
                   key={section.title}
@@ -150,6 +203,33 @@ export function MoreDetail({ vision, presentation }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function TokenRow({
+  label,
+  input,
+  output,
+  bold = false,
+}: {
+  label: string;
+  input: number;
+  output: number;
+  bold?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className={bold ? 'font-semibold text-white' : 'text-zinc-300'}>{label}</span>
+      <span className="font-num tabular-nums text-[11px] text-zinc-400">
+        <span className="text-zinc-500">in</span> {formatNumber(input)}
+        <span className="mx-1 text-zinc-600">·</span>
+        <span className="text-zinc-500">out</span> {formatNumber(output)}
+        <span className="mx-1 text-zinc-600">·</span>
+        <span className={bold ? 'font-semibold text-white' : 'text-zinc-200'}>
+          {formatCost(input, output)}
+        </span>
+      </span>
     </div>
   );
 }
