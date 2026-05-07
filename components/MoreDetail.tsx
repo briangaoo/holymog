@@ -31,7 +31,6 @@ const SECTIONS: Section[] = [
     items: [
       ['jawline', 'jawline_definition'],
       ['chin', 'chin_definition'],
-      ['smile', 'smile_quality'],
       ['lip shape', 'lip_shape'],
     ],
   },

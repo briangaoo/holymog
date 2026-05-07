@@ -1,28 +1,65 @@
 import type { VisionScore } from '@/types';
 
 const XAI_ENDPOINT = 'https://api.x.ai/v1/chat/completions';
-const DEFAULT_MODEL = 'grok-4-1-fast-reasoning';
+// Grok 4.20 non-reasoning — better per-call quality than 4.1, ~0.7-0.9s.
+// Paired with 2-frame averaging that's 6 calls in parallel ≈ ~1.5s wall.
+const DEFAULT_MODEL = 'grok-4.20-0309-non-reasoning';
 
-const ANCHOR_RUBRIC = `Use the FULL 0-100 range. Most ordinary adults fall in the 35-65 range.
-Reserve 80+ for genuinely above-average. Reserve 90+ for top 1% (model-tier).
-Be honest and specific — do not anchor toward 70-90.
+const ANCHOR_RUBRIC = `CRITICAL CALIBRATION — read carefully.
 
-Anchor scale (apply to every field):
-  95-100  Top 0.1%. Outlier. Magazine cover, A-list celebrity.
-  85-94   Top 5%. Fashion-model tier.
-  70-84   Above average. Clearly attractive but not exceptional.
-  50-69   Average. Most adults.
-  30-49   Below average. Imperfections, weak features.
-  10-29   Distorted, contorted, or major flaws.
-  0-9     Severely distorted/contorted.
+Imagine ranking the face you're scoring against 1,000 random adults. The score reflects this rank:
 
-Distortion checklist — if ANY are present, score 15-35 across EVERY field, ignore the anchor scale:
+  Rank 1      (top 0.1%, the absolute peak)                    → 99-100
+  Rank 2-15   (top 1.5%, working pro fashion model territory)  → 95-99
+  Rank 16-50  (top 5%, "could book modeling work")             → 88-94
+  Rank 51-150 (top 15%, "hot", strangers compliment)           → 80-87
+  Rank 151-350 (top 35%, above average / cute)                 → 70-79
+  Rank 351-650 (the middle 30%, average — median person)       → 55-69
+  Rank 651-800 (slightly below average, plain)                 → 42-54
+  Rank 801-900 (notably unattractive)                          → 28-41
+  Rank 901-970 (significantly unattractive)                    → 14-27
+  Rank 971-995 (severely flawed)                               → 5-13
+  Rank 996-1000                                                → 0-4
+
+If the face has the structural hallmarks of a working professional fashion model
+— sharp jawline, defined cheekbones, hunter eyes / strong canthal tilt, balanced
+proportions, clear skin, strong overall harmony — they are AT MINIMUM 95.
+Top-tier working models hit 96-98. The 99-100 range is reserved for the single
+most exceptional outlier. Do NOT park at 92-94 thinking "could book work" — if
+the face is at that level, it IS pro model material, score 95+.
+
+Default bias: when in doubt between two adjacent bands for an attractive face, choose
+the HIGHER band. The score reflects the FACE, not the photo quality.
+
+For attractive faces, EXPECT many features to score 90+ together. Real beauty is
+high across multiple dimensions — do not artificially lower features to "spread"
+the scores. Spread is fine when there's a real weakness; it's wrong when there isn't.
+
+For unattractive faces, EXPECT many features to score below 50 together. Real flaws
+compound — do not artificially raise features to "spread" the scores upward.
+
+EXPRESSION HANDLING — read carefully:
+  - Smiling is NOT a distortion. A natural smile, including showing teeth, should
+    not lower any score. Score the UNDERLYING facial structure.
+  - When a feature is temporarily reshaped by an expression (lips spread wide while
+    smiling, eyes slightly closed from smiling, cheeks raised by a grin), do NOT
+    score those features low. Either score the structure as you'd see it neutral,
+    or score 65-75 (above-average neutral) if you genuinely cannot tell.
+  - Lighting / angle / partial obscurity is also NOT a flaw. Don't penalize a
+    feature you can't see well — score 60-70 instead of low.
+  - Cropped or out-of-frame features (e.g. ears not visible) → 70.
+  - Charisma, photogenic quality, and a warm presence DO count toward
+    overall_attractiveness, feature_harmony, and confidence.
+
+DELIBERATE distortion is different — apply the checklist below ONLY for these.
+
+Distortion checklist — if ANY are present, score 5-25 across EVERY field, ignore the rank scale:
   - recessed/jutted jaw, double chin from posture
-  - mouth contorted, jaw open, tongue out
-  - eyes closed or squinting unnaturally
+  - mouth contorted unnaturally, jaw open, tongue out (NOT a normal smile)
+  - eyes squeezed shut deliberately
   - hair deliberately covering eyes/forehead
   - head turned > 15° from camera
-  - exaggerated expression`;
+  - face being pulled / pinched / pushed to look bad on purpose`;
 
 const STRICT_PREFIX = 'OUTPUT VALID JSON ONLY. NO PROSE.\n\n';
 
@@ -78,7 +115,6 @@ const FEATURES_KEYS = [
   'brow_thickness',
   'lip_shape',
   'lip_proportion',
-  'smile_quality',
   'philtrum',
 ] as const;
 
@@ -96,7 +132,6 @@ Score each (integer 0-100):
   brow_thickness      appropriate fullness for the face
   lip_shape           definition, vermilion border, cupid's bow
   lip_proportion      balance of upper vs lower lip
-  smile_quality       smile aesthetics (not smiling → score 50)
   philtrum            philtrum length and shape
 
 Output ONLY this JSON (no prose, no markdown):
@@ -110,7 +145,6 @@ Output ONLY this JSON (no prose, no markdown):
   "brow_thickness": <int>,
   "lip_shape": <int>,
   "lip_proportion": <int>,
-  "smile_quality": <int>,
   "philtrum": <int>
 }`;
 
@@ -216,6 +250,7 @@ async function callGrok(dataUrl: string, prompt: string): Promise<string> {
     body: JSON.stringify({
       model,
       temperature: 0.2,
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'user',
@@ -266,11 +301,17 @@ function neutralFor<K extends string>(keys: readonly K[]): Record<K, number> {
 
 /* ------------------------------- public API ------------------------------- */
 
-export async function analyzeFace(blob: Blob): Promise<VisionScore> {
+const ALL_KEYS = [...STRUCTURE_KEYS, ...FEATURES_KEYS, ...SURFACE_KEYS] as const;
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
   const ab = await blob.arrayBuffer();
   const base64 = Buffer.from(ab).toString('base64');
   const mime = blob.type || 'image/jpeg';
-  const dataUrl = `data:${mime};base64,${base64}`;
+  return `data:${mime};base64,${base64}`;
+}
+
+export async function analyzeFace(blob: Blob): Promise<VisionScore> {
+  const dataUrl = await blobToDataUrl(blob);
 
   const [structure, features, surface] = await Promise.all([
     callCategory(dataUrl, STRUCTURE_PROMPT, STRUCTURE_KEYS),
@@ -280,12 +321,32 @@ export async function analyzeFace(blob: Blob): Promise<VisionScore> {
 
   const anyFailed = !structure || !features || !surface;
 
-  const merged: VisionScore = {
+  return {
     ...(structure ?? neutralFor(STRUCTURE_KEYS)),
     ...(features ?? neutralFor(FEATURES_KEYS)),
     ...(surface ?? neutralFor(SURFACE_KEYS)),
     ...(anyFailed ? { fallback: true } : {}),
   } as VisionScore;
+}
 
-  return merged;
+/**
+ * Analyze N face frames in parallel and average the per-field scores.
+ */
+export async function analyzeFaces(blobs: Blob[]): Promise<VisionScore> {
+  if (blobs.length === 0) throw new Error('analyzeFaces requires at least 1 blob');
+
+  const results = await Promise.all(blobs.map((b) => analyzeFace(b)));
+  const anyFallback = results.some((r) => r.fallback);
+
+  const out = {} as Record<string, number>;
+  for (const k of ALL_KEYS) {
+    let sum = 0;
+    for (const r of results) sum += r[k] as number;
+    out[k] = Math.round(sum / results.length);
+  }
+
+  return {
+    ...(out as unknown as VisionScore),
+    ...(anyFallback ? { fallback: true } : {}),
+  };
 }

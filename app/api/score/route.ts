@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { analyzeFace } from '@/lib/vision';
+import { analyzeFaces } from '@/lib/vision';
 import { getRatelimit } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
@@ -8,8 +8,9 @@ export const dynamic = 'force-dynamic';
 const MAX_BYTES = 2 * 1024 * 1024;
 const MIN_DIM = 256;
 const MAX_DIM = 2048;
+const MAX_IMAGES = 6;
 
-type Body = { imageBase64?: unknown };
+type Body = { imageBase64?: unknown; images?: unknown };
 
 function decodeBase64(input: string): Buffer | null {
   const cleaned = input.startsWith('data:')
@@ -23,7 +24,6 @@ function decodeBase64(input: string): Buffer | null {
 }
 
 function readPngDimensions(buf: Buffer): { w: number; h: number } | null {
-  // PNG: bytes 16..23 are width and height (big-endian uint32)
   if (
     buf.length >= 24 &&
     buf[0] === 0x89 &&
@@ -69,16 +69,32 @@ function detectMime(buf: Buffer): string {
   return 'application/octet-stream';
 }
 
+function validateAndBlob(
+  imageBase64: string,
+): { blob: Blob } | { error: string; status: number } {
+  const buffer = decodeBase64(imageBase64);
+  if (!buffer) return { error: 'decode_failed', status: 400 };
+  if (buffer.byteLength > MAX_BYTES) return { error: 'image_too_large', status: 413 };
+  const dims = readPngDimensions(buffer) ?? readJpegDimensions(buffer);
+  if (!dims) return { error: 'unsupported_image', status: 415 };
+  if (dims.w < MIN_DIM || dims.h < MIN_DIM || dims.w > MAX_DIM || dims.h > MAX_DIM) {
+    return { error: 'bad_dimensions', status: 400 };
+  }
+  const mime = detectMime(buffer);
+  const ab = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength,
+  );
+  return { blob: new Blob([ab as ArrayBuffer], { type: mime }) };
+}
+
 export async function POST(request: Request) {
   const limiter = getRatelimit();
   if (limiter) {
     const ip = request.headers.get('x-forwarded-for') ?? 'anonymous';
     const result = await limiter.limit(ip);
     if (!result.success) {
-      return NextResponse.json(
-        { error: 'rate_limited' },
-        { status: 429 },
-      );
+      return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
     }
   }
 
@@ -89,72 +105,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
-  if (typeof body.imageBase64 !== 'string') {
+  // Accept either { images: [...] } (multi-frame) or { imageBase64 } (single, /test).
+  const rawImages: string[] = (() => {
+    if (Array.isArray(body.images)) {
+      return body.images.filter((x): x is string => typeof x === 'string');
+    }
+    if (typeof body.imageBase64 === 'string') return [body.imageBase64];
+    return [];
+  })();
+
+  if (rawImages.length === 0) {
     return NextResponse.json({ error: 'missing_image' }, { status: 400 });
   }
-
-  const buffer = decodeBase64(body.imageBase64);
-  if (!buffer) {
-    return NextResponse.json({ error: 'decode_failed' }, { status: 400 });
-  }
-  if (buffer.byteLength > MAX_BYTES) {
-    return NextResponse.json({ error: 'image_too_large' }, { status: 413 });
+  if (rawImages.length > MAX_IMAGES) {
+    return NextResponse.json({ error: 'too_many_images' }, { status: 400 });
   }
 
-  const dims = readPngDimensions(buffer) ?? readJpegDimensions(buffer);
-  if (!dims) {
-    return NextResponse.json({ error: 'unsupported_image' }, { status: 415 });
-  }
-  if (
-    dims.w < MIN_DIM ||
-    dims.h < MIN_DIM ||
-    dims.w > MAX_DIM ||
-    dims.h > MAX_DIM
-  ) {
-    return NextResponse.json({ error: 'bad_dimensions' }, { status: 400 });
+  const blobs: Blob[] = [];
+  for (const img of rawImages) {
+    const result = validateAndBlob(img);
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    blobs.push(result.blob);
   }
 
   if (!process.env.XAI_API_KEY) {
-    return NextResponse.json(
-      {
-        error: 'vision_unavailable',
-        fallback: {
-          jawline_definition: 50,
-          eye_proportion: 50,
-          skin_clarity: 50,
-          cheekbone_prominence: 50,
-          symmetry: 50,
-          feature_harmony: 50,
-        },
-      },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: 'vision_unavailable' }, { status: 503 });
   }
 
   try {
-    const mime = detectMime(buffer);
-    const ab = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    );
-    const blob = new Blob([ab as ArrayBuffer], { type: mime });
-    const score = await analyzeFace(blob);
+    const score = await analyzeFaces(blobs);
     return NextResponse.json(score);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'vision_error';
-    return NextResponse.json(
-      {
-        error: message,
-        fallback: {
-          jawline_definition: 50,
-          eye_proportion: 50,
-          skin_clarity: 50,
-          cheekbone_prominence: 50,
-          symmetry: 50,
-          feature_harmony: 50,
-        },
-      },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }

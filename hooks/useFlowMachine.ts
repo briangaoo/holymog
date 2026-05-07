@@ -22,20 +22,17 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       return state;
     case 'CAPTURE':
       if (state.type === 'detected' || state.type === 'streaming') {
-        return {
-          type: 'mapping',
-          capturedImage: action.image,
-          landmarks: action.landmarks,
-          extras: action.extras,
-        };
+        if (action.frames.length === 0) return state;
+        return { type: 'mapping', frames: action.frames };
       }
       return state;
     case 'MAPPING_DONE':
       if (state.type === 'mapping') {
+        const last = state.frames[state.frames.length - 1];
         return {
           type: 'revealing',
           scores: action.scores,
-          capturedImage: state.capturedImage,
+          capturedImage: last?.image ?? '',
         };
       }
       return state;

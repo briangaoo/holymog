@@ -18,9 +18,9 @@ import { LeaderboardModal } from '@/components/LeaderboardModal';
 import { MoreDetail } from '@/components/MoreDetail';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFlowMachine } from '@/hooks/useFlowMachine';
-import { combineScores, computeClientScores, mockVisionScore } from '@/lib/scoreEngine';
+import { combineScores, mockVisionScore } from '@/lib/scoreEngine';
 import { getTier, getTierDescriptor } from '@/lib/tier';
-import type { Blendshapes, CaptureExtras, FinalScores, HeadPose, Landmark, VisionScore } from '@/types';
+import type { FinalScores, Frame, Landmark, VisionScore } from '@/types';
 
 const CAPTURE_DELAY_MS = 3000;
 const MAPPING_MIN_MS = SPIDERWEB_TOTAL_MS;
@@ -105,23 +105,15 @@ export default function Home() {
     privacyAcknowledged &&
     (state.type === 'streaming' || state.type === 'detected' || state.type === 'mapping');
 
-  const { isDetected, multipleFaces, landmarks, blendshapes, headPose } =
-    useFaceDetection(videoRef, detectionActive);
+  const { isDetected, multipleFaces, landmarks } = useFaceDetection(
+    videoRef,
+    detectionActive,
+  );
 
-  const latestDetectionRef = useRef<{
-    landmarks: Landmark[] | null;
-    blendshapes: Blendshapes | null;
-    headPose: HeadPose | null;
-  }>({ landmarks: null, blendshapes: null, headPose: null });
+  const latestLandmarksRef = useRef<Landmark[] | null>(null);
   useEffect(() => {
-    if (landmarks) {
-      latestDetectionRef.current = {
-        landmarks,
-        blendshapes: blendshapes ?? latestDetectionRef.current.blendshapes,
-        headPose: headPose ?? latestDetectionRef.current.headPose,
-      };
-    }
-  }, [landmarks, blendshapes, headPose]);
+    if (landmarks) latestLandmarksRef.current = landmarks;
+  }, [landmarks]);
 
   useEffect(() => {
     if (state.type === 'streaming' && isDetected && !multipleFaces) {
@@ -131,22 +123,40 @@ export default function Home() {
     }
   }, [state.type, isDetected, multipleFaces, dispatch]);
 
+  // Multi-frame capture: 2 frames evenly spaced across the 3-second countdown.
+  // Both go to /api/score; Grok averages structure/features/surface across them.
   useEffect(() => {
     if (state.type !== 'detected') return;
-    const timeout = window.setTimeout(() => {
-      const image = cameraHandleRef.current?.capture() ?? null;
-      const det = latestDetectionRef.current;
-      if (!image || !det.landmarks || !det.blendshapes || !det.headPose) {
-        dispatch({ type: 'ERROR', message: 'Failed to capture frame' });
+
+    const TARGET_FRAMES = 2;
+    const captureTimes = Array.from({ length: TARGET_FRAMES }, (_, i) =>
+      Math.round(((i + 1) / TARGET_FRAMES) * CAPTURE_DELAY_MS),
+    );
+    const captured: Frame[] = [];
+    const timers: number[] = [];
+
+    for (const t of captureTimes) {
+      timers.push(
+        window.setTimeout(() => {
+          const image = cameraHandleRef.current?.capture() ?? null;
+          const lm = latestLandmarksRef.current;
+          if (image && lm) captured.push({ image, landmarks: lm });
+        }, t),
+      );
+    }
+
+    const finalize = window.setTimeout(() => {
+      if (captured.length === 0) {
+        dispatch({ type: 'ERROR', message: 'Failed to capture any frames' });
         return;
       }
-      const extras: CaptureExtras = {
-        blendshapes: det.blendshapes,
-        headPose: det.headPose,
-      };
-      dispatch({ type: 'CAPTURE', image, landmarks: det.landmarks, extras });
-    }, CAPTURE_DELAY_MS);
-    return () => window.clearTimeout(timeout);
+      dispatch({ type: 'CAPTURE', frames: captured });
+    }, CAPTURE_DELAY_MS + 60);
+
+    return () => {
+      for (const t of timers) window.clearTimeout(t);
+      window.clearTimeout(finalize);
+    };
   }, [state.type, dispatch]);
 
   useEffect(() => {
@@ -155,44 +165,27 @@ export default function Home() {
     const startedAt = performance.now();
 
     const run = async () => {
-      const { golden, proprietary } = computeClientScores(
-        state.landmarks,
-        videoSize.width,
-        videoSize.height,
-        state.extras,
-      );
+      const { frames } = state;
 
       let vision: VisionScore;
       try {
         const res = await fetch('/api/score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: state.capturedImage }),
+          body: JSON.stringify({ images: frames.map((f) => f.image) }),
         });
-        if (res.ok) {
-          vision = (await res.json()) as VisionScore;
-        } else {
-          const data = (await res.json().catch(() => ({}))) as { fallback?: VisionScore };
-          vision = data.fallback ?? mockVisionScore();
-        }
+        vision = res.ok ? ((await res.json()) as VisionScore) : mockVisionScore();
       } catch {
         vision = mockVisionScore();
       }
 
-      const final = combineScores(golden, proprietary, vision);
+      const final = combineScores(vision);
 
       // Local debug log — appended to /tmp/mogem-debug.log on the server.
-      // Diff entries to see why one capture scored higher than another.
       void fetch('/api/debug-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: 'main-scan',
-          final,
-          golden,
-          proprietary,
-          vision,
-        }),
+        body: JSON.stringify({ source: 'main-scan', final, vision }),
       });
 
       const elapsed = performance.now() - startedAt;
@@ -310,7 +303,10 @@ export default function Home() {
 
           {state.type === 'mapping' && screenSize.width > 0 && (
             <SpiderwebOverlay
-              landmarks={(landmarks as Landmark[] | null) ?? (state.landmarks as Landmark[])}
+              landmarks={
+                (landmarks as Landmark[] | null) ??
+                (state.frames[state.frames.length - 1]?.landmarks as Landmark[])
+              }
               containerWidth={screenSize.width}
               containerHeight={screenSize.height}
               videoWidth={videoSize.width}

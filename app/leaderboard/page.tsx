@@ -106,6 +106,31 @@ export default function LeaderboardPage() {
   );
 }
 
+/** Deterministic colored circle with the user's first letter — same name
+ *  always produces the same color (hash → hue). */
+function InitialAvatar({ name }: { name: string }) {
+  const trimmed = name.trim();
+  const initial = (trimmed.charAt(0) || '?').toUpperCase();
+
+  let hash = 0;
+  for (let i = 0; i < trimmed.length; i++) {
+    hash = (hash << 5) - hash + trimmed.charCodeAt(i);
+    hash |= 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  const bg = `hsl(${hue}, 55%, 42%)`;
+
+  return (
+    <div
+      aria-hidden
+      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+      style={{ backgroundColor: bg }}
+    >
+      {initial}
+    </div>
+  );
+}
+
 function Row({ row, rank }: { row: LeaderboardRow; rank: number }) {
   const tier = getTier(row.overall);
   const isGradient = tier.isGradient;
@@ -130,10 +155,7 @@ function Row({ row, rank }: { row: LeaderboardRow; rank: number }) {
           loading="lazy"
         />
       ) : (
-        <div
-          aria-hidden
-          className="h-10 w-10 flex-shrink-0 rounded-full border border-white/10 bg-white/[0.03]"
-        />
+        <InitialAvatar name={row.name} />
       )}
       <div className="flex-1 min-w-0">
         <div className="truncate text-sm font-medium text-white">{row.name}</div>

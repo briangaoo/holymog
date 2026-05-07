@@ -1,58 +1,10 @@
 export type Landmark = { x: number; y: number; z: number };
 
-/** Subset of MediaPipe blendshapes we care about, normalized 0–1. */
-export type Blendshapes = {
-  eyeBlinkLeft: number;
-  eyeBlinkRight: number;
-  eyeSquintLeft: number;
-  eyeSquintRight: number;
-  jawOpen: number;
-  jawForward: number;
-  jawLeft: number;
-  jawRight: number;
-  mouthFunnel: number;
-  mouthPucker: number;
-  mouthLeft: number;
-  mouthRight: number;
-  mouthStretchLeft: number;
-  mouthStretchRight: number;
-  mouthRollLower: number;
-  mouthRollUpper: number;
-  cheekPuff: number;
-};
-
-/** Head orientation in degrees, derived from MediaPipe transform matrix. */
-export type HeadPose = { yaw: number; pitch: number; roll: number };
-
-export type CaptureExtras = {
-  blendshapes: Blendshapes;
-  headPose: HeadPose;
-};
-
 export type SubScores = {
   jawline: number;
   eyes: number;
   skin: number;
   cheekbones: number;
-};
-
-export type PartialSubScores = {
-  jawline: number | null;
-  eyes: number | null;
-  skin: number | null;
-  cheekbones: number | null;
-};
-
-export type MetricDetail = {
-  value: number;
-  score: number;
-  target?: number | string;
-};
-
-export type SourceScore = {
-  overall: number;
-  sub: PartialSubScores;
-  details?: Record<string, MetricDetail>;
 };
 
 export type VisionScore = {
@@ -77,7 +29,6 @@ export type VisionScore = {
   brow_thickness: number;
   lip_shape: number;
   lip_proportion: number;
-  smile_quality: number;
   philtrum: number;
 
   // Surface (call 3) — skin, hair, pose, holistic
@@ -98,13 +49,19 @@ export type VisionScore = {
 
 export type FinalScores = {
   overall: number;
-  /** 5th composite (hair / posture / confidence / harmony / holistic). Optional
-   *  for backward compatibility with old localStorage entries. */
-  presentation?: number;
   sub: SubScores;
-  /** Full Grok breakdown — used by the "more detail" panel. Optional for the
-   *  same backward-compat reason. */
+  /** Optional only for backward compatibility with old localStorage entries.
+   *  All new scans populate both. */
+  presentation?: number;
   vision?: VisionScore;
+};
+
+/** A single frame sample captured during the countdown.
+ *  We capture two frames spread across the 3-second window and average the
+ *  vision call results across them server-side. */
+export type Frame = {
+  image: string;
+  landmarks: Landmark[];
 };
 
 export type FlowState =
@@ -112,12 +69,7 @@ export type FlowState =
   | { type: 'streaming' }
   | { type: 'detected'; stableSince: number }
   | { type: 'capturing' }
-  | {
-      type: 'mapping';
-      capturedImage: string;
-      landmarks: Landmark[];
-      extras: CaptureExtras;
-    }
+  | { type: 'mapping'; frames: Frame[] }
   | { type: 'revealing'; scores: FinalScores; capturedImage: string }
   | { type: 'complete'; scores: FinalScores; capturedImage: string }
   | { type: 'error'; message: string };
@@ -126,7 +78,7 @@ export type FlowAction =
   | { type: 'CAMERA_READY' }
   | { type: 'FACE_LOST' }
   | { type: 'FACE_STABLE' }
-  | { type: 'CAPTURE'; image: string; landmarks: Landmark[]; extras: CaptureExtras }
+  | { type: 'CAPTURE'; frames: Frame[] }
   | { type: 'MAPPING_DONE'; scores: FinalScores }
   | { type: 'REVEAL_DONE' }
   | { type: 'RETAKE' }

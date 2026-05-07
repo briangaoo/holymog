@@ -1,40 +1,18 @@
-import type {
-  CaptureExtras,
-  FinalScores,
-  Landmark,
-  SourceScore,
-  SubScores,
-  VisionScore,
-} from '@/types';
-import { computeGoldenRatio } from './goldenRatio';
-import { computeProprietary } from './proprietary';
+import type { FinalScores, SubScores, VisionScore } from '@/types';
 
 type SubKey = keyof SubScores;
-
-const WEIGHTS: Record<SubKey, { golden: number; proprietary: number; vision: number }> = {
-  jawline: { golden: 0.05, proprietary: 0.5, vision: 0.45 },
-  eyes: { golden: 0.05, proprietary: 0.5, vision: 0.45 },
-  skin: { golden: 0, proprietary: 0, vision: 1 },
-  cheekbones: { golden: 0.05, proprietary: 0.35, vision: 0.6 },
-};
 
 function avg(xs: number[]): number {
   if (xs.length === 0) return 50;
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-/** Vision comes from 3 parallel Grok calls covering 31 fields.
- *  Each sub-score averages the relevant fields. */
+/** Vision comes from N parallel Grok calls (3 categories per frame, server
+ *  averages across frames). Each sub-score is the mean of the relevant fields. */
 function visionContribution(v: VisionScore, key: SubKey): number {
   switch (key) {
     case 'jawline':
-      // lower face / mouth zone
-      return avg([
-        v.jawline_definition,
-        v.chin_definition,
-        v.smile_quality,
-        v.lip_shape,
-      ]);
+      return avg([v.jawline_definition, v.chin_definition, v.lip_shape]);
     case 'eyes':
       return avg([
         v.eye_size,
@@ -48,7 +26,6 @@ function visionContribution(v: VisionScore, key: SubKey): number {
     case 'skin':
       return avg([v.skin_clarity, v.skin_evenness, v.skin_tone]);
     case 'cheekbones':
-      // mid face — cheekbones, nose, ears, philtrum, forehead, temples, thirds
       return avg([
         v.cheekbone_prominence,
         v.nose_shape,
@@ -78,73 +55,27 @@ export function computePresentation(v: VisionScore): number {
   ]);
 }
 
-function combineSub(
-  key: SubKey,
-  golden: SourceScore,
-  proprietary: SourceScore,
-  vision: VisionScore,
-): number {
-  const sources: Array<{ value: number; weight: number }> = [];
-  const w = WEIGHTS[key];
-
-  if (w.golden > 0 && golden.sub[key] !== null) {
-    sources.push({ value: golden.sub[key] as number, weight: w.golden });
-  }
-  if (w.proprietary > 0 && proprietary.sub[key] !== null) {
-    sources.push({ value: proprietary.sub[key] as number, weight: w.proprietary });
-  }
-  if (w.vision > 0) {
-    sources.push({ value: visionContribution(vision, key), weight: w.vision });
-  }
-
-  const totalWeight = sources.reduce((s, x) => s + x.weight, 0);
-  if (totalWeight === 0) return 50;
-  const weighted = sources.reduce((s, x) => s + x.value * x.weight, 0);
-  return weighted / totalWeight;
-}
-
-export function scaleLandmarksToPixels(
-  landmarks: Landmark[],
-  width: number,
-  height: number,
-): Landmark[] {
-  return landmarks.map((p) => ({ x: p.x * width, y: p.y * height, z: p.z }));
-}
-
-export function computeClientScores(
-  landmarks: Landmark[],
-  width: number,
-  height: number,
-  extras: CaptureExtras,
-): { golden: SourceScore; proprietary: SourceScore } {
-  const scaled = scaleLandmarksToPixels(landmarks, width, height);
-  return {
-    golden: computeGoldenRatio(scaled),
-    proprietary: computeProprietary(scaled, extras),
-  };
-}
-
-export function combineScores(
-  golden: SourceScore,
-  proprietary: SourceScore,
-  vision: VisionScore,
-): FinalScores {
-  const jawline = combineSub('jawline', golden, proprietary, vision);
-  const eyes = combineSub('eyes', golden, proprietary, vision);
-  const skin = combineSub('skin', golden, proprietary, vision);
-  const cheekbones = combineSub('cheekbones', golden, proprietary, vision);
+export function combineScores(vision: VisionScore): FinalScores {
+  const jawline = visionContribution(vision, 'jawline');
+  const eyes = visionContribution(vision, 'eyes');
+  const skin = visionContribution(vision, 'skin');
+  const cheekbones = visionContribution(vision, 'cheekbones');
   const presentation = computePresentation(vision);
 
-  // 25/20/20/15/20 — presentation now factors directly into the overall.
-  const overallRaw =
+  const subOverall =
     0.25 * jawline +
     0.2 * eyes +
     0.2 * skin +
     0.15 * cheekbones +
     0.2 * presentation;
 
+  // Weight Grok's holistic judgment heavier than the sub-derived overall.
+  // Per-region averages tend to drift down because every weak field counts equally;
+  // holistic is what catches "this person is at model tier."
+  const finalOverall = 0.4 * subOverall + 0.6 * vision.overall_attractiveness;
+
   return {
-    overall: Math.round(overallRaw),
+    overall: Math.round(finalOverall),
     presentation: Math.round(presentation),
     sub: {
       jawline: Math.round(jawline),
@@ -177,7 +108,6 @@ export function mockVisionScore(): VisionScore {
     brow_thickness: r(),
     lip_shape: r(),
     lip_proportion: r(),
-    smile_quality: r(),
     philtrum: r(),
     skin_clarity: r(),
     skin_evenness: r(),
