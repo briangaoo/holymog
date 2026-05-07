@@ -38,27 +38,55 @@ the scores. Spread is fine when there's a real weakness; it's wrong when there i
 For unattractive faces, EXPECT many features to score below 50 together. Real flaws
 compound, do not artificially raise features to "spread" the scores upward.
 
-EXPRESSION HANDLING, read carefully:
-  - Smiling is NOT a distortion. A natural smile, including showing teeth, should
-    not lower any score. Score the UNDERLYING facial structure.
-  - When a feature is temporarily reshaped by an expression (lips spread wide while
-    smiling, eyes slightly closed from smiling, cheeks raised by a grin), do NOT
-    score those features low. Either score the structure as you'd see it neutral,
-    or score 65-75 (above-average neutral) if you genuinely cannot tell.
-  - Lighting / angle / partial obscurity is also NOT a flaw. Don't penalize a
-    feature you can't see well, score 60-70 instead of low.
-  - Cropped or out-of-frame features (e.g. ears not visible) → 70.
-  - Charisma, photogenic quality, and a warm presence DO count toward
-    overall_attractiveness, feature_harmony, and confidence.
+EXPRESSION & POSE, read carefully.
 
-DELIBERATE distortion is different, apply the checklist below ONLY for these.
+PROFESSIONAL EDITORIAL POSE (score HIGHER, +3-8 points across
+jawline_definition, cheekbone_prominence, canthal_tilt, feature_harmony,
+and overall_attractiveness when several are present):
 
-Distortion checklist, if ANY are present, score 5-25 across EVERY field, ignore the rank scale:
+  - SLIGHT EYE SQUINT — eyelids deliberately narrowed (NOT closed). Orbital
+    muscles tighten; the eye shape becomes more defined and the gaze reads
+    as intense rather than wide-open. This is the "hunter eyes" pose used
+    in fashion editorial.
+  - PURSED OR INWARDLY-SUCKED LIPS — lip border crisply defined, no relaxed
+    puffy mouth. Slight inward draw of the upper lip is common.
+  - HOLLOWED CHEEKS — cheeks drawn inward (light buccal suction). Casts a
+    shadow directly under the malar bone and exaggerates cheekbone
+    prominence.
+  - NEUTRAL OR COLD STARE — no cheek-lift, no smile, no soft openness.
+    Maintains the architecture of the lower face.
+  - MILD JAW CLENCH — masseter slightly engaged, jaw edge sharper and more
+    visible against the cheek.
+  - SLIGHT CHIN-DOWN TILT — head angled fractionally down so the brow ridge
+    and lower jaw both appear stronger.
+
+These six poses, in any combination, are what working-pro fashion editorial
+uses. They REVEAL bone structure rather than hiding it. A face deliberately
+combining several of them is BOTH demonstrating aesthetic awareness AND
+showing you a more accurate picture of its underlying rank. Score it higher.
+
+SMILING DOES NOT RAISE SCORES. A smile relaxes the jaw, fills the cheeks,
+narrows the eyes from BELOW (cheek-lift, the opposite of an orbital squint),
+and spreads the lips. It HIDES the bone structure that determines top-tier
+rank. Score the structure you can infer underneath the smile, but do NOT
+add any warmth or charisma bonus — top-tier model editorial almost never
+smiles, precisely because smiling masks rank.
+
+LIGHTING / ANGLE / PARTIAL OBSCURITY is NOT a flaw. Don't penalize a feature
+you can't see well — score 60-70 instead of low.
+
+CROPPED OR OUT-OF-FRAME features (e.g. ears not visible) → 70.
+
+DELIBERATE distortion is different from the editorial poses above. Apply
+the checklist below ONLY for these:
+
+Distortion checklist (deliberately ugly, NOT the editorial poses above) —
+if ANY are present, score 5-25 across EVERY field, ignore the rank scale:
   - recessed/jutted jaw, double chin from posture
-  - mouth contorted unnaturally, jaw open, tongue out (NOT a normal smile)
-  - eyes squeezed shut deliberately
-  - hair deliberately covering eyes/forehead
-  - head turned > 15° from camera
+  - mouth contorted unnaturally, jaw fully open with no purpose, tongue out
+  - eyes squeezed FULLY SHUT (NOT the same as a confident orbital squint)
+  - hair deliberately covering eyes/forehead with no styling intent
+  - head turned > 25° from camera
   - face being pulled / pinched / pushed to look bad on purpose`;
 
 const STRICT_PREFIX = 'OUTPUT VALID JSON ONLY. NO PROSE.\n\n';
@@ -402,8 +430,9 @@ const QUICK_PROMPT = `Score this face's overall attractiveness 0-100. Use this r
   Rank 151-350 → 70-79          Rank 351-650 → 55-69 (median)
   Rank 651-800 → 42-54          Rank 801-900 → 28-41
   Rank 901-970 → 14-27          Rank 971-995 → 5-13   Rank 996-1000 → 0-4
-If the face is clearly making a deliberately distorted/contorted face (eyes squeezed shut, jaw recessed, tongue out, hair pulled over face), score 5-25.
-A natural smile is NOT distortion.
+If the face is clearly making a deliberately distorted/contorted face (eyes fully squeezed shut, jaw recessed, tongue out, hair pulled over face), score 5-25.
+
+A working-pro fashion editorial pose — neutral or cold stare, slight orbital squint (eyes deliberately narrowed, NOT closed), pursed/inwardly-sucked lips, cheeks drawn inward to expose cheekbone shadow, mild jaw clench, slight chin-down tilt — is the model-tier pose. SCORE IT HIGHER, not lower. Smiling does NOT raise the score; it hides bone structure and is rare in editorial.
 
 Output ONLY: {"overall": <integer 0-100>}`;
 
