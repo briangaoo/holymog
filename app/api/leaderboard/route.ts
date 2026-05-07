@@ -1,8 +1,18 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { FACES_BUCKET, getSupabase, type LeaderboardRow } from '@/lib/supabase';
+import {
+  FACES_BUCKET,
+  getSupabase,
+  type LeaderboardRow,
+} from '@/lib/supabase';
 import { getRatelimit } from '@/lib/ratelimit';
 import { getTier } from '@/lib/tier';
+import {
+  generateAccountKey,
+  isValidAccountKey,
+  normaliseAccountKey,
+} from '@/lib/account';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,17 +20,23 @@ export const dynamic = 'force-dynamic';
 const MAX_NAME_LEN = 24;
 const MAX_RESULTS = 100;
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_KEY_INSERT_ATTEMPTS = 5;
+// Postgres unique-violation code surfaced by supabase-js
+const UNIQUE_VIOLATION = '23505';
 
 type PostBody = {
   name?: unknown;
   scores?: unknown;
   imageBase64?: unknown;
+  key?: unknown;
 };
 
 type Scores = {
   overall: number;
   sub: { jawline: number; eyes: number; skin: number; cheekbones: number };
 };
+
+type UploadedPhoto = { path: string; url: string };
 
 function isInt0to100(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100;
@@ -51,20 +67,72 @@ function validateScores(s: unknown): Scores | null {
   };
 }
 
-export async function GET() {
+async function uploadPhoto(
+  supabase: SupabaseClient,
+  imageBase64: string,
+): Promise<UploadedPhoto | { error: string; status: number }> {
+  const match = imageBase64.match(/^data:(image\/(?:jpeg|jpg|png));base64,(.+)$/);
+  if (!match) return { error: 'invalid_image', status: 400 };
+  const mime = match[1];
+  const buf = Buffer.from(match[2], 'base64');
+  if (buf.byteLength > MAX_IMAGE_BYTES) {
+    return { error: 'image_too_large', status: 413 };
+  }
+  const ext = mime === 'image/png' ? 'png' : 'jpg';
+  const path = `${randomUUID()}.${ext}`;
+  const { error: uploadErr } = await supabase.storage
+    .from(FACES_BUCKET)
+    .upload(path, buf, { contentType: mime, cacheControl: '3600' });
+  if (uploadErr) return { error: uploadErr.message, status: 500 };
+  const { data: pub } = supabase.storage.from(FACES_BUCKET).getPublicUrl(path);
+  return { path, url: pub.publicUrl };
+}
+
+/** Best-effort photo cleanup; never blocks the response. */
+async function deletePhoto(supabase: SupabaseClient, path: string | null) {
+  if (!path) return;
+  await supabase.storage
+    .from(FACES_BUCKET)
+    .remove([path])
+    .catch(() => {
+      // ignore — orphaned object is acceptable failure mode
+    });
+}
+
+export async function GET(request: Request) {
   const supabase = getSupabase();
   if (!supabase) {
-    return NextResponse.json({ entries: [] satisfies LeaderboardRow[], error: 'unconfigured' });
+    return NextResponse.json({
+      entries: [] as LeaderboardRow[],
+      hasMore: false,
+      error: 'unconfigured',
+    });
   }
+  const { searchParams } = new URL(request.url);
+  const pageParam = parseInt(searchParams.get('page') ?? '1', 10);
+  const page = Number.isFinite(pageParam) && pageParam >= 1 ? Math.floor(pageParam) : 1;
+  const from = (page - 1) * MAX_RESULTS;
+  const to = from + MAX_RESULTS - 1;
+
   const { data, error } = await supabase
     .from('leaderboard')
     .select('*')
     .order('overall', { ascending: false })
-    .limit(MAX_RESULTS);
+    .range(from, to);
   if (error) {
-    return NextResponse.json({ entries: [], error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { entries: [], hasMore: false, error: error.message },
+      { status: 500 },
+    );
   }
-  return NextResponse.json({ entries: data ?? [] });
+  const entries = data ?? [];
+  // If we got a full page back, assume there might be more. Page N+1 will
+  // resolve definitively (returning 0 if exhausted).
+  return NextResponse.json({
+    entries,
+    hasMore: entries.length === MAX_RESULTS,
+    page,
+  });
 }
 
 export async function POST(request: Request) {
@@ -100,47 +168,111 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_scores' }, { status: 400 });
   }
 
-  // Optional photo upload
-  let imageUrl: string | null = null;
-  if (typeof body.imageBase64 === 'string' && body.imageBase64.length > 0) {
-    const match = body.imageBase64.match(/^data:(image\/(?:jpeg|jpg|png));base64,(.+)$/);
-    if (!match) {
-      return NextResponse.json({ error: 'invalid_image' }, { status: 400 });
+  const tier = getTier(scores.overall).letter;
+  const wantsPhoto =
+    typeof body.imageBase64 === 'string' && body.imageBase64.length > 0;
+
+  // Branch: with key → update existing, without → insert new.
+  const rawKey = typeof body.key === 'string' ? body.key : '';
+  const hasKey = rawKey.length > 0;
+
+  if (hasKey) {
+    const key = normaliseAccountKey(rawKey);
+    if (!isValidAccountKey(key)) {
+      return NextResponse.json({ error: 'invalid_key' }, { status: 400 });
     }
-    const mime = match[1];
-    const buf = Buffer.from(match[2], 'base64');
-    if (buf.byteLength > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ error: 'image_too_large' }, { status: 413 });
+
+    const { data: existing, error: lookupErr } = await supabase
+      .from('leaderboard')
+      .select('id, image_path')
+      .eq('account_key', key)
+      .maybeSingle();
+    if (lookupErr) {
+      return NextResponse.json({ error: lookupErr.message }, { status: 500 });
     }
-    const ext = mime === 'image/png' ? 'png' : 'jpg';
-    const path = `${randomUUID()}.${ext}`;
-    const { error: uploadErr } = await supabase.storage
-      .from(FACES_BUCKET)
-      .upload(path, buf, { contentType: mime, cacheControl: '3600' });
-    if (uploadErr) {
-      return NextResponse.json({ error: uploadErr.message }, { status: 500 });
+    if (!existing) {
+      return NextResponse.json({ error: 'key_not_found' }, { status: 404 });
     }
-    const { data: pub } = supabase.storage.from(FACES_BUCKET).getPublicUrl(path);
-    imageUrl = pub.publicUrl;
+
+    let imageUrl: string | null = null;
+    let imagePath: string | null = null;
+    if (wantsPhoto) {
+      const upload = await uploadPhoto(supabase, body.imageBase64 as string);
+      if ('error' in upload) {
+        return NextResponse.json({ error: upload.error }, { status: upload.status });
+      }
+      imageUrl = upload.url;
+      imagePath = upload.path;
+    }
+
+    const { data, error } = await supabase
+      .from('leaderboard')
+      .update({
+        name,
+        overall: scores.overall,
+        tier,
+        jawline: scores.sub.jawline,
+        eyes: scores.sub.eyes,
+        skin: scores.sub.skin,
+        cheekbones: scores.sub.cheekbones,
+        image_url: imageUrl,
+        image_path: imagePath,
+      })
+      .eq('account_key', key)
+      .select('*')
+      .single();
+    if (error) {
+      // If the new upload succeeded but DB update failed, drop the orphan.
+      if (imagePath) void deletePhoto(supabase, imagePath);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Old photo cleanup (best-effort, runs after response is built).
+    void deletePhoto(supabase, existing.image_path);
+
+    return NextResponse.json({ entry: data, key, isNew: false });
   }
 
-  const tier = getTier(scores.overall).letter;
-  const { data, error } = await supabase
-    .from('leaderboard')
-    .insert({
-      name,
-      overall: scores.overall,
-      tier,
-      jawline: scores.sub.jawline,
-      eyes: scores.sub.eyes,
-      skin: scores.sub.skin,
-      cheekbones: scores.sub.cheekbones,
-      image_url: imageUrl,
-    })
-    .select('*')
-    .single();
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  // No key: generate one and insert. Retry on the (vanishingly rare) collision.
+  let imageUrl: string | null = null;
+  let imagePath: string | null = null;
+  if (wantsPhoto) {
+    const upload = await uploadPhoto(supabase, body.imageBase64 as string);
+    if ('error' in upload) {
+      return NextResponse.json({ error: upload.error }, { status: upload.status });
+    }
+    imageUrl = upload.url;
+    imagePath = upload.path;
   }
-  return NextResponse.json({ entry: data });
+
+  for (let attempt = 0; attempt < MAX_KEY_INSERT_ATTEMPTS; attempt++) {
+    const candidate = generateAccountKey();
+    const { data, error } = await supabase
+      .from('leaderboard')
+      .insert({
+        account_key: candidate,
+        name,
+        overall: scores.overall,
+        tier,
+        jawline: scores.sub.jawline,
+        eyes: scores.sub.eyes,
+        skin: scores.sub.skin,
+        cheekbones: scores.sub.cheekbones,
+        image_url: imageUrl,
+        image_path: imagePath,
+      })
+      .select('*')
+      .single();
+    if (!error) {
+      return NextResponse.json({ entry: data, key: candidate, isNew: true });
+    }
+    if (error.code !== UNIQUE_VIOLATION) {
+      if (imagePath) void deletePhoto(supabase, imagePath);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    // Collision on account_key, retry with a fresh key.
+  }
+
+  if (imagePath) void deletePhoto(supabase, imagePath);
+  return NextResponse.json({ error: 'key_generation_failed' }, { status: 500 });
 }

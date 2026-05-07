@@ -21,6 +21,7 @@ import { getScoreColor } from '@/lib/scoreColor';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFlowMachine } from '@/hooks/useFlowMachine';
 import { combineScores, mockVisionScore } from '@/lib/scoreEngine';
+import { prefetchLeaderboard } from '@/lib/leaderboardCache';
 import { getTier, getTierDescriptor } from '@/lib/tier';
 import type { FinalScores, Frame, Landmark, VisionScore } from '@/types';
 
@@ -435,6 +436,13 @@ export default function Home() {
     }
   }, [state]);
 
+  // Warm the leaderboard cache the moment the scan finishes, so opening the
+  // /leaderboard page is instant.
+  useEffect(() => {
+    if (state.type !== 'complete') return;
+    void prefetchLeaderboard();
+  }, [state.type]);
+
   const showHint = state.type === 'streaming' && !multipleFaces && !isDetected;
   const showFaceCountWarning = state.type === 'streaming' && multipleFaces;
   const showResults = state.type === 'revealing' || state.type === 'complete';
@@ -689,7 +697,7 @@ function CompleteView({
       <Avatar src={capturedImage} accent={tier.color} isGradient={tier.isGradient} />
 
       <div
-        className="font-num leading-none"
+        className="font-num leading-none normal-case"
         style={{ fontSize: 'clamp(180px, 50vw, 380px)', fontWeight: 900, ...letterStyle }}
       >
         {tier.letter}
@@ -777,12 +785,7 @@ function Avatar({
   return (
     <div className="relative h-14 w-14 rounded-full p-[1.5px]" style={ringStyle}>
       <div className="h-full w-full overflow-hidden rounded-full bg-black">
-        <img
-          src={src}
-          alt=""
-          className="h-full w-full object-cover"
-          style={{ transform: 'scaleX(-1)' }}
-        />
+        <img src={src} alt="" className="h-full w-full object-cover" />
       </div>
     </div>
   );

@@ -1,48 +1,125 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import { getTier } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import type { LeaderboardRow } from '@/lib/supabase';
+import {
+  readLeaderboardCache,
+  writeLeaderboardCache,
+} from '@/lib/leaderboardCache';
 
-type State =
-  | { kind: 'loading' }
-  | { kind: 'ready'; entries: LeaderboardRow[] }
-  | { kind: 'unconfigured' }
-  | { kind: 'error'; message: string };
+type Status = 'loading' | 'ready' | 'unconfigured' | 'error';
+
+type ApiResponse = {
+  entries?: LeaderboardRow[];
+  hasMore?: boolean;
+  error?: string;
+};
 
 export default function LeaderboardPage() {
-  const [state, setState] = useState<State>({ kind: 'loading' });
+  const [entries, setEntries] = useState<LeaderboardRow[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [lastLoadedPage, setLastLoadedPage] = useState(0);
+  const [status, setStatus] = useState<Status>('loading');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  // Guards against the IntersectionObserver firing while a fetch is in flight.
+  const fetchingRef = useRef(false);
+
+  const fetchPage = useCallback(
+    async (page: number): Promise<ApiResponse | null> => {
+      try {
+        const res = await fetch(`/api/leaderboard?page=${page}`, {
+          cache: 'no-store',
+        });
+        return (await res.json()) as ApiResponse;
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
+
+  // Initial hydration: cache first (instant), then refresh page 1 in the
+  // background so we don't show stale data for too long.
   useEffect(() => {
     let cancelled = false;
+    const cached = readLeaderboardCache();
+    if (cached) {
+      setEntries(cached.entries);
+      setHasMore(cached.hasMore);
+      setLastLoadedPage(1);
+      setStatus('ready');
+    }
+
     (async () => {
-      try {
-        const res = await fetch('/api/leaderboard', { cache: 'no-store' });
-        const data = (await res.json()) as {
-          entries?: LeaderboardRow[];
-          error?: string;
-        };
-        if (cancelled) return;
-        if (data.error === 'unconfigured') {
-          setState({ kind: 'unconfigured' });
-        } else if (data.entries) {
-          setState({ kind: 'ready', entries: data.entries });
-        } else {
-          setState({ kind: 'error', message: data.error ?? 'unknown error' });
+      const data = await fetchPage(1);
+      if (cancelled || !data) {
+        if (!cached) {
+          setStatus('error');
+          setErrorMsg('network error');
         }
-      } catch (e) {
-        if (!cancelled) {
-          setState({ kind: 'error', message: e instanceof Error ? e.message : 'network error' });
-        }
+        return;
       }
+      if (data.error === 'unconfigured') {
+        setStatus('unconfigured');
+        return;
+      }
+      if (data.error || !data.entries) {
+        if (!cached) {
+          setStatus('error');
+          setErrorMsg(data.error ?? 'unknown error');
+        }
+        return;
+      }
+      setEntries(data.entries);
+      setHasMore(!!data.hasMore);
+      setLastLoadedPage(1);
+      setStatus('ready');
+      writeLeaderboardCache(data.entries, !!data.hasMore);
     })();
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fetchPage]);
+
+  const loadMore = useCallback(async () => {
+    if (fetchingRef.current || !hasMore || status !== 'ready') return;
+    fetchingRef.current = true;
+    setLoadingMore(true);
+    const next = lastLoadedPage + 1;
+    const data = await fetchPage(next);
+    fetchingRef.current = false;
+    setLoadingMore(false);
+    if (!data || data.error || !data.entries) {
+      // soft-fail, leave hasMore as-is so user can scroll again to retry
+      return;
+    }
+    setEntries((prev) => [...prev, ...data.entries!]);
+    setHasMore(!!data.hasMore);
+    setLastLoadedPage(next);
+  }, [fetchPage, hasMore, lastLoadedPage, status]);
+
+  // Infinite scroll: trigger loadMore when the sentinel enters the viewport.
+  useEffect(() => {
+    if (status !== 'ready' || !hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMore();
+      },
+      { rootMargin: '300px 0px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [status, hasMore, loadMore]);
 
   return (
     <div
@@ -68,11 +145,11 @@ export default function LeaderboardPage() {
           Top scores. Sorted by overall.
         </p>
 
-        {state.kind === 'loading' && (
+        {status === 'loading' && (
           <p className="text-sm text-zinc-500">loading…</p>
         )}
 
-        {state.kind === 'unconfigured' && (
+        {status === 'unconfigured' && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
             <p className="text-sm text-white">leaderboard not yet available</p>
             <p className="mt-2 text-xs text-zinc-500">
@@ -81,25 +158,44 @@ export default function LeaderboardPage() {
           </div>
         )}
 
-        {state.kind === 'error' && (
+        {status === 'error' && (
           <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
-            {state.message}
+            {errorMsg}
           </div>
         )}
 
-        {state.kind === 'ready' && state.entries.length === 0 && (
+        {status === 'ready' && entries.length === 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
             <p className="text-sm text-white">no entries yet</p>
             <p className="mt-2 text-xs text-zinc-500">be the first</p>
           </div>
         )}
 
-        {state.kind === 'ready' && state.entries.length > 0 && (
-          <ol className="flex flex-col gap-2">
-            {state.entries.map((row, i) => (
-              <Row key={row.id} row={row} rank={i + 1} />
-            ))}
-          </ol>
+        {status === 'ready' && entries.length > 0 && (
+          <>
+            <ol className="flex flex-col gap-2">
+              {entries.map((row, i) => (
+                <Row key={row.id} row={row} rank={i + 1} />
+              ))}
+            </ol>
+
+            {hasMore && (
+              <div
+                ref={sentinelRef}
+                className="flex items-center justify-center pt-6 pb-2"
+              >
+                <span className="text-xs text-zinc-500">
+                  {loadingMore ? 'loading more…' : 'scroll for more'}
+                </span>
+              </div>
+            )}
+
+            {!hasMore && (
+              <p className="pt-6 pb-2 text-center text-xs text-zinc-600">
+                end of leaderboard
+              </p>
+            )}
+          </>
         )}
       </main>
     </div>
@@ -165,7 +261,7 @@ function Row({ row, rank }: { row: LeaderboardRow; rank: number }) {
       </div>
       <div className="text-right">
         <div
-          className="font-num text-2xl font-extrabold leading-none"
+          className="font-num text-2xl font-extrabold leading-none normal-case"
           style={tierStyle}
           aria-label={`Tier ${row.tier}`}
         >

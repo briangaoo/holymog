@@ -78,6 +78,7 @@ export function ScoreReveal({ scores, capturedImage, onRevealDone }: Props) {
         className="font-num text-center leading-none"
       >
         <div
+          className="normal-case"
           style={{
             fontSize: 'clamp(180px, 50vw, 380px)',
             fontWeight: 900,
@@ -142,13 +143,7 @@ function Avatar({
   return (
     <div className="relative h-14 w-14 rounded-full p-[1.5px]" style={ringStyle}>
       <div className="h-full w-full overflow-hidden rounded-full bg-black">
-        {/* mirror to match what the user saw on camera */}
-        <img
-          src={src}
-          alt=""
-          className="h-full w-full object-cover"
-          style={{ transform: 'scaleX(-1)' }}
-        />
+        <img src={src} alt="" className="h-full w-full object-cover" />
       </div>
     </div>
   );

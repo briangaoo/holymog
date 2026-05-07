@@ -120,14 +120,21 @@ export const Camera = forwardRef<CameraHandle, Props>(function Camera(
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
 
+      // Mirror horizontally so the saved frame matches the (mirrored) camera
+      // preview the user just saw. With this, no display surface needs a CSS
+      // flip — they all show the captured bytes as-is and stay consistent.
       if (landmarks && landmarks.length === 478) {
         const c = computeFaceCrop(landmarks, w, h);
         canvas.width = Math.round(c.w);
         canvas.height = Math.round(c.h);
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
         ctx.drawImage(video, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h);
       } else {
         canvas.width = w;
         canvas.height = h;
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0, w, h);
       }
       return canvas.toDataURL('image/jpeg', 0.92);

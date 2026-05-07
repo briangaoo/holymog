@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
-  // Accept either { images: [...] } (multi-frame) or { imageBase64 } (single, /test).
+  // Accept either { images: [...] } (multi-frame) or { imageBase64 } (single-image fallback).
   const rawImages: string[] = (() => {
     if (Array.isArray(body.images)) {
       return body.images.filter((x): x is string => typeof x === 'string');

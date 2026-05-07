@@ -15,6 +15,7 @@ export function getSupabase(): SupabaseClient | null {
 
 export type LeaderboardRow = {
   id: string;
+  account_key: string;
   name: string;
   overall: number;
   tier: string;
@@ -23,6 +24,7 @@ export type LeaderboardRow = {
   skin: number;
   cheekbones: number;
   image_url: string | null;
+  image_path: string | null;
   created_at: string;
 };
 
