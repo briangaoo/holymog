@@ -452,3 +452,74 @@ export async function analyzeQuick(
   }
   return { overall, tokens };
 }
+
+/* --------------------------- Battle score (Phase 2) ----------------------- */
+
+export const BATTLE_IMPROVEMENT_OPTIONS = [
+  'jawline',
+  'eyes',
+  'skin',
+  'cheekbones',
+  'nose',
+  'hair',
+] as const;
+export type BattleImprovement = (typeof BATTLE_IMPROVEMENT_OPTIONS)[number];
+
+const BATTLE_IMPROVEMENT_SET: ReadonlySet<string> = new Set(BATTLE_IMPROVEMENT_OPTIONS);
+
+const BATTLE_PROMPT = `Score this face's overall attractiveness 0-100 and identify the SINGLE feature most needing improvement.
+
+Rank scale (rank 1 = most attractive of 1000 random adults):
+  Rank 1      → 99-100        Rank 2-15   → 95-99   (working pro model)
+  Rank 16-50  → 88-94          Rank 51-150 → 80-87  (hot)
+  Rank 151-350 → 70-79          Rank 351-650 → 55-69 (median)
+  Rank 651-800 → 42-54          Rank 801-900 → 28-41
+  Rank 901-970 → 14-27          Rank 971-995 → 5-13   Rank 996-1000 → 0-4
+
+If the face is clearly making a deliberately distorted/contorted expression (eyes fully squeezed shut, jaw recessed, tongue out, hair pulled over face), score 5-25.
+
+A working-pro editorial pose — neutral or cold stare, slight orbital squint (eyes deliberately narrowed, NOT closed), pursed/inwardly-sucked lips, cheeks drawn inward, mild jaw clench, slight chin-down tilt — is the model-tier pose. Score it HIGHER, not lower. Smiling hides bone structure; do not boost smiling.
+
+Pick the improvement label from EXACTLY these six options (lowercase, no punctuation):
+  jawline, eyes, skin, cheekbones, nose, hair
+
+Output ONLY: {"overall": <integer 0-100>, "improvement": "<one of the six>"}`;
+
+/**
+ * Per-frame battle score: returns a single overall + the area Grok
+ * thinks most needs improvement. Used by /api/battle/score during
+ * the 10-second active window. Defensive: if Grok returns a label
+ * outside the enum, coerce to 'eyes' (a neutral fallback).
+ */
+export async function analyzeBattle(
+  blob: Blob,
+): Promise<{
+  overall: number;
+  improvement: BattleImprovement;
+  tokens: TokenUsage;
+}> {
+  const dataUrl = await blobToDataUrl(blob);
+
+  const { text, tokens } = await callGrok(dataUrl, BATTLE_PROMPT, {
+    detail: 'low',
+  });
+
+  const parsed = tryParseJSON(text) as
+    | { overall?: number; improvement?: string }
+    | null;
+
+  let overall = 50;
+  if (parsed && typeof parsed.overall === 'number' && Number.isFinite(parsed.overall)) {
+    overall = Math.max(0, Math.min(100, Math.round(parsed.overall)));
+  }
+
+  let improvement: BattleImprovement = 'eyes';
+  if (parsed && typeof parsed.improvement === 'string') {
+    const candidate = parsed.improvement.toLowerCase().trim();
+    if (BATTLE_IMPROVEMENT_SET.has(candidate)) {
+      improvement = candidate as BattleImprovement;
+    }
+  }
+
+  return { overall, improvement, tokens };
+}

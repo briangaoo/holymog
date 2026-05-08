@@ -1,7 +1,7 @@
 # Mog Battles + Accounts — Design
 
 **Date:** 2026-05-07
-**Status:** awaiting approval to begin implementation
+**Status:** Phases 0–2 code-complete (manual gates pending: provider config, env vars, migrations, push). Phases 3–5 not started.
 **Authors:** brian gao, claude
 
 ---
