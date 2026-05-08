@@ -4,6 +4,8 @@ AI-powered face rating. Look at the camera, get an F‑ to S+ tier and a 0–100
 
 > "rate yourself F- to S+. mogging or getting mogged?"
 
+> **Phase 0 in progress (2026-05-07).** Adding accounts (Google + Apple + Microsoft OAuth + email magic link) plus account-tagged leaderboard. Auth runs through **Auth.js v5** under `auth.holymog.com`; Supabase is now used only as managed Postgres + Storage (no Auth, no RLS). **Breaking change** to the `leaderboard` table: the legacy 8-char Crockford key system is fully removed, rows are tagged by `user_id`, and submitting requires sign-in. Existing leaderboard rows are wiped during the Phase 0 deploy. See `docs/superpowers/specs/2026-05-07-mog-battles-and-accounts-design.md` for the full design.
+
 ---
 
 ## Table of contents
@@ -365,13 +367,26 @@ UPSTASH_REDIS_REST_TOKEN=
 # Optional, used by the share copy ("rate yours at …")
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Optional, enables the leaderboard.
-# Without these, GET returns { error: 'unconfigured' } and POST returns 503.
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
+# Required for the leaderboard, accounts, and (Phase 2+) battles.
+SUPABASE_URL=                          # Supabase project URL
+SUPABASE_ANON_KEY=                     # Supabase anon (public) key, used for storage + leaderboard reads/writes
+DATABASE_URL=                          # Postgres connection string (use Supabase's "Connection Pooling" URL)
+
+# Required for Auth.js v5 (Phase 0+)
+AUTH_SECRET=                           # 32+ random bytes; generate with `openssl rand -base64 32`
+AUTH_GOOGLE_ID=                        # Google OAuth client ID
+AUTH_GOOGLE_SECRET=                    # Google OAuth client secret
+AUTH_APPLE_ID=                         # Apple Service ID
+AUTH_APPLE_SECRET=                     # Apple JWT (signed with .p8 key)
+AUTH_MICROSOFT_ENTRA_ID_ID=            # Microsoft Entra app (client) ID
+AUTH_MICROSOFT_ENTRA_ID_SECRET=        # Microsoft Entra client secret
+AUTH_RESEND_KEY=                       # Resend API key for magic-link email
+AUTH_RESEND_FROM=hello@holymog.com     # sender address (verified domain in Resend)
+AUTH_TRUST_HOST=true                   # required when behind Vercel + custom auth domain
+NEXTAUTH_URL=https://auth.holymog.com  # base URL Auth.js considers itself hosted at
 ```
 
-Only `XAI_API_KEY` is strictly required — the other services degrade gracefully (see [Optional infrastructure](#optional-infrastructure)).
+Only `XAI_API_KEY` is strictly required for solo scanning — the other services gate higher-tier functionality (see [Optional infrastructure](#optional-infrastructure)). Accounts (Phase 0+) require all five Supabase + DATABASE_URL + AUTH_* + Resend env vars set.
 
 ---
 

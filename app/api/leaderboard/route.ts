@@ -5,13 +5,9 @@ import {
   getSupabase,
   type LeaderboardRow,
 } from '@/lib/supabase';
+import { auth } from '@/lib/auth';
 import { getRatelimit } from '@/lib/ratelimit';
 import { getTier } from '@/lib/tier';
-import {
-  generateAccountKey,
-  isValidAccountKey,
-  normaliseAccountKey,
-} from '@/lib/account';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
@@ -20,15 +16,11 @@ export const dynamic = 'force-dynamic';
 const MAX_NAME_LEN = 24;
 const MAX_RESULTS = 100;
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-const MAX_KEY_INSERT_ATTEMPTS = 5;
-// Postgres unique-violation code surfaced by supabase-js
-const UNIQUE_VIOLATION = '23505';
 
 type PostBody = {
   name?: unknown;
   scores?: unknown;
   imageBase64?: unknown;
-  key?: unknown;
 };
 
 type Scores = {
@@ -88,14 +80,13 @@ async function uploadPhoto(
   return { path, url: pub.publicUrl };
 }
 
-/** Best-effort photo cleanup; never blocks the response. */
 async function deletePhoto(supabase: SupabaseClient, path: string | null) {
   if (!path) return;
   await supabase.storage
     .from(FACES_BUCKET)
     .remove([path])
     .catch(() => {
-      // ignore — orphaned object is acceptable failure mode
+      // best-effort; orphan acceptable
     });
 }
 
@@ -110,7 +101,8 @@ export async function GET(request: Request) {
   }
   const { searchParams } = new URL(request.url);
   const pageParam = parseInt(searchParams.get('page') ?? '1', 10);
-  const page = Number.isFinite(pageParam) && pageParam >= 1 ? Math.floor(pageParam) : 1;
+  const page =
+    Number.isFinite(pageParam) && pageParam >= 1 ? Math.floor(pageParam) : 1;
   const from = (page - 1) * MAX_RESULTS;
   const to = from + MAX_RESULTS - 1;
 
@@ -126,8 +118,6 @@ export async function GET(request: Request) {
     );
   }
   const entries = data ?? [];
-  // If we got a full page back, assume there might be more. Page N+1 will
-  // resolve definitively (returning 0 if exhausted).
   return NextResponse.json({
     entries,
     hasMore: entries.length === MAX_RESULTS,
@@ -136,9 +126,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const session = await auth();
+  const user = session?.user;
+  if (!user) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+
   const limiter = getRatelimit();
   if (limiter) {
-    const ip = request.headers.get('x-forwarded-for') ?? 'anonymous';
+    const ip = request.headers.get('x-forwarded-for') ?? user.id;
     const result = await limiter.limit(`lb:${ip}`);
     if (!result.success) {
       return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
@@ -161,7 +157,7 @@ export async function POST(request: Request) {
   if (rawName.length === 0 || rawName.length > MAX_NAME_LEN) {
     return NextResponse.json({ error: 'invalid_name' }, { status: 400 });
   }
-  const name = rawName.replace(/\s+/g, ' ');
+  const name = rawName.replace(/\s+/g, ' ').toLowerCase();
 
   const scores = validateScores(body.scores);
   if (!scores) {
@@ -172,39 +168,28 @@ export async function POST(request: Request) {
   const wantsPhoto =
     typeof body.imageBase64 === 'string' && body.imageBase64.length > 0;
 
-  // Branch: with key → update existing, without → insert new.
-  const rawKey = typeof body.key === 'string' ? body.key : '';
-  const hasKey = rawKey.length > 0;
+  // One row per user — look up existing.
+  const { data: existing, error: lookupErr } = await supabase
+    .from('leaderboard')
+    .select('id, image_path')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (lookupErr) {
+    return NextResponse.json({ error: lookupErr.message }, { status: 500 });
+  }
 
-  if (hasKey) {
-    const key = normaliseAccountKey(rawKey);
-    if (!isValidAccountKey(key)) {
-      return NextResponse.json({ error: 'invalid_key' }, { status: 400 });
+  let imageUrl: string | null = null;
+  let imagePath: string | null = null;
+  if (wantsPhoto) {
+    const upload = await uploadPhoto(supabase, body.imageBase64 as string);
+    if ('error' in upload) {
+      return NextResponse.json({ error: upload.error }, { status: upload.status });
     }
+    imageUrl = upload.url;
+    imagePath = upload.path;
+  }
 
-    const { data: existing, error: lookupErr } = await supabase
-      .from('leaderboard')
-      .select('id, image_path')
-      .eq('account_key', key)
-      .maybeSingle();
-    if (lookupErr) {
-      return NextResponse.json({ error: lookupErr.message }, { status: 500 });
-    }
-    if (!existing) {
-      return NextResponse.json({ error: 'key_not_found' }, { status: 404 });
-    }
-
-    let imageUrl: string | null = null;
-    let imagePath: string | null = null;
-    if (wantsPhoto) {
-      const upload = await uploadPhoto(supabase, body.imageBase64 as string);
-      if ('error' in upload) {
-        return NextResponse.json({ error: upload.error }, { status: upload.status });
-      }
-      imageUrl = upload.url;
-      imagePath = upload.path;
-    }
-
+  if (existing) {
     const { data, error } = await supabase
       .from('leaderboard')
       .update({
@@ -218,61 +203,36 @@ export async function POST(request: Request) {
         image_url: imageUrl,
         image_path: imagePath,
       })
-      .eq('account_key', key)
+      .eq('user_id', user.id)
       .select('*')
       .single();
     if (error) {
-      // If the new upload succeeded but DB update failed, drop the orphan.
       if (imagePath) void deletePhoto(supabase, imagePath);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-    // Old photo cleanup (best-effort, runs after response is built).
     void deletePhoto(supabase, existing.image_path);
-
-    return NextResponse.json({ entry: data, key, isNew: false });
+    return NextResponse.json({ entry: data, isNew: false });
   }
 
-  // No key: generate one and insert. Retry on the (vanishingly rare) collision.
-  let imageUrl: string | null = null;
-  let imagePath: string | null = null;
-  if (wantsPhoto) {
-    const upload = await uploadPhoto(supabase, body.imageBase64 as string);
-    if ('error' in upload) {
-      return NextResponse.json({ error: upload.error }, { status: upload.status });
-    }
-    imageUrl = upload.url;
-    imagePath = upload.path;
+  const { data, error } = await supabase
+    .from('leaderboard')
+    .insert({
+      user_id: user.id,
+      name,
+      overall: scores.overall,
+      tier,
+      jawline: scores.sub.jawline,
+      eyes: scores.sub.eyes,
+      skin: scores.sub.skin,
+      cheekbones: scores.sub.cheekbones,
+      image_url: imageUrl,
+      image_path: imagePath,
+    })
+    .select('*')
+    .single();
+  if (error) {
+    if (imagePath) void deletePhoto(supabase, imagePath);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  for (let attempt = 0; attempt < MAX_KEY_INSERT_ATTEMPTS; attempt++) {
-    const candidate = generateAccountKey();
-    const { data, error } = await supabase
-      .from('leaderboard')
-      .insert({
-        account_key: candidate,
-        name,
-        overall: scores.overall,
-        tier,
-        jawline: scores.sub.jawline,
-        eyes: scores.sub.eyes,
-        skin: scores.sub.skin,
-        cheekbones: scores.sub.cheekbones,
-        image_url: imageUrl,
-        image_path: imagePath,
-      })
-      .select('*')
-      .single();
-    if (!error) {
-      return NextResponse.json({ entry: data, key: candidate, isNew: true });
-    }
-    if (error.code !== UNIQUE_VIOLATION) {
-      if (imagePath) void deletePhoto(supabase, imagePath);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    // Collision on account_key, retry with a fresh key.
-  }
-
-  if (imagePath) void deletePhoto(supabase, imagePath);
-  return NextResponse.json({ error: 'key_generation_failed' }, { status: 500 });
+  return NextResponse.json({ entry: data, isNew: true });
 }

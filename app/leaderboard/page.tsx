@@ -1,8 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
 import { getTier } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import type { LeaderboardRow } from '@/lib/supabase';
@@ -10,6 +8,7 @@ import {
   readLeaderboardCache,
   writeLeaderboardCache,
 } from '@/lib/leaderboardCache';
+import { AppHeader } from '@/components/AppHeader';
 
 type Status = 'loading' | 'ready' | 'unconfigured' | 'error';
 
@@ -122,24 +121,10 @@ export default function LeaderboardPage() {
   }, [status, hasMore, loadMore]);
 
   return (
-    <div
-      className="relative min-h-dvh bg-black px-5 pb-12"
-      style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}
-    >
-      <header className="mx-auto flex w-full max-w-md items-center justify-between py-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-white"
-          aria-label="Back"
-        >
-          <ChevronLeft size={16} aria-hidden />
-          back
-        </Link>
-        <span className="font-mono text-sm lowercase text-white">holymog</span>
-        <span className="w-12" aria-hidden />
-      </header>
+    <div className="relative min-h-dvh bg-black">
+      <AppHeader authNext="/leaderboard" />
 
-      <main className="mx-auto w-full max-w-md">
+      <main className="mx-auto w-full max-w-md px-5 pb-12 pt-4">
         <h1 className="mb-1 text-2xl font-bold text-white">Leaderboard</h1>
         <p className="mb-6 text-sm text-zinc-400">
           Top scores. Sorted by overall.

@@ -15,7 +15,7 @@ export function getSupabase(): SupabaseClient | null {
 
 export type LeaderboardRow = {
   id: string;
-  account_key: string;
+  user_id: string;
   name: string;
   overall: number;
   tier: string;

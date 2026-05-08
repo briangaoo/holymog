@@ -16,7 +16,7 @@ Add two major capabilities to holymog, additively over the existing solo-scan + 
 
    Each battle is **10 seconds**. Per-player scoring uses a **lighter Grok prompt** that returns `{ overall, improvement }`, where `improvement` is one of a fixed enum (jawline / eyes / skin / cheekbones / nose / hair). **10 real Grok calls + 10 synthetic = 20 visible score updates per player per battle**, mirroring the solo scan jitter pattern. **Highest peak score wins** (tiebreak: earliest joiner). Each tile shows a live "improvement" ticker that updates with the latest call.
 
-2. **Accounts** — sign-in via Supabase Auth (Google + Apple OAuth + email magic link), now **required for everything except solo scanning**. Unlocks:
+2. **Accounts** — sign-in via **Auth.js v5** (Google + Apple + Microsoft Entra ID OAuth, plus Resend-powered email magic link), hosted under **`auth.holymog.com`**, now **required for everything except solo scanning**. Supabase Auth is NOT used; Supabase is reduced to a managed Postgres + Storage backend (no Auth, no RLS). Auth.js stores users/sessions in Postgres via `@auth/pg-adapter`. Unlocks:
    - **Leaderboard submission** (auth-gated). Each account has at most one leaderboard entry, identified by `user_id`.
    - **Public battles + private parties** (both creating and joining are auth-gated).
    - **ELO** from public 1v1 battles (private parties never affect ELO — anti-farming).
@@ -105,35 +105,34 @@ For logged-in users, the cards inline a few personal cues:
 
 ### 5.1 Setup
 
-Supabase Auth providers configured:
-- **Google OAuth** — set up via Google Cloud Console; client ID + secret pasted into Supabase dashboard.
-- **Apple OAuth** — set up via Apple Developer; service ID + key + team ID pasted into Supabase.
-- **Email magic link** — uses Supabase's default SMTP (or Resend integration if deliverability matters).
+**Auth runtime:** Auth.js v5 (`next-auth@beta`) with the `@auth/pg-adapter` Postgres adapter, deployed at **`auth.holymog.com`** (a Vercel domain alias for the same Next deployment). Sessions are stored server-side (database strategy) with a `__Secure-authjs.session-token` cookie scoped to `.holymog.com` so it's shared between `www.holymog.com` (the app) and `auth.holymog.com` (auth callbacks).
 
-No new env vars. All provider secrets live in Supabase.
+OAuth + magic-link providers configured in `lib/auth.ts`:
+- **Google** — register an OAuth 2.0 Client ID in Google Cloud Console. Authorised redirect URI: `https://auth.holymog.com/api/auth/callback/google`.
+- **Apple** — register a Service ID in Apple Developer. Return URL: `https://auth.holymog.com/api/auth/callback/apple`.
+- **Microsoft Entra ID** — register an app in Azure Portal with multi-tenant + personal accounts enabled. Redirect URI: `https://auth.holymog.com/api/auth/callback/microsoft-entra-id`. Issuer is `https://login.microsoftonline.com/common/v2.0` so consumer accounts (outlook.com, hotmail.com, live.com, xbox) work.
+- **Resend** (Auth.js's built-in `Resend` provider) for magic-link email. From address `hello@holymog.com` (verified in Resend's domain settings).
 
-Callback route: `/auth/callback` exchanges the OAuth code/magic-link token for a session, creates a `profiles` row if first-time sign-in, performs same-device key auto-migration, redirects to original entry point preserved through `?next=`.
+Required env vars: `AUTH_SECRET`, `AUTH_GOOGLE_ID/SECRET`, `AUTH_APPLE_ID/SECRET`, `AUTH_MICROSOFT_ENTRA_ID_ID/SECRET`, `AUTH_RESEND_KEY`, `AUTH_RESEND_FROM`, `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=https://auth.holymog.com`, plus a `DATABASE_URL` (Supabase Connection-Pooling URL) for the `pg` driver.
 
-**Default display_name on profile creation:**
-- Google OAuth → `user_metadata.name` if present, else `user_metadata.email`'s local-part.
-- Apple OAuth → `user_metadata.name`, else email local-part. (Apple often returns `null` for name on subsequent sign-ins; we capture only on first.)
-- Magic link → email local-part.
-
-All defaults run through `lower()` since the site is fully lowercase. If the resulting name is empty (degenerate case), the callback redirects to `/account?firstrun=1` which forces a "pick a display name" inline form before the user can do anything else. Names are not enforced unique — multiple accounts can share the same display name.
+Auth.js owns its own callback route at `/api/auth/[...nextauth]` — no custom callback handler. On first sign-in, a tiny `events.createUser` hook in the config inserts a corresponding `profiles` row with a derived `display_name` (lowercased, max 24 chars: OAuth `name` → email local-part → "player"). Names are not enforced unique.
 
 ### 5.2 Sign-in modal
 
-One modal, opened from three entry points (header avatar, battle entrypoint, account-page redirect). Title is contextual ("sign in" / "sign in to battle"). Body is identical:
+One modal, opened from three entry points (header avatar, battle entrypoint, account-page redirect). Title is contextual ("sign in" / "sign in to battle"). Four sign-in paths, all routed through Auth.js's `signIn(provider)` from `next-auth/react`:
 
 ```
 ┌────────────────────────────────────────┐
 │  sign in to battle                  ✕  │
 │                                        │
 │  ┌──────────────────────────────────┐  │
-│  │  ⌘  continue with google         │  │
+│  │  continue with google             │  │
 │  └──────────────────────────────────┘  │
 │  ┌──────────────────────────────────┐  │
-│  │  ⌘  continue with apple          │  │
+│  │  continue with apple              │  │
+│  └──────────────────────────────────┘  │
+│  ┌──────────────────────────────────┐  │
+│  │  continue with microsoft          │  │
 │  └──────────────────────────────────┘  │
 │           ──── or ────                 │
 │  ┌──────────────────────────────────┐  │
@@ -144,7 +143,7 @@ One modal, opened from three entry points (header avatar, battle entrypoint, acc
 └────────────────────────────────────────┘
 ```
 
-The "email me a link" button expands inline into an email input + "send link" button. After send, status hint shown ("check your inbox"). On magic-link click in the email, the browser opens `/auth/callback?token=...` and same flow as OAuth resumes.
+The "email me a link" button expands inline into an email input + "send link" button. Click triggers `signIn('resend', { email, callbackUrl, redirect: false })`; on success the button text becomes "check your inbox". When the user clicks the magic-link URL in their inbox, Auth.js's verification handler at `https://auth.holymog.com/api/auth/callback/resend` exchanges the token for a session and redirects to `callbackUrl`.
 
 ### 5.3 Edge cases
 

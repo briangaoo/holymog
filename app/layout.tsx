@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, DM_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
+import { Providers } from '@/components/Providers';
 
 const spaceGrotesk = Space_Grotesk({
   variable: '--font-space-grotesk',
@@ -60,7 +61,9 @@ export default function RootLayout({
       lang="en"
       className={`${spaceGrotesk.variable} ${dmSans.variable} ${plexMono.variable} h-full bg-black`}
     >
-      <body className="min-h-full bg-black text-white antialiased">{children}</body>
+      <body className="min-h-full bg-black text-white antialiased">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

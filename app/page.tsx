@@ -15,6 +15,8 @@ import { RetakeButton } from '@/components/RetakeButton';
 import { PrivacyModal } from '@/components/PrivacyModal';
 import { LeaderboardButton } from '@/components/LeaderboardButton';
 import { LeaderboardModal } from '@/components/LeaderboardModal';
+import { AuthModal } from '@/components/AuthModal';
+import { useUser } from '@/hooks/useUser';
 import { LiveMeter, LivePageBorder } from '@/components/LiveMeter';
 import { MoreDetail } from '@/components/MoreDetail';
 import { getScoreColor } from '@/lib/scoreColor';
@@ -106,6 +108,8 @@ export default function Home() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const { user: signedInUser } = useUser();
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
   const [videoSize, setVideoSize] = useState({ width: 720, height: 1280 });
 
@@ -575,7 +579,9 @@ export default function Home() {
               tokens={tokens}
               onRetake={handleRetake}
               onShare={() => setShareOpen(true)}
-              onAddToLeaderboard={() => setLeaderboardOpen(true)}
+              onAddToLeaderboard={() =>
+                signedInUser ? setLeaderboardOpen(true) : setAuthOpen(true)
+              }
               onRevealDone={handleRevealDone}
             />
           </motion.main>
@@ -594,6 +600,12 @@ export default function Home() {
             scores={state.scores}
             capturedImage={state.capturedImage}
             onClose={() => setLeaderboardOpen(false)}
+          />
+          <AuthModal
+            open={authOpen}
+            onClose={() => setAuthOpen(false)}
+            context="to submit"
+            next="/"
           />
         </>
       )}
