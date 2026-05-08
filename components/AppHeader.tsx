@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { AccountAvatar } from './AccountAvatar';
 
@@ -18,9 +19,17 @@ export function AppHeader({ authNext, authContext }: Props) {
     >
       <Link
         href="/"
-        className="font-mono text-sm lowercase text-white transition-opacity hover:opacity-80"
+        aria-label="holymog"
+        className="inline-flex transition-opacity hover:opacity-80"
       >
-        holymog
+        <Image
+          src="/logo-wordmark.png"
+          alt="holymog"
+          width={120}
+          height={29}
+          priority
+          className="h-6 w-auto"
+        />
       </Link>
       <AccountAvatar next={authNext} context={authContext} />
     </header>

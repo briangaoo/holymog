@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Share2, Trophy } from 'lucide-react';
 import { Camera, type CameraHandle } from '@/components/Camera';
@@ -463,9 +464,14 @@ export default function Home() {
         className="pointer-events-none fixed left-0 right-0 top-0 z-40 flex justify-center"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 14px)' }}
       >
-        <span className="font-mono text-sm lowercase text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-          holymog
-        </span>
+        <Image
+          src="/logo-wordmark.png"
+          alt="holymog"
+          width={120}
+          height={29}
+          priority
+          className="h-5 w-auto drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+        />
       </header>
 
       {/* Full-screen camera, fixed inset-0 covers the entire viewport on every device */}
