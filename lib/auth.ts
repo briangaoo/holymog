@@ -1,7 +1,5 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
-import Apple from 'next-auth/providers/apple';
-import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 import Resend from 'next-auth/providers/resend';
 import PostgresAdapter from '@auth/pg-adapter';
 import { getPool } from './db';
@@ -46,17 +44,6 @@ const config: NextAuthConfig = {
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
-    }),
-    Apple({
-      clientId: process.env.AUTH_APPLE_ID,
-      clientSecret: process.env.AUTH_APPLE_SECRET,
-    }),
-    MicrosoftEntraID({
-      clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
-      clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
-      // "common" tenant accepts personal Microsoft accounts (outlook.com,
-      // hotmail.com, live.com, xbox) AND any work/school account.
-      issuer: 'https://login.microsoftonline.com/common/v2.0',
     }),
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,

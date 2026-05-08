@@ -27,7 +27,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
   // URL we drop the user at after they click the email link.
   const callbackUrl = next ?? '/';
 
-  const oauth = async (provider: 'google' | 'apple' | 'microsoft-entra-id') => {
+  const oauth = async (provider: 'google') => {
     setStatus('idle');
     setErrorMsg('');
     try {
@@ -108,22 +108,6 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] text-sm font-medium text-white transition-colors hover:bg-white/[0.08]"
               >
                 continue with google
-              </button>
-              <button
-                type="button"
-                onClick={() => oauth('apple')}
-                style={{ touchAction: 'manipulation' }}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] text-sm font-medium text-white transition-colors hover:bg-white/[0.08]"
-              >
-                continue with apple
-              </button>
-              <button
-                type="button"
-                onClick={() => oauth('microsoft-entra-id')}
-                style={{ touchAction: 'manipulation' }}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] text-sm font-medium text-white transition-colors hover:bg-white/[0.08]"
-              >
-                continue with microsoft
               </button>
 
               <div className="my-2 flex items-center gap-2 text-[11px] text-zinc-500">
