@@ -4,7 +4,7 @@ AI-powered face rating. Look at the camera, get an F‑ to S+ tier and a 0–100
 
 > "rate yourself F- to S+. mogging or getting mogged?"
 
-> **Phase 0 in progress (2026-05-07).** Adding accounts (Google + Apple + Microsoft OAuth + email magic link) plus account-tagged leaderboard. Auth runs through **Auth.js v5** under `auth.holymog.com`; Supabase is now used only as managed Postgres + Storage (no Auth, no RLS). **Breaking change** to the `leaderboard` table: the legacy 8-char Crockford key system is fully removed, rows are tagged by `user_id`, and submitting requires sign-in. Existing leaderboard rows are wiped during the Phase 0 deploy. See `docs/superpowers/specs/2026-05-07-mog-battles-and-accounts-design.md` for the full design.
+> **Phase 0 in progress (2026-05-07).** Adding accounts (Google + Apple + Microsoft OAuth + email magic link) plus account-tagged leaderboard. Auth runs through **Auth.js v5**; Supabase is now used only as managed Postgres + Storage (no Auth, no RLS). **Production URL is currently `https://holymog.vercel.app`** while `holymog.com` works through Vercel's Hobby commercial-use enforcement and Barracuda category review. Once both clear, we flip the canonical URL back to `www.holymog.com` with auth on `auth.holymog.com`. **Breaking change** to the `leaderboard` table: the legacy 8-char Crockford key system is fully removed, rows are tagged by `user_id`, and submitting requires sign-in. Existing leaderboard rows are wiped during the Phase 0 deploy. See `docs/superpowers/specs/2026-05-07-mog-battles-and-accounts-design.md` for the full design.
 
 ---
 
@@ -383,7 +383,8 @@ AUTH_MICROSOFT_ENTRA_ID_SECRET=        # Microsoft Entra client secret
 AUTH_RESEND_KEY=                       # Resend API key for magic-link email
 AUTH_RESEND_FROM=hello@holymog.com     # sender address (verified domain in Resend)
 AUTH_TRUST_HOST=true                   # required when behind Vercel + custom auth domain
-NEXTAUTH_URL=https://auth.holymog.com  # base URL Auth.js considers itself hosted at
+NEXTAUTH_URL=https://holymog.vercel.app   # currently the production URL; flip to https://auth.holymog.com later
+# AUTH_COOKIE_DOMAIN=.holymog.com       # set this ONLY after we flip to the custom domain (auth + www split)
 ```
 
 Only `XAI_API_KEY` is strictly required for solo scanning — the other services gate higher-tier functionality (see [Optional infrastructure](#optional-infrastructure)). Accounts (Phase 0+) require all five Supabase + DATABASE_URL + AUTH_* + Resend env vars set.

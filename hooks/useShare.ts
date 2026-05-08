@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { generateShareImage } from '@/lib/shareImageGenerator';
 import { getTier } from '@/lib/tier';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.com';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.vercel.app';
 
 function getShareText(tier: string, url: string): string {
   if (['F-', 'F', 'F+', 'D-', 'D', 'D+'].includes(tier))

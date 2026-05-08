@@ -105,15 +105,19 @@ For logged-in users, the cards inline a few personal cues:
 
 ### 5.1 Setup
 
-**Auth runtime:** Auth.js v5 (`next-auth@beta`) with the `@auth/pg-adapter` Postgres adapter, deployed at **`auth.holymog.com`** (a Vercel domain alias for the same Next deployment). Sessions are stored server-side (database strategy) with a `__Secure-authjs.session-token` cookie scoped to `.holymog.com` so it's shared between `www.holymog.com` (the app) and `auth.holymog.com` (auth callbacks).
+**Auth runtime:** Auth.js v5 (`next-auth@beta`) with the `@auth/pg-adapter` Postgres adapter. Sessions are database-strategy via the adapter.
 
-OAuth + magic-link providers configured in `lib/auth.ts`:
-- **Google** — register an OAuth 2.0 Client ID in Google Cloud Console. Authorised redirect URI: `https://auth.holymog.com/api/auth/callback/google`.
-- **Apple** — register a Service ID in Apple Developer. Return URL: `https://auth.holymog.com/api/auth/callback/apple`.
-- **Microsoft Entra ID** — register an app in Azure Portal with multi-tenant + personal accounts enabled. Redirect URI: `https://auth.holymog.com/api/auth/callback/microsoft-entra-id`. Issuer is `https://login.microsoftonline.com/common/v2.0` so consumer accounts (outlook.com, hotmail.com, live.com, xbox) work.
-- **Resend** (Auth.js's built-in `Resend` provider) for magic-link email. From address `hello@holymog.com` (verified in Resend's domain settings).
+**Hosting (current, temporary):** the entire app — including `/api/auth/[...nextauth]` — runs at **`holymog.vercel.app`**. Cookies are host-scoped to that URL. This is the production URL while (a) Vercel's Hobby-tier commercial-use enforcement keeps `holymog.com` muted at the edge and (b) Barracuda's category review for `holymog.com` is in flight. Once both clear, we flip to:
 
-Required env vars: `AUTH_SECRET`, `AUTH_GOOGLE_ID/SECRET`, `AUTH_APPLE_ID/SECRET`, `AUTH_MICROSOFT_ENTRA_ID_ID/SECRET`, `AUTH_RESEND_KEY`, `AUTH_RESEND_FROM`, `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=https://auth.holymog.com`, plus a `DATABASE_URL` (Supabase Connection-Pooling URL) for the `pg` driver.
+**Hosting (target, after the holds clear):** the app at `www.holymog.com` and OAuth/magic-link callbacks at `auth.holymog.com` (a Vercel domain alias for the same Next deployment). Cookies become `__Secure-authjs.session-token` scoped to `.holymog.com` (set `AUTH_COOKIE_DOMAIN=.holymog.com` in env to enable). The split is so the OAuth callback URL never carries a `vercel.app` flash and feels first-party.
+
+OAuth + magic-link providers configured in `lib/auth.ts`. Register **two** redirect URIs at each provider so the eventual flip to `auth.holymog.com` doesn't require re-registering the OAuth apps:
+- **Google** — Cloud Console OAuth 2.0 Client ID. Authorised redirect URIs: `https://holymog.vercel.app/api/auth/callback/google` (current) and `https://auth.holymog.com/api/auth/callback/google` (target).
+- **Apple** — Apple Developer Service ID. Return URLs: `https://holymog.vercel.app/api/auth/callback/apple` and `https://auth.holymog.com/api/auth/callback/apple`.
+- **Microsoft Entra ID** — Azure App registration with multi-tenant + personal accounts enabled. Redirect URIs: `https://holymog.vercel.app/api/auth/callback/microsoft-entra-id` and `https://auth.holymog.com/api/auth/callback/microsoft-entra-id`. Issuer `https://login.microsoftonline.com/common/v2.0`.
+- **Resend** (Auth.js built-in `Resend` provider) for magic-link email. From `hello@holymog.com` (verified in Resend's domain settings — the underlying domain doesn't need to match the app URL).
+
+Required env vars: `AUTH_SECRET`, `AUTH_GOOGLE_ID/SECRET`, `AUTH_APPLE_ID/SECRET`, `AUTH_MICROSOFT_ENTRA_ID_ID/SECRET`, `AUTH_RESEND_KEY`, `AUTH_RESEND_FROM`, `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=https://holymog.vercel.app` (current) — flip to `https://auth.holymog.com` and add `AUTH_COOKIE_DOMAIN=.holymog.com` after we transition off Vercel Hobby. Plus `DATABASE_URL` (Supabase Connection-Pooling URL) for the `pg` driver.
 
 Auth.js owns its own callback route at `/api/auth/[...nextauth]` — no custom callback handler. On first sign-in, a tiny `events.createUser` hook in the config inserts a corresponding `profiles` row with a derived `display_name` (lowercased, max 24 chars: OAuth `name` → email local-part → "player"). Names are not enforced unique.
 
@@ -143,7 +147,7 @@ One modal, opened from three entry points (header avatar, battle entrypoint, acc
 └────────────────────────────────────────┘
 ```
 
-The "email me a link" button expands inline into an email input + "send link" button. Click triggers `signIn('resend', { email, callbackUrl, redirect: false })`; on success the button text becomes "check your inbox". When the user clicks the magic-link URL in their inbox, Auth.js's verification handler at `https://auth.holymog.com/api/auth/callback/resend` exchanges the token for a session and redirects to `callbackUrl`.
+The "email me a link" button expands inline into an email input + "send link" button. Click triggers `signIn('resend', { email, callbackUrl, redirect: false })`; on success the button text becomes "check your inbox". When the user clicks the magic-link URL in their inbox, Auth.js's verification handler at `https://holymog.vercel.app/api/auth/callback/resend` (or `https://auth.holymog.com/api/auth/callback/resend` after the flip) exchanges the token for a session and redirects to `callbackUrl`.
 
 ### 5.3 Edge cases
 

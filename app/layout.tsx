@@ -27,11 +27,11 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: 'holymog, rate yourself F- to S+',
   description: 'AI-powered face rating. Are you mogging or getting mogged?',
-  metadataBase: new URL('https://holymog.com'),
+  metadataBase: new URL('https://holymog.vercel.app'),
   openGraph: {
     title: 'holymog',
     description: 'AI-powered face rating. F- to S+ tier.',
-    url: 'https://holymog.com',
+    url: 'https://holymog.vercel.app',
     siteName: 'holymog',
     images: ['/og.svg'],
   },

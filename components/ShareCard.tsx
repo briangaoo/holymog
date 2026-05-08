@@ -34,7 +34,7 @@ export function ShareCard({ score }: Props) {
         {tier.letter}
       </div>
       <div className="absolute bottom-4 px-2 text-center font-mono text-[10px] text-white/70">
-        rate yours at holymog.com
+        rate yours at holymog.vercel.app
       </div>
     </div>
   );

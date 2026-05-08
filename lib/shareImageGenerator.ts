@@ -70,7 +70,7 @@ export async function generateShareImage(score: number): Promise<Blob> {
   ctx.font = '500 36px "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('rate yours at holymog.com', cx, H - 140);
+  ctx.fillText('rate yours at holymog.vercel.app', cx, H - 140);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {

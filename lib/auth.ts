@@ -21,12 +21,14 @@ function deriveDisplayName(input: {
 const config: NextAuthConfig = {
   adapter: PostgresAdapter(getPool()),
   // Auth.js sessions are stored in the `sessions` table (database strategy
-  // via the adapter). Cookies are scoped to .holymog.com so they're shared
-  // between www.holymog.com (the app) and auth.holymog.com (the OAuth
-  // callback domain). In dev we let Auth.js use its default localhost cookie.
+  // via the adapter). Cookies are host-scoped by default. If AUTH_COOKIE_DOMAIN
+  // is set (e.g. ".holymog.com" once we flip from holymog.vercel.app to the
+  // custom domain split between www.holymog.com and auth.holymog.com), we
+  // override and scope cookies to the parent domain so they're shared between
+  // subdomains. In dev we let Auth.js use its default localhost cookie.
   session: { strategy: 'database' },
   cookies:
-    process.env.NODE_ENV === 'production'
+    process.env.NODE_ENV === 'production' && process.env.AUTH_COOKIE_DOMAIN
       ? {
           sessionToken: {
             name: '__Secure-authjs.session-token',
@@ -35,7 +37,7 @@ const config: NextAuthConfig = {
               sameSite: 'lax',
               path: '/',
               secure: true,
-              domain: '.holymog.com',
+              domain: process.env.AUTH_COOKIE_DOMAIN,
             },
           },
         }
