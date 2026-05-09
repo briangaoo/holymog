@@ -6,6 +6,17 @@ import type { Landmark } from '@/types';
 const MIN_DIM = 256;
 
 /**
+ * Maximum spatial resolution (longer edge) of the captured face crop sent to
+ * the vision API. Set to 768 because that's Gemini's single-tile threshold —
+ * any image ≤768×768 costs the same 258 tokens, so we get max preserved
+ * detail for skin / eye / brow scoring with no extra token cost. Capping
+ * here also normalises across devices: a 4032×3024 phone capture and a
+ * 1280×720 webcam capture both downscale to ≤768 before encode, so the
+ * model can't be biased upward by pure phone-camera megapixels.
+ */
+const MAX_INPUT_DIM = 768;
+
+/**
  * Compute a face-centred crop box from MediaPipe landmarks. The bbox of all
  * 478 points is expanded with extra padding above (for hair) and to the sides
  * (for ears), and a smaller pad below (chin/neck). Ensures each dimension is
@@ -136,6 +147,29 @@ export const Camera = forwardRef<CameraHandle, Props>(function Camera(
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0, w, h);
+      }
+
+      // Device-bias normalisation: clamp the longer edge to MAX_INPUT_DIM so
+      // every device sends the model the same spatial resolution. 768 is the
+      // sweet spot — it matches Gemini's single-tile size (any image ≤768×768
+      // costs the same 258 tokens as a 384×384 one), so we keep maximum
+      // detail for skin / eye / brow scoring without inflating cost. Anything
+      // larger than that tiles up token cost AND lets phone-camera megapixels
+      // tilt the score upward; anything smaller and fine surface detail
+      // starts to wash out. Aspect ratio is preserved.
+      const longer = Math.max(canvas.width, canvas.height);
+      if (longer > MAX_INPUT_DIM) {
+        const scale = MAX_INPUT_DIM / longer;
+        const dst = document.createElement('canvas');
+        dst.width = Math.round(canvas.width * scale);
+        dst.height = Math.round(canvas.height * scale);
+        const dctx = dst.getContext('2d');
+        if (dctx) {
+          dctx.imageSmoothingEnabled = true;
+          dctx.imageSmoothingQuality = 'high';
+          dctx.drawImage(canvas, 0, 0, dst.width, dst.height);
+          return dst.toDataURL('image/jpeg', 0.92);
+        }
       }
       return canvas.toDataURL('image/jpeg', 0.92);
     },

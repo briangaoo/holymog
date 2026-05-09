@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { broadcastBattleEvent } from '@/lib/realtime';
+import { computeElo } from '@/lib/elo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,8 +18,33 @@ type ParticipantRow = {
 
 type BattleRow = {
   state: string;
+  kind: 'public' | 'private';
   started_at: Date | null;
   finished_at: Date | null;
+};
+
+type ProfileRow = {
+  user_id: string;
+  elo: number;
+  peak_elo: number;
+  matches_played: number;
+  matches_won: number;
+  current_streak: number;
+  longest_streak: number;
+};
+
+type EloChange = {
+  user_id: string;
+  before: number;
+  after: number;
+  delta: number;
+};
+
+type ResultParticipant = {
+  user_id: string;
+  display_name: string;
+  final_score: number;
+  is_winner: boolean;
 };
 
 /**
@@ -26,17 +52,21 @@ type BattleRow = {
  *
  * Idempotent finalisation. Triggered by whichever participant's
  * countdown hits 0 first; subsequent callers receive the cached
- * result without re-running the logic.
+ * result (with ELO deltas if applicable).
  *
- * 1. Asserts state is 'active' or 'starting' AND >= 10s past
- *    started_at (so we're past the active window).
- * 2. Sorts participants by peak_score desc, joined_at asc.
- *    First row wins; ties broken by earlier joiner.
- * 3. Marks winner, sets final_score = peak_score for everyone.
- * 4. Updates battle state to 'finished', stamps finished_at.
- * 5. Broadcasts battle.finished over Realtime with full result.
- *
- * (Phase 3 will add: ELO + match counter updates here.)
+ * Steps:
+ *   1. Assert state is 'active' or 'starting' AND >= 10s past
+ *      started_at.
+ *   2. Sort participants by peak_score desc, joined_at asc.
+ *      First row wins; ties broken by earlier joiner.
+ *   3. Mark winner, set final_score = peak_score for everyone.
+ *   4. If kind = 'public' AND exactly 2 participants: compute ELO
+ *      updates and apply to both profiles atomically. Stamp the
+ *      delta + new ELO into the result payload.
+ *   5. Update battle state to 'finished', stamp finished_at.
+ *   6. Broadcast battle.finished over Realtime.
+ *   7. (Phase 5: append to a battle_history table for the /account
+ *       history tab. Out of scope for Phase 3.)
  */
 export async function POST(request: Request) {
   const session = await auth();
@@ -64,7 +94,7 @@ export async function POST(request: Request) {
 
     // Assert participation + lock the row.
     const battleResult = await client.query<BattleRow>(
-      `select b.state, b.started_at, b.finished_at
+      `select b.state, b.kind, b.started_at, b.finished_at
          from battles b
          join battle_participants p on p.battle_id = b.id
         where b.id = $1 and p.user_id = $2
@@ -78,7 +108,6 @@ export async function POST(request: Request) {
     }
     const battle = battleResult.rows[0];
 
-    // If already finished, just return the cached result.
     if (battle.state === 'finished') {
       await client.query('rollback');
       return cachedResult(battleId);
@@ -92,7 +121,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Must be past the 10-second active window.
     if (battle.started_at) {
       const elapsedMs = Date.now() - battle.started_at.getTime();
       if (elapsedMs < 10_000) {
@@ -101,7 +129,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Pull all participants ordered by peak desc, then earliest joiner.
+    // Pull participants ordered by peak desc, then earliest joiner.
     const participantsResult = await client.query<ParticipantRow>(
       `select user_id, display_name, peak_score, joined_at
          from battle_participants
@@ -126,6 +154,79 @@ export async function POST(request: Request) {
       [battleId, winnerId],
     );
 
+    // ----- ELO updates (public 1v1 only) -----
+    let eloChanges: EloChange[] = [];
+    if (battle.kind === 'public' && participants.length === 2) {
+      const loserId = participants[1].user_id;
+
+      // Lock both profiles in stable order (lower user_id first) to avoid
+      // deadlocks if two simultaneous public battles share users in
+      // pathological cases.
+      const orderedIds = [winnerId, loserId].sort();
+      const profilesResult = await client.query<ProfileRow>(
+        `select user_id, elo, peak_elo, matches_played, matches_won,
+                current_streak, longest_streak
+           from profiles
+          where user_id = any($1::uuid[])
+          for update`,
+        [orderedIds],
+      );
+
+      const byId = new Map<string, ProfileRow>();
+      for (const row of profilesResult.rows) byId.set(row.user_id, row);
+
+      const winnerProfile = byId.get(winnerId);
+      const loserProfile = byId.get(loserId);
+
+      if (winnerProfile && loserProfile) {
+        const elo = computeElo({
+          winnerElo: winnerProfile.elo,
+          winnerMatches: winnerProfile.matches_played,
+          loserElo: loserProfile.elo,
+          loserMatches: loserProfile.matches_played,
+        });
+
+        // Winner: bump streak, peak_elo, matches_won.
+        await client.query(
+          `update profiles
+              set elo = $1,
+                  peak_elo = greatest(peak_elo, $1),
+                  matches_played = matches_played + 1,
+                  matches_won = matches_won + 1,
+                  current_streak = current_streak + 1,
+                  longest_streak = greatest(longest_streak, current_streak + 1)
+            where user_id = $2`,
+          [elo.newWinnerElo, winnerId],
+        );
+
+        // Loser: reset streak, no matches_won bump.
+        await client.query(
+          `update profiles
+              set elo = $1,
+                  peak_elo = greatest(peak_elo, $1),
+                  matches_played = matches_played + 1,
+                  current_streak = 0
+            where user_id = $2`,
+          [elo.newLoserElo, loserId],
+        );
+
+        eloChanges = [
+          {
+            user_id: winnerId,
+            before: winnerProfile.elo,
+            after: elo.newWinnerElo,
+            delta: elo.winnerDelta,
+          },
+          {
+            user_id: loserId,
+            before: loserProfile.elo,
+            after: elo.newLoserElo,
+            delta: elo.loserDelta,
+          },
+        ];
+      }
+    }
+
     // Flip battle to finished.
     await client.query(
       `update battles
@@ -138,15 +239,19 @@ export async function POST(request: Request) {
     await client.query('commit');
 
     // Build result payload + broadcast.
+    const resultParticipants: ResultParticipant[] = participants.map((p) => ({
+      user_id: p.user_id,
+      display_name: p.display_name,
+      final_score: p.peak_score,
+      is_winner: p.user_id === winnerId,
+    }));
+
     const payload = {
       battle_id: battleId,
+      kind: battle.kind,
       winner_id: winnerId,
-      participants: participants.map((p) => ({
-        user_id: p.user_id,
-        display_name: p.display_name,
-        final_score: p.peak_score,
-        is_winner: p.user_id === winnerId,
-      })),
+      participants: resultParticipants,
+      elo_changes: eloChanges,
     };
     void broadcastBattleEvent(battleId, 'battle.finished', payload);
 
@@ -164,11 +269,19 @@ export async function POST(request: Request) {
 
 /**
  * Re-build the result payload for a battle that's already been
- * finalised. Called when a slow client posts /finish after the
- * winning client already did.
+ * finalised. Includes ELO changes if they're recoverable from the
+ * profile rows (we don't store before-snapshots, so deltas are not
+ * recomputable; clients that arrived after the original /finish
+ * see the participants but an empty elo_changes array).
  */
 async function cachedResult(battleId: string): Promise<Response> {
   const pool = getPool();
+  const battleResult = await pool.query<{ kind: 'public' | 'private' }>(
+    `select kind from battles where id = $1 limit 1`,
+    [battleId],
+  );
+  const kind = battleResult.rows[0]?.kind ?? 'public';
+
   const result = await pool.query<{
     user_id: string;
     display_name: string;
@@ -186,6 +299,7 @@ async function cachedResult(battleId: string): Promise<Response> {
   return NextResponse.json({
     result: {
       battle_id: battleId,
+      kind,
       winner_id: winner?.user_id ?? null,
       participants: result.rows.map((p) => ({
         user_id: p.user_id,
@@ -193,6 +307,7 @@ async function cachedResult(battleId: string): Promise<Response> {
         final_score: p.final_score ?? p.peak_score,
         is_winner: p.is_winner,
       })),
+      elo_changes: [],
     },
   });
 }

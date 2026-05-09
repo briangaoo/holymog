@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'image_too_large' }, { status: 413 });
   }
 
-  if (!process.env.XAI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({ error: 'vision_unavailable' }, { status: 503 });
   }
 

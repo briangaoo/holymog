@@ -7,10 +7,11 @@ import {
   useRef,
   useState,
 } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X } from 'lucide-react';
+import { Check, ShieldCheck, X } from 'lucide-react';
 import type { FinalScores } from '@/types';
-import { getTier } from '@/lib/tier';
+import { getTier, PHOTO_REQUIRED_THRESHOLD } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import { useUser } from '@/hooks/useUser';
 import { clearLeaderboardCache } from '@/lib/leaderboardCache';
@@ -49,6 +50,11 @@ export function LeaderboardModal({
 
   const [name, setName] = useState('');
   const [includePhoto, setIncludePhoto] = useState(false);
+  // S-tier biometric consent. Required by BIPA + GDPR Art. 9 to be
+  // affirmative, informed, and recorded — we gate the submit button
+  // behind this checkbox and only show it for S-tier scores (≥87) where
+  // a face photo must be uploaded for review.
+  const [biometricConsent, setBiometricConsent] = useState(false);
   const [previous, setPrevious] = useState<PreviousEntry | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
@@ -83,11 +89,20 @@ export function LeaderboardModal({
     [],
   );
 
+  // S-tier (≥87) forces the photo on. Same threshold the server enforces.
+  const photoRequired = scores.overall >= PHOTO_REQUIRED_THRESHOLD;
+
   // Reset state every open. useLayoutEffect ensures no flash of stale data.
   useLayoutEffect(() => {
     if (!open) return;
     setName('');
-    setIncludePhoto(false);
+    // If this score qualifies as S-tier, the photo is mandatory — start
+    // checked. Otherwise default to off and let the user opt in.
+    setIncludePhoto(photoRequired);
+    // Biometric consent always defaults to FALSE on open so the user has
+    // to affirmatively re-consent for each S-tier submission. Required
+    // for BIPA/GDPR informed-consent compliance.
+    setBiometricConsent(false);
     setPrevious(null);
     setStatus({ kind: 'idle' });
     setLastTransform(null);
@@ -97,7 +112,7 @@ export function LeaderboardModal({
     }
     const t = window.setTimeout(() => inputRef.current?.focus(), 150);
     return () => window.clearTimeout(t);
-  }, [open]);
+  }, [open, photoRequired]);
 
   // Once we know we're signed in, fetch profile + existing leaderboard row.
   useEffect(() => {
@@ -129,7 +144,8 @@ export function LeaderboardModal({
             tier: data.entry.tier,
             hasPhoto: !!data.entry.image_url,
           });
-          setIncludePhoto(!!data.entry.image_url);
+          // S-tier locks the photo on regardless of the previous state.
+          setIncludePhoto(photoRequired || !!data.entry.image_url);
         }
       } catch {
         // best-effort prefill
@@ -138,7 +154,7 @@ export function LeaderboardModal({
     return () => {
       cancelled = true;
     };
-  }, [open, user]);
+  }, [open, user, photoRequired]);
 
   const submit = useCallback(async () => {
     const trimmed = name.trim();
@@ -166,7 +182,9 @@ export function LeaderboardModal({
               ? 'session expired, sign in again'
               : data.error === 'leaderboard_unconfigured'
                 ? 'leaderboard not yet available'
-                : 'could not save, try again';
+                : data.error === 'photo_required_for_high_scores'
+                  ? 'S-tier scores require a photo for review'
+                  : 'could not save, try again';
         setStatus({ kind: 'error', message: msg });
         return;
       }
@@ -195,7 +213,10 @@ export function LeaderboardModal({
   const submitDisabled =
     status.kind === 'submitting' ||
     status.kind === 'success' ||
-    name.trim().length === 0;
+    name.trim().length === 0 ||
+    // S-tier scores can't submit until the user explicitly checks the
+    // biometric-consent box. Required for BIPA/GDPR informed consent.
+    (photoRequired && !biometricConsent);
 
   return (
     <AnimatePresence>
@@ -329,9 +350,23 @@ export function LeaderboardModal({
 
                 <button
                   type="button"
-                  onClick={() => setIncludePhoto((v) => !v)}
+                  onClick={() => {
+                    if (photoRequired) return;
+                    setIncludePhoto((v) => !v);
+                  }}
                   aria-pressed={includePhoto}
-                  className="mb-3 flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3 text-left transition-colors hover:bg-white/[0.05]"
+                  aria-disabled={photoRequired}
+                  disabled={photoRequired}
+                  title={
+                    photoRequired
+                      ? 'photo is required for S-tier scores so the leaderboard can be reviewed'
+                      : undefined
+                  }
+                  className={`mb-3 flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                    photoRequired
+                      ? 'cursor-not-allowed border-emerald-500/30 bg-emerald-500/[0.06]'
+                      : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'
+                  }`}
                   style={{ touchAction: 'manipulation' }}
                 >
                   <span
@@ -347,11 +382,17 @@ export function LeaderboardModal({
                     )}
                   </span>
                   <span className="flex-1">
-                    <span className="block text-sm text-white">
-                      also share my photo
+                    <span
+                      className={`block text-sm ${photoRequired ? 'text-zinc-300' : 'text-white'}`}
+                    >
+                      {photoRequired
+                        ? 'photo required (S-tier)'
+                        : 'also share my photo'}
                     </span>
                     <span className="block text-[11px] text-zinc-500">
-                      shows next to your name on the board
+                      {photoRequired
+                        ? "S-tier scores need a photo so we can review the board. don't want to share? skip the submission."
+                        : 'shows next to your name on the board'}
                     </span>
                   </span>
                   {includePhoto && (
@@ -366,6 +407,74 @@ export function LeaderboardModal({
                     </span>
                   )}
                 </button>
+
+                {/* S-tier biometric consent. Required by BIPA + GDPR
+                    Art. 9 to be affirmative + informed before any
+                    biometric upload. Surfaced as a discrete gate above
+                    the submit button so the user has to deliberately
+                    check the box for each S-tier submission. */}
+                {photoRequired && (
+                  <button
+                    type="button"
+                    onClick={() => setBiometricConsent((v) => !v)}
+                    aria-pressed={biometricConsent}
+                    style={{ touchAction: 'manipulation' }}
+                    className={`mb-3 flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                      biometricConsent
+                        ? 'border-emerald-500/40 bg-emerald-500/[0.08]'
+                        : 'border-amber-500/40 bg-amber-500/[0.06]'
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+                        biometricConsent
+                          ? 'border-emerald-500 bg-emerald-500'
+                          : 'border-amber-500/70 bg-transparent'
+                      }`}
+                      aria-hidden
+                    >
+                      {biometricConsent && (
+                        <Check size={13} strokeWidth={3} className="text-black" />
+                      )}
+                    </span>
+                    <span className="flex flex-col gap-0.5">
+                      <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-amber-300">
+                        <ShieldCheck size={11} aria-hidden /> S-tier consent
+                      </span>
+                      <span className="text-sm text-white">
+                        I consent to uploading my face image as biometric
+                        information.
+                      </span>
+                      <span className="text-[11px] leading-relaxed text-zinc-400">
+                        Required because S-tier submissions include a
+                        photo. We process biometric information only to
+                        display your score on the public leaderboard. See
+                        our{' '}
+                        <Link
+                          href="/terms#03"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-white/85 underline-offset-2 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          biometric consent
+                        </Link>{' '}
+                        and{' '}
+                        <Link
+                          href="/privacy#03"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-white/85 underline-offset-2 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          privacy policy
+                        </Link>
+                        . You can revoke at any time by emailing
+                        hello@holymog.com.
+                      </span>
+                    </span>
+                  </button>
+                )}
 
                 {previous && (
                   <ComparisonBlock

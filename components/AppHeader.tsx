@@ -15,7 +15,7 @@ export function AppHeader({ authNext, authContext }: Props) {
   return (
     <header
       className="sticky top-0 z-30 flex items-center justify-between bg-black/70 px-5 py-3 backdrop-blur"
-      style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+      style={{ paddingTop: 'max(env(safe-area-inset-top), 20px)' }}
     >
       <Link
         href="/"
@@ -28,7 +28,7 @@ export function AppHeader({ authNext, authContext }: Props) {
           width={120}
           height={29}
           priority
-          className="h-6 w-auto"
+          className="h-6 w-auto rounded-md"
         />
       </Link>
       <AccountAvatar next={authNext} context={authContext} />

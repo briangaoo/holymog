@@ -1,10 +1,10 @@
 # holymog
 
-AI-powered face rating. Look at the camera, get an F‑ to S+ tier and a 0–100 overall score with sub-breakdowns. Built as a single-page experience that fuses on-device face detection (MediaPipe) with multi-call xAI Grok vision scoring.
+AI-powered face rating. Look at the camera, get an F‑ to S+ tier and a 0–100 overall score with sub-breakdowns. Built as a single-page experience that fuses on-device face detection (MediaPipe) with multi-call Gemini 2.5 Flash Lite vision scoring.
 
 > "rate yourself F- to S+. mogging or getting mogged?"
 
-> **Phases 0–2 code-complete (2026-05-07 evening).** Adding accounts (Google OAuth + email magic link via Resend) on top of the existing key-free leaderboard, the home-page hub at `/`, and 1v1 public mog battles powered by LiveKit + Supabase Realtime. Auth runs through **Auth.js v5**; Supabase is now used only as managed Postgres + Storage (no Auth, no RLS). **Production URL is currently `https://holymog.vercel.app`** while `holymog.com` works through Vercel's Hobby commercial-use enforcement and Barracuda category review. Once both clear, we flip the canonical URL back to `www.holymog.com` with auth on `auth.holymog.com`. **Breaking change** to the `leaderboard` table: the legacy 8-char Crockford key system is fully removed, rows are tagged by `user_id`, and submitting requires sign-in. Existing leaderboard rows are wiped during the Phase 0 deploy. **Routes have shifted:** `/` is now the hub, `/scan` is the solo scan flow (moved), `/mog` is the battle hub (NEW). See `docs/superpowers/specs/2026-05-07-mog-battles-and-accounts-design.md` for the full design and `docs/migrations/` for the SQL.
+> **Phases 0–5 code-complete (2026-05-08).** Adding accounts (Google OAuth + email magic link via Gmail Workspace SMTP, sent from `auth@holymog.com`) on top of the existing key-free leaderboard, the home-page hub at `/`, 1v1 public mog battles powered by LiveKit + Supabase Realtime, ELO + per-account stats (best scan, W/L, peak ELO, most-called weakness), **private parties** with 6-char Crockford codes + a host lobby (up to 10 players), and Phase 5 polish: live disconnect dimming, reconnect-on-tab-close, battle-result share image (download or Web Share API), rematch button on private results, real account history tab, plus colour-ramped countdown + winner-reveal flash + result-cell pop-in animations. Auth runs through **Auth.js v5**; Supabase is now used only as managed Postgres + Storage (no Auth, no RLS). **Production URL is currently `https://holymog.vercel.app`** while `holymog.com` works through Vercel's Hobby commercial-use enforcement and Barracuda category review. Once both clear, we flip the canonical URL back to `www.holymog.com` with auth on `auth.holymog.com`. **Breaking change** to the `leaderboard` table: the legacy 8-char Crockford key system is fully removed, rows are tagged by `user_id`, and submitting requires sign-in. Existing leaderboard rows are wiped during the Phase 0 deploy. **Routes have shifted:** `/` is now the hub, `/scan` is the solo scan flow (moved), `/mog` is the battle hub (NEW). See `docs/superpowers/specs/2026-05-07-mog-battles-and-accounts-design.md` for the full design and `docs/migrations/` for the SQL.
 
 ---
 
@@ -38,7 +38,7 @@ The user lands on `/`, grants camera access, sees a privacy modal once, then aim
 
 - **3-second countdown** with the camera live.
 - **5-second "scan phase"** during which a wireframe spiderweb overlay traces the face, a small "live scan" meter (top-left) cycles through ~10 score updates, the four screen edges glow with a tier-coloured halo, and two clean frames are quietly captured for the heavy breakdown call.
-- **Mapping** waits for the heavy multi-prompt Grok call to resolve (~1.5 s typical).
+- **Mapping** waits for the heavy multi-prompt Gemini call to resolve (~1.5 s typical).
 - **Reveal** animates the tier letter, the overall number counts up, sub-scores fill, confetti fires.
 - **Complete** lets the user share to TikTok / Instagram / Snapchat / X / Discord, copy the share image, post to a public leaderboard (with an opt-in 8-char "account key" so they can edit/replace their entry across devices without creating a real account), retake, or expand a "more detail" panel showing all 30 underlying vision fields plus token-usage / cost breakdown.
 
@@ -53,7 +53,7 @@ The public **`/leaderboard`** is paginated and infinite-scrolling: the first 100
 - **Styling** — Tailwind CSS v4 (zero-config, via `@tailwindcss/postcss`)
 - **Animation** — Framer Motion v12
 - **Face detection (client)** — `@mediapipe/tasks-vision` FaceLandmarker (478 landmarks, GPU delegate)
-- **Vision scoring (server)** — xAI Grok 4.20 non-reasoning, called via OpenAI-style chat completions
+- **Vision scoring (server)** — Google **Gemini 2.5 Flash Lite** via the `generativelanguage.googleapis.com` REST endpoint. ~$0.10/M input, ~$0.40/M output (≈12× cheaper input, ≈6× cheaper output than Grok 4.20)
 - **Leaderboard** — Supabase (Postgres + Storage)
 - **Rate limiting** — Upstash Ratelimit + Redis
 - **Sharing** — Web Share API w/ image fallback, `canvas-confetti`, native canvas-rendered share PNG
@@ -72,8 +72,8 @@ holymog/
 │   │   ├── account/[key]/route.ts    GET: account lookup by 8-char key (cross-device prefill)
 │   │   ├── debug-log/route.ts        POST/DELETE: appends to /tmp/holymog-debug.log
 │   │   ├── leaderboard/route.ts      GET: paginated top scores · POST: insert OR update by key
-│   │   ├── quick-score/route.ts      Single-image low-detail Grok call (live meter)
-│   │   └── score/route.ts            Multi-image breakdown Grok call (final score)
+│   │   ├── quick-score/route.ts      Single-image Gemini call (live meter)
+│   │   └── score/route.ts            Multi-image breakdown Gemini call (final score)
 │   ├── leaderboard/page.tsx          Public leaderboard list (infinite scroll)
 │   ├── globals.css                   Tailwind import, font tokens, keyframes
 │   ├── layout.tsx                    Root layout, fonts, metadata, viewport
@@ -110,7 +110,7 @@ holymog/
 │   ├── shareImageGenerator.ts        1080×1920 share PNG via canvas
 │   ├── supabase.ts                   Cached SupabaseClient + types
 │   ├── tier.ts                       0..100 → 18 tier letters + descriptors
-│   └── vision.ts                     Grok prompts, callGrok, analyze{Face,Faces,Quick}
+│   └── vision.ts                     Gemini prompts, callGemini, analyze{Face,Faces,Quick,Battle}
 ├── public/
 │   ├── icons/{tiktok,instagram,snapchat,x,discord}.svg
 │   └── og.svg                        Open Graph image
@@ -141,7 +141,7 @@ t=4500 ms  Capture frame 1 (cropped to face, w/ landmarks) for /api/score
 t=6500 ms  Capture frame 2
 t=8000 ms  CAPTURE dispatched → state 'mapping'
             Heavy /api/score fires with both frames in parallel
-            (3 prompts × 2 frames = 6 Grok calls, parallel ≈ ~1.5 s)
+            (3 prompts × 2 frames = 6 Gemini calls, parallel ≈ ~1.5 s)
 mapping done → MAPPING_DONE → state 'revealing'
             ScoreReveal: tier letter springs in, overall counts up,
             sub-scores stagger, confetti fires
@@ -167,7 +167,7 @@ The pipeline is defined in [`lib/vision.ts`](lib/vision.ts) and [`lib/scoreEngin
 
 ### The 30 vision fields
 
-Grok is asked **three category prompts in parallel per frame**, each returning ~9–11 integer scores. Categories live in `STRUCTURE_KEYS`, `FEATURES_KEYS`, `SURFACE_KEYS` and together populate the `VisionScore` type:
+Gemini is asked **three category prompts in parallel per frame**, each returning ~9–11 integer scores. Categories live in `STRUCTURE_KEYS`, `FEATURES_KEYS`, `SURFACE_KEYS` and together populate the `VisionScore` type:
 
 - **Structure (9):** `jawline_definition`, `chin_definition`, `cheekbone_prominence`, `nose_shape`, `nose_proportion`, `forehead_proportion`, `temple_hollow`, `ear_shape`, `facial_thirds_visual`
 - **Features (10):** `eye_size`, `eye_shape`, `eye_bags`, `canthal_tilt`, `iris_appeal`, `brow_shape`, `brow_thickness`, `lip_shape`, `lip_proportion`, `philtrum`
@@ -189,7 +189,7 @@ If a category fails to parse, `validateCategory` falls back to a strict-prefix r
 | `cheekbones` | `cheekbone_prominence`, `nose_shape`, `nose_proportion`, `forehead_proportion`, `temple_hollow`, `ear_shape`, `philtrum`, `facial_thirds_visual` |
 | `presentation` | `hair_quality`, `hair_styling`, `posture`, `confidence`, `masculinity_femininity`, `symmetry`, `feature_harmony`, `overall_attractiveness`, `lip_proportion` |
 
-The overall score blends a weighted mean of the five composites with Grok's holistic judgement:
+The overall score blends a weighted mean of the five composites with Gemini's holistic judgement:
 
 ```ts
 subOverall    = 0.25·jawline + 0.20·eyes + 0.20·skin + 0.15·cheekbones + 0.20·presentation
@@ -200,7 +200,7 @@ The 60-weighted holistic field is intentional: per-region averages tend to drift
 
 ### Quick-score (live meter)
 
-`analyzeQuick` calls Grok with a one-line prompt asking for `{ "overall": <int> }` only, using `detail: 'low'` to keep input tokens small. The result is treated as a single observation and merged with synthetic ±1–5 jitter to produce 10 visible updates per scan from only 5 real API calls.
+`analyzeQuick` calls Gemini with a deliberately tiny prompt (~70 tokens, no editorial-pose paragraph — the heavy 6-call `analyzeFaces` pipeline is what actually scores the face) asking for `{ "overall": <int> }` only. The result is treated as a single observation and merged with synthetic ±1–2 jitter — the live meter displays the score as `score/10` (e.g. 84 → 8.4), so ±1–2 raw points = ±0.1–0.2 in the visible readout — to produce 10 calm updates per scan from only 5 real API calls.
 
 ---
 
@@ -215,7 +215,7 @@ Defined in [`lib/tier.ts`](lib/tier.ts) and [`lib/scoreColor.ts`](lib/scoreColor
 | 41–55   | C-, C, C+       | Yellow `#eab308`                                     | "normie"                     |
 | 56–70   | B-, B, B+       | Lime `#84cc16`                                       | "high-tier normie"           |
 | 71–86   | A-, A, A+       | Green `#22c55e`                                      | "chadlite" / "mogger"        |
-| 87–100  | S-, S, S+       | Cyan→Purple gradient (`#22d3ee → #a855f7`), S+ glows | "chad" / "heartbreaker" / "brian" |
+| 87–100  | S-, S, S+       | Cyan→Purple gradient (`#22d3ee → #a855f7`), S+ glows | "chad" / "heartbreaker" / "true adam" |
 
 Within each band `getScoreColor(value)` interpolates HSL hue/saturation/lightness so a 71 reads slightly different from an 86 even though both are tier "A". Used everywhere — sub-score bars, live meter digits, page-border halo, leaderboard score column.
 
@@ -224,7 +224,7 @@ Within each band `getScoreColor(value)` interpolates HSL hue/saturation/lightnes
 ## App routes
 
 - **`/`** — `app/page.tsx`. The whole experience. Hydrates from `localStorage` if a previous result exists; otherwise mounts the camera, runs the scan, persists the final result. All client-side; no SSR data.
-- **`/leaderboard`** — `app/leaderboard/page.tsx`. Hydrates page 1 instantly from a sessionStorage cache (warmed when the scan transitions to `complete`), then silently re-fetches `/api/leaderboard?page=1` to refresh. An IntersectionObserver on a sentinel near the bottom triggers `?page=2`, `?page=3`, … as the user scrolls — 100 rows per page, lazily loaded.
+- **`/leaderboard`** — `app/leaderboard/page.tsx`. Two tabs at the top: **Scans** (top scan scores) and **Battles** (top public-1v1 ELO). The Scans tab hydrates page 1 instantly from a sessionStorage cache (warmed when the scan transitions to `complete`), then silently re-fetches `/api/leaderboard?page=1` to refresh. The Battles tab queries `/api/leaderboard/battles` and orders profiles by `elo desc, matches_played desc, peak_elo desc` — no minimum-match gate, since rating is cumulative and unranked players sink to the bottom of the 1000-ELO cluster naturally. Both tabs use an IntersectionObserver sentinel for lazy paging — 100 rows per page.
 
 ---
 
@@ -237,8 +237,8 @@ All routes are `runtime: 'nodejs'`, `dynamic: 'force-dynamic'`.
 - Body: `{ imageBase64: string }`
 - Validates: payload < 2 MB, decodable PNG/JPEG.
 - **Not rate-limited** (10 calls per scan is the point).
-- Calls `analyzeQuick` (single low-detail Grok call) and returns `{ overall: number }` plus `X-Tokens-Input` / `X-Tokens-Output` headers.
-- Returns `503 vision_unavailable` if `XAI_API_KEY` is unset.
+- Calls `analyzeQuick` (single Gemini call) and returns `{ overall: number }` plus `X-Tokens-Input` / `X-Tokens-Output` headers.
+- Returns `503 vision_unavailable` if `GEMINI_API_KEY` is unset.
 
 ### `POST /api/score`
 
@@ -257,6 +257,13 @@ All routes are `runtime: 'nodejs'`, `dynamic: 'force-dynamic'`.
   - **No `key`:** server generates a fresh 8-char Crockford key, inserts a new row (retrying on the vanishingly rare unique-violation), and returns `{ entry, key, isNew: true }`.
   - **With `key`:** server normalises + validates the key, looks up the row, and `UPDATE`s it in place (preserving `id` and `created_at`). Returns `{ entry, key, isNew: false }` or `404 key_not_found` if the key isn't on file.
   - Photo handling on either path: a non-empty `imageBase64` data URL is uploaded to the `holymog-faces` Supabase Storage bucket under a UUID path; both `image_url` and `image_path` are persisted on the row. On `UPDATE`, any old photo on the row is best-effort deleted from storage.
+  - **Photo gate at S-tier:** if `scores.overall ≥ PHOTO_REQUIRED_THRESHOLD` (currently `87`, the S- floor) and no `imageBase64` is present, the server rejects with `400 photo_required_for_high_scores`. The client modal already disables and force-checks the photo toggle in this range, but the server enforces it independently so a hand-rolled or stale-client request can't bypass review.
+
+### `GET /api/leaderboard/battles`
+
+- `?page=N` (default 1), 100 rows per page. Returns `{ entries: BattleLeaderboardRow[], hasMore, page }`.
+- Each row: `{ user_id, display_name, elo, peak_elo, matches_played, matches_won }`.
+- Ordered by `elo DESC, matches_played DESC, peak_elo DESC`. No minimum-match filter — ELO is cumulative, unranked players naturally sink under the 1000-ELO cluster via the `matches_played` tiebreak.
 
 ### `GET /api/account/[key]`
 
@@ -303,7 +310,7 @@ Notable transitions:
 > All client components (`'use client'`). The codebase is pure-client; the only server code is the API route handlers.
 
 - **`AccountKeyCard`** — One-shot card shown inside `LeaderboardModal` when the server returns `isNew: true` on a first-time submission. Displays the freshly-issued 8-char key in a big monospace block plus **Copy** and **Download** (`.txt`) buttons. After the user clicks **Done** the modal closes; the key is persisted to localStorage so subsequent submits are silent updates.
-- **`Camera`** — `getUserMedia` w/ portrait/landscape-aware constraints, `facingMode: 'user'`. Forwards a `CameraHandle.capture(landmarks?)` imperative method that draws the current video frame to a canvas and returns a JPEG data URL. When landmarks are passed it computes a face-centred crop (with extra hair / ear / chin padding) so vision calls receive only the face — and clamps every dimension to ≥ `MIN_DIM=256` so `/api/score` validation can't fail. The capture is **mirrored at draw time** (the canvas is `translate`d + `scale(-1, 1)`'d before `drawImage`) so the saved bytes match what the user just saw on the mirrored camera preview. No display surface needs a CSS flip as a result.
+- **`Camera`** — `getUserMedia` w/ portrait/landscape-aware constraints, `facingMode: 'user'`. Forwards a `CameraHandle.capture(landmarks?)` imperative method that draws the current video frame to a canvas and returns a JPEG data URL. When landmarks are passed it computes a face-centred crop (with extra hair / ear / chin padding) so vision calls receive only the face — and clamps every dimension to ≥ `MIN_DIM=256` so `/api/score` validation can't fail. The capture is **mirrored at draw time** (the canvas is `translate`d + `scale(-1, 1)`'d before `drawImage`) so the saved bytes match what the user just saw on the mirrored camera preview. No display surface needs a CSS flip as a result. Finally, the crop's longer edge is clamped to `MAX_INPUT_DIM=768` (Gemini's single-tile threshold — anything ≤768 costs one 258-token tile so this is "free" detail). The clamp also **normalises device bias**: a 4032 px phone selfie and a 1280 px webcam frame both arrive at the model at ≤768 px, so the score can't tilt upward purely on phone-camera megapixels.
 - **`Confetti`** — Two simultaneous bottom-corner bursts via `canvas-confetti`. Colour set switches to a cyan/purple palette for S-tier gradients.
 - **`Countdown`** — Big spring-bounced 3 / 2 / 1 numerals; rAF-driven so it stays accurate under tab throttling. ARIA live region.
 - **`FaceDetectedPill`** — Top-centre emerald pill that drops in when `state.type === 'detected'`.
@@ -316,7 +323,7 @@ Notable transitions:
   The name input auto-lowercases and shows a brief animated `B → b` chip when an uppercase letter is intercepted, so users don't suspect a broken keyboard. Successful first-time submission swaps the modal contents for `AccountKeyCard` with the freshly issued key. Successful subsequent submission auto-closes after a short success state. All submits invalidate the leaderboard sessionStorage cache so the next visit re-fetches.
 - **`LiveMeter`** — Top-left "live scan" readout. Apple-style **liquid glass** look: `feDisplacementMap` warps the camera backdrop, plus heavy `backdrop-blur` + `saturate` + `brightness < 1`, multiple inset highlights/shadows, top rim-light crescent, edge lensing radial. Big glowing tier-coloured digit, "/ 10" suffix, descriptor word, `n/total` progress, and a thin colour bar at the bottom representing position on the 0–100 scale.
 - **`LivePageBorder`** — Four full-bleed gradient bands (top/bottom/left/right) that fade from solid tier colour at the edge to transparent inward. Lives alongside the live meter during scan + mapping.
-- **`MoreDetail`** — Collapsible panel with five sections (Presentation, Lower face & mouth, Eyes & brows, Mid face & nose, Skin) listing every one of the 30 vision fields and their colour-coded score. Also renders a "Token usage (this scan)" card calculating dollar cost from Grok 4.20's `$1.25 / 1M input` and `$2.50 / 1M output` pricing.
+- **`MoreDetail`** — Collapsible panel with five sections (Presentation, Lower face & mouth, Eyes & brows, Mid face & nose, Skin) listing every one of the 30 vision fields and their colour-coded score. Also renders a "Token usage (this scan)" card calculating dollar cost from Gemini 2.5 Flash Lite's `$0.10 / 1M input` and `$0.40 / 1M output` pricing.
 - **`PrivacyModal`** — One-time consent dialog explaining: (a) photos go to xAI then are discarded, (b) shared posts only contain the tier letter, (c) leaderboard saves name + scores publicly, photo only if opted in. Acknowledged state stored in `localStorage["holymog-privacy-acknowledged"]`.
 - **`RetakeButton`** — Outlined 50/50 sibling to the Share button.
 - **`ScoreReveal`** — On state `revealing`: avatar (mirrored to match what the user just saw on camera), giant tier letter springing in, overall number cubic-easing to its target over 2 s, a 3 s bounce kicker, sub-score cards staggered in. Confetti fires once on mount.
@@ -346,8 +353,8 @@ Notable transitions:
 - **`lib/scoreEngine.ts`** — `combineScores(vision)`, `computePresentation(vision)`, plus `mockVisionScore()` for the fallback path when `/api/score` errors out.
 - **`lib/shareImageGenerator.ts`** — Renders a 1080×1920 PNG via `<canvas>`: black bg, tier-coloured radial glow, "holymog" wordmark up top, giant tier letter centred (with cyan→purple linear gradient + 40-px glow shadow on S-tiers), and "rate yours at holymog.com" at the bottom. Returned as a `Blob` ready for the Share API or clipboard.
 - **`lib/supabase.ts`** — Cached `SupabaseClient` (`persistSession: false`) plus the `LeaderboardRow` type and `FACES_BUCKET = 'holymog-faces'` constant. Returns `null` when `SUPABASE_URL` / `SUPABASE_ANON_KEY` are missing.
-- **`lib/tier.ts`** — `TIERS` table (18 rows × `{ letter, min, max, color, isGradient, glow }`), `getTier(score)`, `TIER_COLOR_TOKEN`, and the `DESCRIPTORS` map (e.g. S+ → "brian").
-- **`lib/vision.ts`** — Grok integration. `XAI_ENDPOINT = https://api.x.ai/v1/chat/completions`, default model `grok-4.20-0309-non-reasoning` overridable via `XAI_MODEL`. Holds the long `ANCHOR_RUBRIC` prompt, three category prompts, JSON parser with code-fence-stripping fallback, and the public `analyzeFace`, `analyzeFaces`, `analyzeQuick` exports.
+- **`lib/tier.ts`** — `TIERS` table (18 rows × `{ letter, min, max, color, isGradient, glow }`), `getTier(score)`, `TIER_COLOR_TOKEN`, and the `DESCRIPTORS` map (e.g. S+ → "true adam").
+- **`lib/vision.ts`** — Gemini integration. Calls `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`, default model `gemini-2.5-flash-lite` overridable via `GEMINI_MODEL`. Image is base64'd into a single `inline_data` part alongside the prompt; `responseMimeType: 'application/json'` forces structured output. Holds the long `ANCHOR_RUBRIC` prompt, three category prompts, JSON parser with code-fence-stripping fallback, and the public `analyzeFace`, `analyzeFaces`, `analyzeQuick`, `analyzeBattle` exports.
 
 ---
 
@@ -357,8 +364,8 @@ Create `.env.local` in the project root with whichever of these you want active:
 
 ```bash
 # Required for any real scoring
-XAI_API_KEY=
-XAI_MODEL=grok-4.20-0309-non-reasoning   # optional override
+GEMINI_API_KEY=                          # Google AI Studio key (https://aistudio.google.com/apikey)
+GEMINI_MODEL=gemini-2.5-flash-lite       # optional override; default is gemini-2.5-flash-lite
 
 # Optional, but if missing the API treats requests as un-rate-limited
 UPSTASH_REDIS_REST_URL=
@@ -376,12 +383,11 @@ DATABASE_URL=                          # Postgres connection string (use Supabas
 AUTH_SECRET=                           # 32+ random bytes; generate with `openssl rand -base64 32`
 AUTH_GOOGLE_ID=                        # Google OAuth client ID
 AUTH_GOOGLE_SECRET=                    # Google OAuth client secret
-AUTH_APPLE_ID=                         # Apple Service ID
-AUTH_APPLE_SECRET=                     # Apple JWT (signed with .p8 key)
-AUTH_MICROSOFT_ENTRA_ID_ID=            # Microsoft Entra app (client) ID
-AUTH_MICROSOFT_ENTRA_ID_SECRET=        # Microsoft Entra client secret
-AUTH_RESEND_KEY=                       # Resend API key for magic-link email
-AUTH_RESEND_FROM=hello@holymog.com     # sender address (verified domain in Resend)
+EMAIL_SERVER_HOST=smtp.gmail.com       # Gmail Workspace SMTP relay
+EMAIL_SERVER_PORT=465                  # SSL; use 587 if you prefer STARTTLS
+EMAIL_SERVER_USER=hello@holymog.com    # the underlying mailbox (auth identity)
+EMAIL_SERVER_PASSWORD=                 # 16-char Google app password (myaccount.google.com/apppasswords)
+EMAIL_FROM=auth@holymog.com            # send-as alias of EMAIL_SERVER_USER
 AUTH_TRUST_HOST=true                   # required when behind Vercel + custom auth domain
 NEXTAUTH_URL=https://holymog.vercel.app   # currently the production URL; flip to https://auth.holymog.com later
 # AUTH_COOKIE_DOMAIN=.holymog.com       # set this ONLY after we flip to the custom domain (auth + www split)
@@ -392,7 +398,7 @@ LIVEKIT_API_SECRET=                    # server-only; paired with the key
 NEXT_PUBLIC_LIVEKIT_URL=               # public; the WebSocket endpoint clients connect to (e.g. wss://holymog.livekit.cloud)
 ```
 
-Only `XAI_API_KEY` is strictly required for solo scanning — the other services gate higher-tier functionality (see [Optional infrastructure](#optional-infrastructure)). Accounts (Phase 0+) require all five Supabase + DATABASE_URL + AUTH_* + Resend env vars set.
+Only `GEMINI_API_KEY` is strictly required for solo scanning — the other services gate higher-tier functionality (see [Optional infrastructure](#optional-infrastructure)). Accounts (Phase 0+) require all five Supabase + DATABASE_URL + AUTH_* + Gmail SMTP env vars set.
 
 ---
 
@@ -439,7 +445,7 @@ create table leaderboard (
 # Install
 npm install
 
-# Create .env.local with at minimum XAI_API_KEY=...
+# Create .env.local with at minimum GEMINI_API_KEY=...
 # (see "Environment variables" above for the full list)
 
 # Dev (defaults to http://localhost:3000)
@@ -461,7 +467,7 @@ npm run start
 
 The app is a vanilla Next 16 App Router project with no special build flags. It runs on any host that supports Node serverless or edge functions; Vercel is the natural fit. If you deploy:
 
-- Set every required env var (`XAI_API_KEY`) plus whichever optional ones you want active.
+- Set every required env var (`GEMINI_API_KEY`) plus whichever optional ones you want active.
 - The `/api/debug-log` route writes to `/tmp/holymog-debug.log`. On serverless platforms this disk is ephemeral per-invocation and the file is effectively useless — you can leave it alone or remove the route.
 - If you front the API with a CDN, make sure `dynamic = 'force-dynamic'` is honoured (default on Vercel — these routes won't be cached).
 - The `holymog-faces` Supabase bucket should be public-read so leaderboard avatars resolve without signed URLs.

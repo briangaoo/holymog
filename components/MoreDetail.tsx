@@ -84,9 +84,9 @@ type Props = {
   tokens?: TokenSummary;
 };
 
-// Grok 4.20 non-reasoning pricing (xAI): $1.25 / 1M input, $2.50 / 1M output.
-const COST_INPUT_PER_M = 1.25;
-const COST_OUTPUT_PER_M = 2.5;
+// Gemini 2.5 Flash Lite pricing: $0.10 / 1M input, $0.40 / 1M output.
+const COST_INPUT_PER_M = 0.1;
+const COST_OUTPUT_PER_M = 0.4;
 
 function formatNumber(n: number): string {
   return n.toLocaleString();

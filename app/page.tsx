@@ -1,165 +1,158 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Camera, Swords, Trophy } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
-import { getTier } from '@/lib/tier';
-import { getScoreColor } from '@/lib/scoreColor';
-import type { FinalScores } from '@/types';
-
-const STORAGE_KEY = 'holymog-last-result';
-
-type SavedResult = { scores: FinalScores; capturedImage: string; ts: number };
-
-function loadLastResult(): SavedResult | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SavedResult>;
-    if (
-      !parsed.scores ||
-      typeof parsed.capturedImage !== 'string' ||
-      typeof parsed.scores.overall !== 'number'
-    ) {
-      return null;
-    }
-    return parsed as SavedResult;
-  } catch {
-    return null;
-  }
-}
+import { Starfield } from '@/components/Starfield';
+import { SpectralRim } from '@/components/SpectralRim';
 
 export default function HomePage() {
-  const [lastResult, setLastResult] = useState<SavedResult | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-
+  // Lock browser-level scroll while the home page is mounted. Just
+  // setting overflow-hidden on the page wrapper isn't enough — html/body
+  // can still scroll independently — so we toggle their overflow here
+  // and restore on unmount.
   useEffect(() => {
-    setLastResult(loadLastResult());
-    setHydrated(true);
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overflow;
+    const prevBody = body.style.overflow;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = prevHtml;
+      body.style.overflow = prevBody;
+    };
   }, []);
 
+
   return (
-    <div className="min-h-dvh bg-black">
-      <AppHeader />
-      <main
-        className="mx-auto w-full max-w-md px-5 pb-12 pt-6"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 48px)' }}
-      >
-        <div className="flex flex-col gap-4">
-          <ScanCard lastResult={hydrated ? lastResult : null} />
-          <BattleCard />
-        </div>
-
-        <div className="my-6 h-px bg-white/10" />
-
-        <Link
-          href="/leaderboard"
-          className="group flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 transition-colors hover:bg-white/[0.05]"
-          style={{ touchAction: 'manipulation' }}
+    <div className="relative h-dvh overflow-hidden bg-black">
+      <Starfield />
+      <div className="relative z-10 flex h-dvh flex-col">
+        <AppHeader />
+        <main
+          className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-12 pt-6 sm:max-w-2xl"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 48px)' }}
         >
-          <span className="inline-flex items-center gap-3 text-sm font-medium text-white">
-            <Trophy size={16} aria-hidden className="text-zinc-400" />
-            leaderboard
-          </span>
-          <ArrowRight
-            size={14}
-            aria-hidden
-            className="text-zinc-500 transition-transform group-hover:translate-x-0.5"
-          />
-        </Link>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <SpectralRim accent="rgba(16,185,129,0.95)" className="rounded-3xl">
+              <ScanCard />
+            </SpectralRim>
+            <SpectralRim accent="rgba(245,158,11,0.95)" className="rounded-3xl">
+              <BattleCard />
+            </SpectralRim>
+          </div>
 
-        <footer className="mt-10 flex items-center justify-center gap-3 text-[11px] text-zinc-600">
-          <Link href="/account" className="hover:text-zinc-400">
-            account
-          </Link>
-          <span aria-hidden>·</span>
-          <a
-            href="https://github.com/briangaoo/holymog"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-zinc-400"
+          <div className="my-6 h-px bg-white/10" />
+
+          <SpectralRim
+            accent="rgba(34,211,238,0.6)"
+            spotlight={80}
+            className="rounded-2xl"
           >
-            github
-          </a>
-        </footer>
-      </main>
+            <Link
+              href="/leaderboard"
+              className="group flex items-center justify-between rounded-2xl border border-white/10 bg-black/60 px-5 py-4 backdrop-blur transition-colors hover:bg-white/[0.05]"
+              style={{ touchAction: 'manipulation' }}
+            >
+              <span className="inline-flex items-center gap-3 text-sm font-medium text-white">
+                <Trophy size={16} aria-hidden className="text-zinc-400" />
+                leaderboard
+              </span>
+              <ArrowRight
+                size={14}
+                aria-hidden
+                className="text-zinc-500 transition-transform group-hover:translate-x-0.5"
+              />
+            </Link>
+          </SpectralRim>
+
+          <footer className="mt-10 flex flex-col items-center gap-2 text-[11px] text-zinc-600">
+            <div className="flex items-center justify-center gap-3">
+              <Link href="/account" className="hover:text-zinc-400">
+                account
+              </Link>
+              <span aria-hidden>·</span>
+              <Link href="/terms" className="hover:text-zinc-400">
+                terms
+              </Link>
+              <span aria-hidden>·</span>
+              <Link href="/privacy" className="hover:text-zinc-400">
+                privacy
+              </Link>
+              <span aria-hidden>·</span>
+              <a
+                href="https://github.com/briangaoo/holymog"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-zinc-400"
+              >
+                github
+              </a>
+            </div>
+            <span className="text-[10px] text-zinc-700">
+              © 2026 holymog
+            </span>
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }
 
-function ScanCard({ lastResult }: { lastResult: SavedResult | null }) {
-  const tier = lastResult ? getTier(lastResult.scores.overall) : null;
-  const scoreColor = lastResult ? getScoreColor(lastResult.scores.overall) : null;
-
-  const tierStyle: React.CSSProperties | undefined = tier
-    ? tier.isGradient
-      ? {
-          backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-          WebkitBackgroundClip: 'text',
-          backgroundClip: 'text',
-          color: 'transparent',
-        }
-      : { color: tier.color }
-    : undefined;
-
+function ScanCard() {
   return (
     <Link
       href="/scan"
-      className="group relative flex flex-col gap-6 overflow-hidden rounded-3xl border border-white/10 p-6 transition-all hover:border-white/25"
+      className="group relative flex min-h-[340px] flex-col overflow-hidden rounded-3xl border border-white/10 p-8 transition-all hover:border-white/25"
       style={{
-        background:
-          'linear-gradient(135deg, rgba(34,211,238,0.18) 0%, rgba(168,85,247,0.18) 100%)',
+        backgroundColor: '#0a0a0a',
+        // Emerald rim — scan's official accent.
+        boxShadow:
+          'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(16,185,129,0.22)',
         touchAction: 'manipulation',
       }}
     >
-      {/* corner accent */}
+      {/* Off-frame green radial — the spot light behind the frosted glass. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full opacity-50 blur-3xl"
-        style={{ background: 'radial-gradient(circle, #a855f7 0%, transparent 70%)' }}
+        className="pointer-events-none absolute -right-24 -top-24 h-[26rem] w-[26rem] rounded-full blur-3xl"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(16,185,129,0.95) 0%, rgba(34,197,94,0.45) 35%, transparent 65%)',
+        }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 backdrop-blur-2xl"
+        style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 35%)',
+        }}
       />
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <Camera size={32} aria-hidden className="text-white" />
-          <h2 className="text-3xl font-bold text-white">scan</h2>
-          <p className="text-sm text-zinc-200">
-            rate your face <span className="font-semibold">F- → S+</span>
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3">
+          <Camera size={44} aria-hidden className="text-white drop-shadow-lg" />
+          <h2 className="text-5xl font-bold leading-none tracking-tight text-white">
+            scan
+          </h2>
+          <p className="text-base text-white/85">
+            rate your face{' '}
+            <span className="font-semibold normal-case">F- → S+</span>
           </p>
         </div>
         <ArrowRight
-          size={20}
+          size={22}
           aria-hidden
-          className="text-zinc-300 transition-transform group-hover:translate-x-1"
+          className="text-white/80 transition-transform group-hover:translate-x-1"
         />
-      </div>
-
-      {lastResult && tier && scoreColor && (
-        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-3">
-          <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-            your last
-          </span>
-          <span
-            className="font-num text-2xl font-extrabold normal-case"
-            style={tierStyle}
-          >
-            {tier.letter}
-          </span>
-          <span className="text-zinc-600">·</span>
-          <span
-            className="font-num text-xl font-bold tabular-nums"
-            style={{ color: scoreColor }}
-          >
-            {lastResult.scores.overall}
-          </span>
-        </div>
-      )}
-
-      <div className="inline-flex items-center gap-2 self-start rounded-full bg-white px-4 py-2 text-sm font-semibold text-black">
-        start a scan
-        <ArrowRight size={14} aria-hidden />
       </div>
     </Link>
   );
@@ -169,37 +162,53 @@ function BattleCard() {
   return (
     <Link
       href="/mog"
-      className="group relative flex flex-col gap-5 overflow-hidden rounded-3xl border border-white/10 p-6 transition-all hover:border-white/25"
+      className="group relative flex min-h-[340px] flex-col overflow-hidden rounded-3xl border border-white/10 p-8 transition-all hover:border-white/25"
       style={{
-        background:
-          'linear-gradient(135deg, rgba(239,68,68,0.14) 0%, rgba(249,115,22,0.14) 100%)',
+        backgroundColor: '#0a0a0a',
+        // Amber rim — mog battles' official accent.
+        boxShadow:
+          'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(245,158,11,0.22)',
         touchAction: 'manipulation',
       }}
     >
+      {/* Off-frame amber radial — yellow-gold glow from the bottom-left. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute -left-12 -bottom-12 h-40 w-40 rounded-full opacity-40 blur-3xl"
-        style={{ background: 'radial-gradient(circle, #ef4444 0%, transparent 70%)' }}
+        className="pointer-events-none absolute -bottom-24 -left-24 h-[26rem] w-[26rem] rounded-full blur-3xl"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(245,158,11,0.95) 0%, rgba(234,179,8,0.45) 35%, transparent 65%)',
+        }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 backdrop-blur-2xl"
+        style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 35%)',
+        }}
       />
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <Swords size={28} aria-hidden className="text-white" />
-          <h2 className="text-2xl font-bold text-white">mog battles</h2>
-          <p className="text-sm text-zinc-200">
-            live face-offs <span className="text-zinc-500">·</span> 1v1 or up to 10
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3">
+          <Swords size={44} aria-hidden className="text-white drop-shadow-lg" />
+          <h2 className="text-5xl font-bold leading-none tracking-tight text-white">
+            battles
+          </h2>
+          <p className="text-base text-white/85">
+            live face-offs <span className="text-white/50">·</span> 1v1 or up to 10
           </p>
         </div>
         <ArrowRight
-          size={20}
+          size={22}
           aria-hidden
-          className="text-zinc-300 transition-transform group-hover:translate-x-1"
+          className="text-white/80 transition-transform group-hover:translate-x-1"
         />
-      </div>
-
-      <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white">
-        find a battle
-        <ArrowRight size={14} aria-hidden />
       </div>
     </Link>
   );

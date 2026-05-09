@@ -33,12 +33,12 @@ export const metadata: Metadata = {
     description: 'AI-powered face rating. F- to S+ tier.',
     url: 'https://holymog.vercel.app',
     siteName: 'holymog',
-    images: ['/og.svg'],
+    images: ['/og.png'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'holymog',
-    images: ['/og.svg'],
+    images: ['/og.png'],
   },
 };
 
@@ -60,8 +60,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${spaceGrotesk.variable} ${dmSans.variable} ${plexMono.variable} h-full bg-black`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full bg-black text-white antialiased">
+      <body
+        className="min-h-full bg-black text-white antialiased"
+        suppressHydrationWarning
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

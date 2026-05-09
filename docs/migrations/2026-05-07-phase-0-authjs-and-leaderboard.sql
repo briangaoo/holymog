@@ -23,14 +23,10 @@ begin;
 
 drop table if exists profiles cascade;
 
--- Wipe leaderboard data and detach it from any prior schema decisions.
-truncate table leaderboard;
-
-alter table leaderboard drop column if exists account_key;
-alter table leaderboard drop column if exists user_id;
-alter table leaderboard drop constraint if exists leaderboard_one_row_per_user;
-
--- Drop legacy RLS policies (Supabase Auth–dependent or otherwise).
+-- Drop legacy RLS policies FIRST. They reference user_id, so the column
+-- drop below would fail with "cannot drop column ... because other
+-- objects depend on it" if we tried to drop the column before the
+-- policies that depend on it.
 alter table leaderboard enable row level security;
 drop policy if exists "leaderboard rows are world-readable" on leaderboard;
 drop policy if exists "users can insert their own leaderboard row" on leaderboard;
@@ -41,6 +37,13 @@ drop policy if exists "anyone can delete leaderboard" on leaderboard;
 
 -- We're moving all auth checks to the API layer; disable RLS on leaderboard.
 alter table leaderboard disable row level security;
+
+-- Wipe leaderboard data and detach it from any prior schema decisions.
+truncate table leaderboard;
+
+alter table leaderboard drop constraint if exists leaderboard_one_row_per_user;
+alter table leaderboard drop column if exists account_key;
+alter table leaderboard drop column if exists user_id;
 
 -- ---------------------------------------------------------------
 -- 2) Auth.js (@auth/pg-adapter) standard schema.

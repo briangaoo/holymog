@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Share2, Trophy } from 'lucide-react';
+import {
+  Home as HomeIcon,
+  RotateCcw,
+  Share2,
+  Trophy,
+  UserRound,
+} from 'lucide-react';
 import { Camera, type CameraHandle } from '@/components/Camera';
 import { FaceDetectedPill } from '@/components/FaceDetectedPill';
 import { Countdown } from '@/components/Countdown';
@@ -12,7 +18,6 @@ import { SpiderwebOverlay } from '@/components/SpiderwebOverlay';
 import { ScoreReveal } from '@/components/ScoreReveal';
 import { SubScoreCard } from '@/components/SubScoreCard';
 import { ShareSheet } from '@/components/ShareSheet';
-import { RetakeButton } from '@/components/RetakeButton';
 import { PrivacyModal } from '@/components/PrivacyModal';
 import { LeaderboardButton } from '@/components/LeaderboardButton';
 import { LeaderboardModal } from '@/components/LeaderboardModal';
@@ -35,7 +40,7 @@ const COUNTDOWN_MS = 3000;
 const SCAN_MS = 5000;
 const TOTAL_DELAY_MS = COUNTDOWN_MS + SCAN_MS;
 const WARMUP_BEFORE_END = 1000;
-// 5 real Grok calls at 1-second intervals + 5 synthetic (jittered) updates
+// 5 real Gemini calls at 1-second intervals + 5 synthetic (jittered) updates
 // in between = 10 visible updates over the scan phase, but only 5 API calls.
 const REAL_CALL_COUNT = 5;
 const REAL_INTERVAL_MS = 1000;
@@ -114,7 +119,7 @@ export default function Home() {
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
   const [videoSize, setVideoSize] = useState({ width: 720, height: 1280 });
 
-  // Live meter (during scan phase): score is set by real Grok calls + synthetic
+  // Live meter (during scan phase): score is set by real Gemini calls + synthetic
   // jitter updates in between.
   const [liveScore, setLiveScore] = useState<number | null>(null);
   const [liveDisplayCount, setLiveDisplayCount] = useState(0);
@@ -122,7 +127,7 @@ export default function Home() {
   // Track every score already shown this scan so jitter never lands on a
   // duplicate.
   const shownScoresRef = useRef<Set<number>>(new Set());
-  // Most recent REAL Grok score, synthetic updates anchor on this so
+  // Most recent REAL Gemini score, synthetic updates anchor on this so
   // they never drift far from truth.
   const lastRealScoreRef = useRef<number | null>(null);
   // Privacy gate, camera mounts immediately, but face detection / countdown
@@ -197,14 +202,16 @@ export default function Home() {
     const timers: number[] = [];
     let cancelled = false;
 
-    /** Pick a value not already in the shown set, jittering ±1..5 around an anchor. */
+    /** Pick a value not already in the shown set, jittering ±1..2 around an anchor.
+     *  Live meter displays as score/10 (e.g. 84 → "8.4"), so ±1..2 = ±0.1..0.2
+     *  in the visible readout — small calm wobble, not noisy bouncing. */
     const pickUnique = (anchor: number): number => {
       const shown = shownScoresRef.current;
       let displayed = Math.max(0, Math.min(100, Math.round(anchor)));
       let attempts = 0;
       while (shown.has(displayed) && attempts < 12) {
         const direction = Math.random() < 0.5 ? -1 : 1;
-        const magnitude = 1 + Math.floor(Math.random() * 5);
+        const magnitude = 1 + Math.floor(Math.random() * 2);
         displayed = Math.max(0, Math.min(100, anchor + direction * magnitude));
         attempts++;
       }
@@ -212,7 +219,7 @@ export default function Home() {
       return displayed;
     };
 
-    // Real Grok calls, 5 total, every 1000ms starting 1s before countdown ends.
+    // Real Gemini calls, 5 total, every 1000ms starting 1s before countdown ends.
     const firstRealAt = COUNTDOWN_MS - WARMUP_BEFORE_END; // 2000ms
     for (let i = 0; i < REAL_CALL_COUNT; i++) {
       const fireT = firstRealAt + i * REAL_INTERVAL_MS;
@@ -235,9 +242,9 @@ export default function Home() {
             const outTok = Number(res.headers.get('X-Tokens-Output') ?? 0);
             const data = (await res.json()) as { overall?: number };
             if (typeof data.overall === 'number') {
-              const grokScore = Math.max(0, Math.min(100, Math.round(data.overall)));
-              lastRealScoreRef.current = grokScore;
-              const displayed = pickUnique(grokScore);
+              const realScore = Math.max(0, Math.min(100, Math.round(data.overall)));
+              lastRealScoreRef.current = realScore;
+              const displayed = pickUnique(realScore);
               setLiveScore(displayed);
               setLiveDisplayCount((c) => c + 1);
             }
@@ -255,7 +262,7 @@ export default function Home() {
     }
 
     // Synthetic updates, fire 500ms after each real call's expected response.
-    // Anchored to the most recent real Grok score; jittered for variety.
+    // Anchored to the most recent real score; jittered for variety.
     for (let i = 0; i < REAL_CALL_COUNT; i++) {
       const t = firstRealAt + i * REAL_INTERVAL_MS + REAL_INTERVAL_MS + SYNTHETIC_OFFSET_MS;
       // i=0 → 3500, i=1 → 4500, ..., i=4 → 7500
@@ -470,7 +477,7 @@ export default function Home() {
           width={120}
           height={29}
           priority
-          className="h-5 w-auto drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+          className="h-5 w-auto rounded-md drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
         />
       </header>
 
@@ -747,23 +754,55 @@ function CompleteView({
         />
       </div>
 
+      {/* Two rows: Share is the primary action (full-width white pill);
+          retake / home / account share a tighter secondary row beneath. */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex w-full gap-3 pt-1"
+        className="flex w-full flex-col gap-4 pt-1"
       >
-        <RetakeButton onClick={onRetake} />
         <button
           type="button"
           onClick={onShare}
           aria-label="Share your tier"
           style={{ touchAction: 'manipulation' }}
-          className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 active:bg-zinc-200"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 active:bg-zinc-200"
         >
           <Share2 size={16} aria-hidden />
-          Share
+          share
         </button>
+
+        <div className="grid w-full grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={onRetake}
+            aria-label="Retake photo"
+            style={{ touchAction: 'manipulation' }}
+            className="flex h-11 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] text-xs font-medium text-white transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
+          >
+            <RotateCcw size={14} aria-hidden />
+            retake
+          </button>
+          <Link
+            href="/"
+            aria-label="Go home"
+            style={{ touchAction: 'manipulation' }}
+            className="flex h-11 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] text-xs font-medium text-white transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
+          >
+            <HomeIcon size={14} aria-hidden />
+            home
+          </Link>
+          <Link
+            href="/account"
+            aria-label="Go to account"
+            style={{ touchAction: 'manipulation' }}
+            className="flex h-11 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] text-xs font-medium text-white transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
+          >
+            <UserRound size={14} aria-hidden />
+            account
+          </Link>
+        </div>
       </motion.div>
 
       <div className="flex flex-col items-center gap-2 pt-1">

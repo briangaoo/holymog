@@ -27,6 +27,10 @@ type ScoreUpdate = {
 
 type FinishPayload = {
   battle_id: string;
+  // Optional so old cached results without kind still render. New
+  // payloads from /api/battle/finish always include this; private
+  // battles light up the "rematch" CTA on the result screen.
+  kind?: 'public' | 'private';
   winner_id: string | null;
   participants: Array<{
     user_id: string;
@@ -108,6 +112,10 @@ function BattleInterior({
 
   // Score state per user.
   const [scores, setScores] = useState<BattleScores>({});
+  // Set of user_ids that have left the battle (tab-close, navigated away,
+  // or explicit leave). Used to dim their tile so the others see they're
+  // gone in real time.
+  const [leftUsers, setLeftUsers] = useState<Set<string>>(() => new Set());
   const [phase, setPhase] = useState<'starting' | 'active' | 'finished'>(
     Date.now() < startedAt ? 'starting' : 'active',
   );
@@ -145,6 +153,20 @@ function BattleInterior({
         { event: 'battle.finished' },
         (msg: { payload: FinishPayload }) => {
           onFinished(msg.payload);
+        },
+      )
+      .on(
+        'broadcast',
+        { event: 'participant.left' },
+        (msg: { payload: { user_id?: string } }) => {
+          const id = msg.payload.user_id;
+          if (typeof id !== 'string') return;
+          setLeftUsers((prev) => {
+            if (prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.add(id);
+            return next;
+          });
         },
       )
       .subscribe();
@@ -319,13 +341,25 @@ function BattleInterior({
         {tracks.map((trackRef, i) => {
           const userId = trackRef.participant.identity;
           const score = scores[userId];
+          const hasLeft = leftUsers.has(userId);
           return (
-            <div key={`${userId}-${i}`} className="relative overflow-hidden bg-black">
+            <div
+              key={`${userId}-${i}`}
+              className="relative overflow-hidden bg-black transition-opacity duration-300"
+              style={{ opacity: hasLeft ? 0.35 : 1 }}
+            >
               <ParticipantTile trackRef={trackRef} className="h-full w-full" />
               <ScoreOverlay
                 displayName={trackRef.participant.name || trackRef.participant.identity}
                 score={score}
               />
+              {hasLeft && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40">
+                  <span className="rounded-full border border-white/15 bg-black/70 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-300 backdrop-blur">
+                    left
+                  </span>
+                </div>
+              )}
             </div>
           );
         })}
@@ -341,7 +375,10 @@ function BattleInterior({
         </div>
       )}
 
-      {/* 3-2-1 starting overlay. */}
+      {/* 3-2-1 starting overlay — color ramps from red → orange → emerald
+          as the countdown approaches zero, with an overshoot spring on
+          each number swap and a bigger exit so the digit feels like it's
+          launching toward the camera. */}
       <AnimatePresence>
         {phase === 'starting' && countdownSec > 0 && (
           <motion.div
@@ -353,12 +390,17 @@ function BattleInterior({
           >
             <motion.span
               key={countdownSec}
-              initial={{ scale: 0.6, opacity: 0 }}
+              initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 1.4, opacity: 0 }}
-              transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
-              className="font-num text-white"
-              style={{ fontSize: 'clamp(140px, 40vw, 280px)', fontWeight: 900 }}
+              exit={{ scale: 1.7, opacity: 0 }}
+              transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+              className="font-num"
+              style={{
+                fontSize: 'clamp(140px, 40vw, 280px)',
+                fontWeight: 900,
+                color: countdownColor(countdownSec),
+                textShadow: `0 0 60px ${countdownColor(countdownSec)}88`,
+              }}
             >
               {countdownSec}
             </motion.span>
@@ -367,6 +409,14 @@ function BattleInterior({
       </AnimatePresence>
     </div>
   );
+}
+
+function countdownColor(n: number): string {
+  // 3 → red, 2 → amber, 1 → emerald. Anything else falls back to white.
+  if (n >= 3) return '#ef4444';
+  if (n === 2) return '#f59e0b';
+  if (n === 1) return '#10b981';
+  return '#ffffff';
 }
 
 // ---- Per-tile score overlay -----------------------------------------------

@@ -17,6 +17,8 @@ type Profile = {
   current_streak: number;
   longest_streak: number;
   best_scan_overall: number | null;
+  best_scan: unknown;
+  improvement_counts: Record<string, number>;
 };
 
 /**
@@ -34,7 +36,8 @@ export async function GET() {
   const pool = getPool();
   const profileResult = await pool.query<Profile>(
     `select display_name, elo, peak_elo, matches_played, matches_won,
-            current_streak, longest_streak, best_scan_overall
+            current_streak, longest_streak, best_scan_overall,
+            best_scan, improvement_counts
        from profiles
        where user_id = $1
        limit 1`,

@@ -1,9 +1,11 @@
 import type { VisionScore } from '@/types';
 
-const XAI_ENDPOINT = 'https://api.x.ai/v1/chat/completions';
-// Grok 4.20 non-reasoning, better per-call quality than 4.1, ~0.7-0.9s.
-// Paired with 2-frame averaging that's 6 calls in parallel ≈ ~1.5s wall.
-const DEFAULT_MODEL = 'grok-4.20-0309-non-reasoning';
+// Google Generative AI REST endpoint. The model name is interpolated into
+// the URL at call time. Pricing for gemini-2.5-flash-lite is $0.10/M input,
+// $0.40/M output (vs Grok 4.20's $1.25/$2.50) — ~12× cheaper for input,
+// ~6× cheaper for output.
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const DEFAULT_MODEL = 'gemini-2.5-flash-lite';
 
 const ANCHOR_RUBRIC = `CRITICAL CALIBRATION, read carefully.
 
@@ -35,8 +37,46 @@ For attractive faces, EXPECT many features to score 90+ together. Real beauty is
 high across multiple dimensions, do not artificially lower features to "spread"
 the scores. Spread is fine when there's a real weakness; it's wrong when there isn't.
 
-For unattractive faces, EXPECT many features to score below 50 together. Real flaws
-compound, do not artificially raise features to "spread" the scores upward.
+For unattractive faces, EXPECT bone-structure fields to score below 25 together
+(jawline_definition, chin_definition, cheekbone_prominence, facial_thirds_visual,
+forehead_proportion, temple_hollow, nose_shape, nose_proportion). Real flaws
+compound. Do NOT spread scores upward to be charitable. Do NOT let surface fields
+(skin_clarity, skin_evenness, skin_tone, hair_quality, hair_styling) inflate the
+holistic overall_attractiveness — clear skin and good hair on top of grotesque
+bone structure is still grotesque.
+
+STRUCTURAL FAILURE / SEVERELY FLAWED, read carefully.
+
+A face can be SEVERELY FLAWED in its bone structure independent of any pose —
+gaunt, sunken, recessive, disproportionate, uncanny, AI-rendered grotesque.
+These read as bottom-quartile rank (5-25) regardless of how clear the skin or
+how good the hair. Hallmarks (if 2+ are clearly present, the face is in
+"severely flawed" territory: rank 901-995, score 5-25 on overall_attractiveness
+and on every bone-structure field):
+
+  - Severely sunken cheeks / hollowed-out lower face with no malar fat
+  - Bulging or disproportionately large eyes set in deep dark sockets
+  - Heavily recessive chin / no chin projection / receding jaw
+  - Crushed lower-third (mouth-to-chin distance much shorter than mid-face)
+    or stretched upper-third (forehead dominates)
+  - Asymmetric to the point of distortion
+  - Skeletal cheekbones with no soft tissue support — reads as malnourished
+  - Uncanny / not-quite-human / clearly AI-rendered grotesque proportions
+  - Heavy nasolabial hollows, gaunt jawline, paper-thin lips on a recessive frame
+
+When you see structural failure, OVERRIDE the surface scores' influence.
+overall_attractiveness must reflect the WORST of the structure, not an
+average. A face with skin_clarity=80 and chin_definition=10 is NOT a 50.
+
+When 2 or more hallmarks of structural failure are clearly present,
+overall_attractiveness lands in the bottom-quartile rank — somewhere in the
+5-25 range — pick by severity. Do NOT drift above 25 when the structure is
+compromised, no matter how clean the skin is. The exact number inside that
+band is a judgment call; what matters is that ugly faces consistently land
+under 25, not that any one image hits a specific number.
+
+Do NOT pad these numbers upward because skin/hair are clean. The holistic
+judgment anchors on bone structure first, surface second.
 
 EXPRESSION & POSE, read carefully.
 
@@ -205,7 +245,17 @@ Score each (integer 0-100):
   masculinity_femininity  degree of strong gender alignment (high = strongly aligned to either)
   symmetry                bilateral matching of all features
   feature_harmony         how well all features work together as a whole
-  overall_attractiveness  HOLISTIC single-number aesthetic judgment
+  overall_attractiveness  HOLISTIC single-number aesthetic judgment.
+                          ANCHOR ON BONE STRUCTURE first, surface second:
+                          look at jawline, chin, cheekbones, facial thirds,
+                          temple, forehead, nose proportion. If structure is
+                          severely flawed (gaunt / recessive / sunken / uncanny
+                          / disproportionate), this number is 5-20 EVEN IF
+                          skin is clear and hair is healthy. Surface beauty
+                          NEVER pulls a structurally failed face above rank
+                          901 (score 25). For attractive structure, this
+                          number sits at structure_floor + a small surface
+                          bonus, not the average of structure and surface.
 
 Output ONLY this JSON (no prose, no markdown):
 {
@@ -224,9 +274,16 @@ Output ONLY this JSON (no prose, no markdown):
 
 /* ----------------------------- helpers ------------------------------------ */
 
-type XaiChoice = { message?: { content?: string | Array<{ type?: string; text?: string }> } };
-type XaiUsage = { prompt_tokens?: number; completion_tokens?: number };
-type XaiResponse = { choices?: XaiChoice[]; usage?: XaiUsage };
+type GeminiPart = { text?: string };
+type GeminiCandidate = { content?: { parts?: GeminiPart[] } };
+type GeminiUsage = {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+};
+type GeminiResponse = {
+  candidates?: GeminiCandidate[];
+  usageMetadata?: GeminiUsage;
+};
 
 export type TokenUsage = { input: number; output: number };
 
@@ -275,58 +332,66 @@ function validateCategory<K extends string>(
   return out;
 }
 
-type GrokCallOptions = {
-  detail?: 'high' | 'low';
+type GeminiCallOptions = {
   model?: string;
+  // Kept for source-call compatibility with the previous Grok client; Gemini
+  // doesn't expose a per-call detail knob, so this is currently a no-op.
+  detail?: 'high' | 'low';
 };
 
-async function callGrok(
+function splitDataUrl(dataUrl: string): { mimeType: string; base64: string } {
+  // dataUrl format: data:<mime>;base64,<payload>
+  const comma = dataUrl.indexOf(',');
+  const header = dataUrl.slice(5, comma); // strip "data:"
+  const semi = header.indexOf(';');
+  const mimeType = semi >= 0 ? header.slice(0, semi) : header;
+  const base64 = dataUrl.slice(comma + 1);
+  return { mimeType: mimeType || 'image/jpeg', base64 };
+}
+
+async function callGemini(
   dataUrl: string,
   prompt: string,
-  options: GrokCallOptions = {},
+  options: GeminiCallOptions = {},
 ): Promise<{ text: string; tokens: TokenUsage }> {
-  const apiKey = process.env.XAI_API_KEY;
-  if (!apiKey) throw new Error('XAI_API_KEY is not set');
-  const model = options.model ?? process.env.XAI_MODEL ?? DEFAULT_MODEL;
-  const detail = options.detail ?? 'high';
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+  const model = options.model ?? process.env.GEMINI_MODEL ?? DEFAULT_MODEL;
+  const { mimeType, base64 } = splitDataUrl(dataUrl);
 
-  const res = await fetch(XAI_ENDPOINT, {
+  const url = `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-      messages: [
+      contents: [
         {
           role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: dataUrl, detail } },
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data: base64 } },
           ],
         },
       ],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json',
+      },
     }),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`xAI ${res.status}: ${text.slice(0, 300)}`);
+    throw new Error(`gemini ${res.status}: ${text.slice(0, 300)}`);
   }
 
-  const data = (await res.json()) as XaiResponse;
-  const content = data.choices?.[0]?.message?.content;
-  let text = '';
-  if (typeof content === 'string') text = content;
-  else if (Array.isArray(content)) {
-    text = content.map((p) => (typeof p?.text === 'string' ? p.text : '')).join('');
-  }
+  const data = (await res.json()) as GeminiResponse;
+  const parts = data.candidates?.[0]?.content?.parts ?? [];
+  const text = parts.map((p) => (typeof p.text === 'string' ? p.text : '')).join('');
   const tokens: TokenUsage = {
-    input: data.usage?.prompt_tokens ?? 0,
-    output: data.usage?.completion_tokens ?? 0,
+    input: data.usageMetadata?.promptTokenCount ?? 0,
+    output: data.usageMetadata?.candidatesTokenCount ?? 0,
   };
   return { text, tokens };
 }
@@ -338,12 +403,12 @@ async function callCategory<K extends string>(
 ): Promise<{ result: Record<K, number> | null; tokens: TokenUsage }> {
   let tokens = emptyTokens();
   try {
-    const first = await callGrok(dataUrl, prompt);
+    const first = await callGemini(dataUrl, prompt);
     tokens = addTokens(tokens, first.tokens);
     const parsed = validateCategory(tryParseJSON(first.text), keys);
     if (parsed) return { result: parsed, tokens };
 
-    const second = await callGrok(dataUrl, STRICT_PREFIX + prompt);
+    const second = await callGemini(dataUrl, STRICT_PREFIX + prompt);
     tokens = addTokens(tokens, second.tokens);
     return { result: validateCategory(tryParseJSON(second.text), keys), tokens };
   } catch {
@@ -424,24 +489,26 @@ export async function analyzeFaces(
 
 /* --------------------------- Quick (live) score --------------------------- */
 
-const QUICK_PROMPT = `Score this face's overall attractiveness 0-100. Use this rank scale (rank 1 = most attractive of 1000 random adults):
-  Rank 1      → 99-100        Rank 2-15   → 95-99   (working pro model)
-  Rank 16-50  → 88-94          Rank 51-150 → 80-87  (hot)
-  Rank 151-350 → 70-79          Rank 351-650 → 55-69 (median)
-  Rank 651-800 → 42-54          Rank 801-900 → 28-41
-  Rank 901-970 → 14-27          Rank 971-995 → 5-13   Rank 996-1000 → 0-4
-If the face is clearly making a deliberately distorted/contorted face (eyes fully squeezed shut, jaw recessed, tongue out, hair pulled over face), score 5-25.
+// Live-meter prompt. Kept deliberately short — the heavy 6-call pipeline
+// (analyzeFaces) does the real scoring; the quick call only feeds the
+// bouncing live-meter readout. ~70 tokens vs the heavy prompt's ~1100.
+const QUICK_PROMPT = `Rate this face 0-100 vs random adults.
+  95-100  pro-model territory
+  85-94   very attractive
+  70-84   above average / hot
+  50-69   average / median
+  30-49   below average
+  5-29    distorted face / pulled / contorted
 
-A working-pro fashion editorial pose — neutral or cold stare, slight orbital squint (eyes deliberately narrowed, NOT closed), pursed/inwardly-sucked lips, cheeks drawn inward to expose cheekbone shadow, mild jaw clench, slight chin-down tilt — is the model-tier pose. SCORE IT HIGHER, not lower. Smiling does NOT raise the score; it hides bone structure and is rare in editorial.
-
-Output ONLY: {"overall": <integer 0-100>}`;
+Smiling hides bone structure — don't boost it.
+Output ONLY: {"overall": <int 0-100>}`;
 
 export async function analyzeQuick(
   blob: Blob,
 ): Promise<{ overall: number; tokens: TokenUsage }> {
   const dataUrl = await blobToDataUrl(blob);
 
-  const { text, tokens } = await callGrok(dataUrl, QUICK_PROMPT, {
+  const { text, tokens } = await callGemini(dataUrl, QUICK_PROMPT, {
     detail: 'low',
   });
 
@@ -486,9 +553,9 @@ Pick the improvement label from EXACTLY these six options (lowercase, no punctua
 Output ONLY: {"overall": <integer 0-100>, "improvement": "<one of the six>"}`;
 
 /**
- * Per-frame battle score: returns a single overall + the area Grok
+ * Per-frame battle score: returns a single overall + the area Gemini
  * thinks most needs improvement. Used by /api/battle/score during
- * the 10-second active window. Defensive: if Grok returns a label
+ * the 10-second active window. Defensive: if Gemini returns a label
  * outside the enum, coerce to 'eyes' (a neutral fallback).
  */
 export async function analyzeBattle(
@@ -500,7 +567,7 @@ export async function analyzeBattle(
 }> {
   const dataUrl = await blobToDataUrl(blob);
 
-  const { text, tokens } = await callGrok(dataUrl, BATTLE_PROMPT, {
+  const { text, tokens } = await callGemini(dataUrl, BATTLE_PROMPT, {
     detail: 'low',
   });
 

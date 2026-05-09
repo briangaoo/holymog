@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { AppHeader } from '@/components/AppHeader';
 import { AuthModal } from '@/components/AuthModal';
@@ -12,6 +13,7 @@ type Tab = 'stats' | 'history' | 'settings';
 
 export default function AccountPage() {
   const { user, loading } = useUser();
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>('stats');
 
   if (loading) {
@@ -32,7 +34,11 @@ export default function AccountPage() {
         <main className="mx-auto w-full max-w-md px-5 py-8">
           <p className="text-sm text-white">sign in to see your account</p>
         </main>
-        <AuthModal open onClose={() => {}} next="/account" />
+        <AuthModal
+          open
+          onClose={() => router.push('/')}
+          next="/account"
+        />
       </div>
     );
   }

@@ -7,7 +7,7 @@ import {
 } from '@/lib/supabase';
 import { auth } from '@/lib/auth';
 import { getRatelimit } from '@/lib/ratelimit';
-import { getTier } from '@/lib/tier';
+import { getTier, PHOTO_REQUIRED_THRESHOLD } from '@/lib/tier';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
@@ -167,6 +167,17 @@ export async function POST(request: Request) {
   const tier = getTier(scores.overall).letter;
   const wantsPhoto =
     typeof body.imageBase64 === 'string' && body.imageBase64.length > 0;
+
+  // Anti-cheat gate: S-tier scores (≥87) MUST submit a photo so the
+  // leaderboard is reviewable. The modal disables the toggle in this
+  // case, but we enforce on the server too in case of stale clients
+  // or a hand-rolled request.
+  if (scores.overall >= PHOTO_REQUIRED_THRESHOLD && !wantsPhoto) {
+    return NextResponse.json(
+      { error: 'photo_required_for_high_scores' },
+      { status: 400 },
+    );
+  }
 
   // One row per user — look up existing.
   const { data: existing, error: lookupErr } = await supabase

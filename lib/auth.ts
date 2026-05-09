@@ -1,6 +1,6 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
-import Resend from 'next-auth/providers/resend';
+import Nodemailer from 'next-auth/providers/nodemailer';
 import PostgresAdapter from '@auth/pg-adapter';
 import { getPool } from './db';
 
@@ -45,9 +45,22 @@ const config: NextAuthConfig = {
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
     }),
-    Resend({
-      apiKey: process.env.AUTH_RESEND_KEY,
-      from: process.env.AUTH_RESEND_FROM ?? 'hello@holymog.com',
+    // Magic-link email via Gmail Workspace SMTP. We auth as the underlying
+    // mailbox owner (hello@holymog.com) using a Google App Password, and
+    // send From: auth@holymog.com (a free alias of the same mailbox set
+    // up at the Workspace admin level + in Gmail's "Send mail as"). No
+    // extra service / no extra DNS — Workspace already owns the domain.
+    Nodemailer({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST ?? 'smtp.gmail.com',
+        port: Number(process.env.EMAIL_SERVER_PORT ?? 465),
+        secure: Number(process.env.EMAIL_SERVER_PORT ?? 465) === 465,
+        auth: {
+          user: process.env.EMAIL_SERVER_USER,
+          pass: process.env.EMAIL_SERVER_PASSWORD,
+        },
+      },
+      from: process.env.EMAIL_FROM ?? 'auth@holymog.com',
     }),
   ],
   pages: {

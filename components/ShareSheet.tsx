@@ -1,8 +1,9 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
-import { Copy, Link as LinkIcon, Share2, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, Copy, Link as LinkIcon, Share2, X } from 'lucide-react';
 import { useShare } from '@/hooks/useShare';
 
 type Props = {
@@ -11,29 +12,83 @@ type Props = {
   score: number;
 };
 
-type PlatformButton = {
+type Platform = {
+  /** Stable id used for the icon filename (`/icons/{key}.svg`) and React key. */
+  key: string;
   label: string;
   ariaLabel: string;
+  /** Brand background colour (or CSS gradient) used for the icon tile. */
+  bg: string;
+  /** Letter shown in the placeholder tile until a logo SVG is dropped in. */
+  initial: string;
+  /** Letter colour. Defaults to white; override for light backgrounds. */
+  initialColor?: string;
+  /**
+   * Tight crop on the rendered logo. When the source PNG has padding baked
+   * in (e.g. X has a thin transparent border that makes it look smaller
+   * than its neighbours), set zoom > 1 to scale the image up. The host
+   * tile clips overflow so neighbouring tiles aren't displaced.
+   */
+  zoom?: number;
   onClick: () => void;
-  icon: React.ReactNode;
-  bg?: string;
 };
 
-function IconBg({
-  src,
-  alt,
-  bg,
-}: {
-  src: string;
-  alt: string;
-  bg: string;
-}) {
+/**
+ * Icon tile that shows the platform's logo when `/icons/{key}.png` exists,
+ * otherwise renders a clean letter-on-brand-colour placeholder so the share
+ * sheet looks complete before assets are dropped in.
+ */
+function PlatformTile({ p }: { p: Platform }) {
+  const [hasLogo, setHasLogo] = useState(false);
+  // Try to load the SVG once on mount. Using a hidden Image preflight is
+  // simpler than a HEAD fetch and works around Next/Image's caching.
+  useEffect(() => {
+    const img = new window.Image();
+    img.onload = () => setHasLogo(true);
+    img.onerror = () => setHasLogo(false);
+    img.src = `/icons/${p.key}.png?v=2`;
+  }, [p.key]);
+
+  // Logo present → render the raw PNG (each asset already has its own
+  // brand colour / shape baked in). Logo missing → fall back to a
+  // letter-on-brand-colour placeholder so the sheet still looks intact.
+  if (hasLogo) {
+    // Plain <img> rather than next/image — these are ~44px brand icons,
+    // optimization is unnecessary, and Next 16 rejects query strings on
+    // <Image src> without an explicit images.localPatterns allowlist.
+    // The ?v=N suffix is our cache-buster: bump it whenever you swap a
+    // logo PNG so the browser fetches the new bytes instead of serving
+    // a stale optimized variant.
+    //
+    // Wrapper has overflow-hidden + rounded-xl so a per-platform `zoom`
+    // (e.g. X has a transparent border baked into its PNG) scales the
+    // image up without pushing neighbouring tiles around.
+    return (
+      <div className="relative h-11 w-11 overflow-hidden rounded-xl">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/icons/${p.key}.png?v=2`}
+          alt={p.label}
+          width={44}
+          height={44}
+          className="h-full w-full object-contain"
+          style={p.zoom && p.zoom !== 1 ? { transform: `scale(${p.zoom})` } : undefined}
+        />
+      </div>
+    );
+  }
   return (
     <div
-      className="flex h-14 w-14 items-center justify-center rounded-2xl"
-      style={{ background: bg }}
+      className="flex h-11 w-11 items-center justify-center rounded-xl"
+      style={{ background: p.bg }}
     >
-      <Image src={src} alt={alt} width={28} height={28} />
+      <span
+        aria-hidden
+        className="text-lg font-extrabold"
+        style={{ color: p.initialColor ?? '#ffffff' }}
+      >
+        {p.initial}
+      </span>
     </div>
   );
 }
@@ -43,48 +98,89 @@ export function ShareSheet({ open, onClose, score }: Props) {
     canNativeShare,
     nativeShare,
     shareToTwitter,
+    shareToReddit,
+    shareToWhatsApp,
+    shareToiMessage,
+    shareToTikTok,
+    shareToInstagram,
+    shareToSnapchat,
+    shareToDiscord,
     copyImage,
-    copyImageFor,
     copyLink,
     toast,
   } = useShare(score);
 
-  const platforms: PlatformButton[] = [
+  // Order: visual social → public posting → closed-circle. 9 platforms,
+  // 3×3 grid. Brand colours match official guidelines so the sheet still
+  // reads correctly even before logo SVGs are in place.
+  const platforms: Platform[] = [
     {
+      key: 'tiktok',
       label: 'TikTok',
       ariaLabel: 'Share to TikTok',
-      onClick: () => copyImageFor('TikTok'),
-      icon: <IconBg src="/icons/tiktok.svg" alt="TikTok" bg="#000000" />,
+      bg: '#000000',
+      initial: 'T',
+      onClick: () => void shareToTikTok(),
     },
     {
+      key: 'instagram',
       label: 'Instagram',
       ariaLabel: 'Share to Instagram',
-      onClick: () => copyImageFor('Instagram'),
-      icon: (
-        <IconBg
-          src="/icons/instagram.svg"
-          alt="Instagram"
-          bg="linear-gradient(135deg,#f58529,#dd2a7b 50%,#8134af)"
-        />
-      ),
+      bg: 'linear-gradient(135deg,#f58529,#dd2a7b 50%,#8134af)',
+      initial: 'I',
+      onClick: () => void shareToInstagram(),
     },
     {
+      key: 'snapchat',
       label: 'Snapchat',
       ariaLabel: 'Share to Snapchat',
-      onClick: () => copyImageFor('Snapchat'),
-      icon: <IconBg src="/icons/snapchat.svg" alt="Snapchat" bg="#fffc00" />,
+      bg: '#fffc00',
+      initial: 'S',
+      initialColor: '#000000',
+      onClick: () => void shareToSnapchat(),
     },
     {
+      key: 'x',
       label: 'X',
       ariaLabel: 'Share to X / Twitter',
+      bg: '#000000',
+      initial: 'X',
+      // The X PNG has a thin transparent border baked in — scale a touch
+      // so it sits at the same visual size as the neighbours.
+      zoom: 1.12,
       onClick: shareToTwitter,
-      icon: <IconBg src="/icons/x.svg" alt="X" bg="#000000" />,
     },
     {
+      key: 'imessage',
+      label: 'iMessage',
+      ariaLabel: 'Share via iMessage / SMS',
+      bg: '#34C759',
+      initial: 'M',
+      onClick: shareToiMessage,
+    },
+    {
+      key: 'whatsapp',
+      label: 'WhatsApp',
+      ariaLabel: 'Share to WhatsApp',
+      bg: '#25D366',
+      initial: 'W',
+      onClick: () => void shareToWhatsApp(),
+    },
+    {
+      key: 'discord',
       label: 'Discord',
       ariaLabel: 'Share to Discord',
-      onClick: () => copyImageFor('Discord'),
-      icon: <IconBg src="/icons/discord.svg" alt="Discord" bg="#5865F2" />,
+      bg: '#5865F2',
+      initial: 'D',
+      onClick: () => void shareToDiscord(),
+    },
+    {
+      key: 'reddit',
+      label: 'Reddit',
+      ariaLabel: 'Share to Reddit',
+      bg: '#FF4500',
+      initial: 'R',
+      onClick: () => void shareToReddit(),
     },
   ];
 
@@ -138,17 +234,17 @@ export function ShareSheet({ open, onClose, score }: Props) {
               </button>
             )}
 
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-4 gap-2">
               {platforms.map((p) => (
                 <button
-                  key={p.label}
+                  key={p.key}
                   type="button"
                   onClick={p.onClick}
                   aria-label={p.ariaLabel}
                   style={{ touchAction: 'manipulation' }}
-                  className="flex flex-col items-center gap-1.5 rounded-2xl py-2 transition-colors hover:bg-white/5 active:bg-white/10"
+                  className="flex flex-col items-center gap-1.5 rounded-2xl pt-4 pb-2 transition-colors hover:bg-white/5 active:bg-white/10"
                 >
-                  {p.icon}
+                  <PlatformTile p={p} />
                   <span className="text-[11px] text-zinc-400">{p.label}</span>
                 </button>
               ))}
@@ -175,25 +271,48 @@ export function ShareSheet({ open, onClose, score }: Props) {
               </button>
             </div>
 
-            <AnimatePresence>
-              {toast && (
-                <motion.div
-                  key={toast.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ duration: 0.2 }}
-                  role="status"
-                  aria-live="polite"
-                  className="mt-4 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-center text-xs text-white"
-                >
-                  {toast.message}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}
+      <ToastPortal toast={toast} />
     </AnimatePresence>
+  );
+}
+
+/**
+ * Portal-mounted top-of-viewport toast. Lives outside the share-sheet
+ * modal so it's visible during the 1-second delay before a copy-and-open
+ * platform navigates to its destination — the user actually sees that the
+ * image landed on the clipboard before focus shifts to the new tab.
+ */
+function ToastPortal({
+  toast,
+}: {
+  toast: { id: number; message: string } | null;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {toast && (
+        <motion.div
+          key={toast.id}
+          initial={{ opacity: 0, y: -16, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-5 py-3 text-sm font-medium text-emerald-200 shadow-[0_8px_30px_rgba(16,185,129,0.35)] backdrop-blur"
+          style={{ top: 'max(env(safe-area-inset-top), 24px)' }}
+        >
+          <Check size={16} className="text-emerald-300" aria-hidden />
+          {toast.message}
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }

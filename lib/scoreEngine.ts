@@ -7,7 +7,7 @@ function avg(xs: number[]): number {
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-/** Vision comes from N parallel Grok calls (3 categories per frame, server
+/** Vision comes from N parallel Gemini calls (3 categories per frame, server
  *  averages across frames). Each sub-score is the mean of the relevant fields. */
 function visionContribution(v: VisionScore, key: SubKey): number {
   switch (key) {
@@ -69,10 +69,19 @@ export function combineScores(vision: VisionScore): FinalScores {
     0.15 * cheekbones +
     0.2 * presentation;
 
-  // Weight Grok's holistic judgment heavier than the sub-derived overall.
+  // Weight Gemini's holistic judgment heavier than the sub-derived overall.
   // Per-region averages tend to drift down because every weak field counts equally;
   // holistic is what catches "this person is at model tier."
-  const finalOverall = 0.4 * subOverall + 0.6 * vision.overall_attractiveness;
+  let finalOverall = 0.4 * subOverall + 0.6 * vision.overall_attractiveness;
+
+  // Anchor clamp for severely-flawed faces. When the model rates the holistic
+  // at ≤15 (rank 901-1000 territory), surface sub-scores like skin_clarity
+  // would otherwise blend the result back up to the 20s — but a face that's
+  // structurally grotesque is grotesque regardless of how clear the skin is.
+  // Defer entirely to the holistic in that band.
+  if (vision.overall_attractiveness <= 15) {
+    finalOverall = vision.overall_attractiveness;
+  }
 
   return {
     overall: Math.round(finalOverall),

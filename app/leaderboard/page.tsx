@@ -1,92 +1,197 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Camera, Swords } from 'lucide-react';
 import { getTier } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import type { LeaderboardRow } from '@/lib/supabase';
-import {
-  readLeaderboardCache,
-  writeLeaderboardCache,
-} from '@/lib/leaderboardCache';
+import { writeLeaderboardCache } from '@/lib/leaderboardCache';
 import { AppHeader } from '@/components/AppHeader';
+import { FullPageSpinner } from '@/components/FullPageSpinner';
 
+type Tab = 'scans' | 'battles';
 type Status = 'loading' | 'ready' | 'unconfigured' | 'error';
 
-type ApiResponse = {
+type ScanApiResponse = {
   entries?: LeaderboardRow[];
   hasMore?: boolean;
   error?: string;
 };
 
+type BattleRow = {
+  user_id: string;
+  display_name: string;
+  elo: number;
+  peak_elo: number;
+  matches_played: number;
+  matches_won: number;
+};
+
+type BattleApiResponse = {
+  entries?: BattleRow[];
+  hasMore?: boolean;
+  error?: string;
+};
+
+type Prefetched = {
+  scans: ScanApiResponse | null;
+  battles: BattleApiResponse | null;
+};
+
 export default function LeaderboardPage() {
-  const [entries, setEntries] = useState<LeaderboardRow[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [lastLoadedPage, setLastLoadedPage] = useState(0);
-  const [status, setStatus] = useState<Status>('loading');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [tab, setTab] = useState<Tab>('scans');
+  // Prefetch both tabs' page-1 in parallel on mount. While either is in
+  // flight, the entire page renders a full-bleed spinner. Once both
+  // resolve, the prefetched data flows into ScansTab + BattlesTab as
+  // `initial` so swapping tabs is instant — zero loading time after the
+  // first paint.
+  const [prefetched, setPrefetched] = useState<Prefetched | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [scans, battles] = await Promise.all([
+        fetch('/api/leaderboard?page=1', { cache: 'no-store' })
+          .then((r) => r.json() as Promise<ScanApiResponse>)
+          .catch(() => null),
+        fetch('/api/leaderboard/battles?page=1', { cache: 'no-store' })
+          .then((r) => r.json() as Promise<BattleApiResponse>)
+          .catch(() => null),
+      ]);
+      if (cancelled) return;
+      setPrefetched({ scans, battles });
+      if (scans && !scans.error && scans.entries) {
+        writeLeaderboardCache(scans.entries, !!scans.hasMore);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!prefetched) {
+    return (
+      <div className="relative min-h-dvh bg-black">
+        <AppHeader authNext="/leaderboard" />
+        <FullPageSpinner label="loading leaderboard" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative min-h-dvh bg-black">
+      <AppHeader authNext="/leaderboard" />
+
+      <main className="mx-auto w-full max-w-md px-5 pb-12 pt-4">
+        <h1 className="mb-1 text-2xl font-bold text-white">Leaderboard</h1>
+        <p className="mb-4 text-sm text-zinc-400">
+          {tab === 'scans'
+            ? 'Top scan scores. Sorted by overall.'
+            : 'Top 1v1 battles. Sorted by ELO.'}
+        </p>
+
+        <TabBar tab={tab} onChange={setTab} />
+
+        {tab === 'scans' ? (
+          <ScansTab initial={prefetched.scans} />
+        ) : (
+          <BattlesTab initial={prefetched.battles} />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function TabBar({
+  tab,
+  onChange,
+}: {
+  tab: Tab;
+  onChange: (next: Tab) => void;
+}) {
+  return (
+    <div className="mb-5 grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/[0.02] p-1">
+      <TabButton
+        active={tab === 'scans'}
+        onClick={() => onChange('scans')}
+        icon={<Camera size={14} aria-hidden />}
+        label="scans"
+      />
+      <TabButton
+        active={tab === 'battles'}
+        onClick={() => onChange('battles')}
+        icon={<Swords size={14} aria-hidden />}
+        label="battles"
+      />
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ touchAction: 'manipulation' }}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
+        active
+          ? 'bg-white text-black'
+          : 'text-zinc-400 hover:text-white'
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+// ---- Scans tab -------------------------------------------------------------
+
+function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
+  // Initial state is populated from the parent's prefetch — no in-flight
+  // request on first paint. Pagination from page 2 onward is owned here.
+  const initialStatus: Status = initial
+    ? initial.error === 'unconfigured'
+      ? 'unconfigured'
+      : initial.error || !initial.entries
+        ? 'error'
+        : 'ready'
+    : 'error';
+  const [entries, setEntries] = useState<LeaderboardRow[]>(
+    initial?.entries ?? [],
+  );
+  const [hasMore, setHasMore] = useState(!!initial?.hasMore);
+  const [lastLoadedPage, setLastLoadedPage] = useState(initial?.entries ? 1 : 0);
+  const [status] = useState<Status>(initialStatus);
+  const errorMsg = initial?.error ?? 'network error';
   const [loadingMore, setLoadingMore] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  // Guards against the IntersectionObserver firing while a fetch is in flight.
   const fetchingRef = useRef(false);
 
   const fetchPage = useCallback(
-    async (page: number): Promise<ApiResponse | null> => {
+    async (page: number): Promise<ScanApiResponse | null> => {
       try {
         const res = await fetch(`/api/leaderboard?page=${page}`, {
           cache: 'no-store',
         });
-        return (await res.json()) as ApiResponse;
+        return (await res.json()) as ScanApiResponse;
       } catch {
         return null;
       }
     },
     [],
   );
-
-  // Initial hydration: cache first (instant), then refresh page 1 in the
-  // background so we don't show stale data for too long.
-  useEffect(() => {
-    let cancelled = false;
-    const cached = readLeaderboardCache();
-    if (cached) {
-      setEntries(cached.entries);
-      setHasMore(cached.hasMore);
-      setLastLoadedPage(1);
-      setStatus('ready');
-    }
-
-    (async () => {
-      const data = await fetchPage(1);
-      if (cancelled || !data) {
-        if (!cached) {
-          setStatus('error');
-          setErrorMsg('network error');
-        }
-        return;
-      }
-      if (data.error === 'unconfigured') {
-        setStatus('unconfigured');
-        return;
-      }
-      if (data.error || !data.entries) {
-        if (!cached) {
-          setStatus('error');
-          setErrorMsg(data.error ?? 'unknown error');
-        }
-        return;
-      }
-      setEntries(data.entries);
-      setHasMore(!!data.hasMore);
-      setLastLoadedPage(1);
-      setStatus('ready');
-      writeLeaderboardCache(data.entries, !!data.hasMore);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchPage]);
 
   const loadMore = useCallback(async () => {
     if (fetchingRef.current || !hasMore || status !== 'ready') return;
@@ -96,23 +201,19 @@ export default function LeaderboardPage() {
     const data = await fetchPage(next);
     fetchingRef.current = false;
     setLoadingMore(false);
-    if (!data || data.error || !data.entries) {
-      // soft-fail, leave hasMore as-is so user can scroll again to retry
-      return;
-    }
+    if (!data || data.error || !data.entries) return;
     setEntries((prev) => [...prev, ...data.entries!]);
     setHasMore(!!data.hasMore);
     setLastLoadedPage(next);
   }, [fetchPage, hasMore, lastLoadedPage, status]);
 
-  // Infinite scroll: trigger loadMore when the sentinel enters the viewport.
   useEffect(() => {
     if (status !== 'ready' || !hasMore) return;
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) void loadMore();
+      (es) => {
+        if (es.some((e) => e.isIntersecting)) void loadMore();
       },
       { rootMargin: '300px 0px' },
     );
@@ -120,75 +221,162 @@ export default function LeaderboardPage() {
     return () => observer.disconnect();
   }, [status, hasMore, loadMore]);
 
-  return (
-    <div className="relative min-h-dvh bg-black">
-      <AppHeader authNext="/leaderboard" />
-
-      <main className="mx-auto w-full max-w-md px-5 pb-12 pt-4">
-        <h1 className="mb-1 text-2xl font-bold text-white">Leaderboard</h1>
-        <p className="mb-6 text-sm text-zinc-400">
-          Top scores. Sorted by overall.
+  if (status === 'unconfigured') {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+        <p className="text-sm text-white">leaderboard not yet available</p>
+        <p className="mt-2 text-xs text-zinc-500">
+          the supabase backend hasn&apos;t been configured for this deployment
         </p>
+      </div>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+        {errorMsg}
+      </div>
+    );
+  }
+  if (entries.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+        <p className="text-sm text-white">no entries yet</p>
+        <p className="mt-2 text-xs text-zinc-500">be the first</p>
+      </div>
+    );
+  }
+  return (
+    <>
+      <ol className="flex flex-col gap-2">
+        {entries.map((row, i) => (
+          <ScanRow key={row.id} row={row} rank={i + 1} />
+        ))}
+      </ol>
 
-        {status === 'loading' && (
-          <p className="text-sm text-zinc-500">loading…</p>
-        )}
-
-        {status === 'unconfigured' && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
-            <p className="text-sm text-white">leaderboard not yet available</p>
-            <p className="mt-2 text-xs text-zinc-500">
-              the supabase backend hasn&apos;t been configured for this deployment
-            </p>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
-            {errorMsg}
-          </div>
-        )}
-
-        {status === 'ready' && entries.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
-            <p className="text-sm text-white">no entries yet</p>
-            <p className="mt-2 text-xs text-zinc-500">be the first</p>
-          </div>
-        )}
-
-        {status === 'ready' && entries.length > 0 && (
-          <>
-            <ol className="flex flex-col gap-2">
-              {entries.map((row, i) => (
-                <Row key={row.id} row={row} rank={i + 1} />
-              ))}
-            </ol>
-
-            {hasMore && (
-              <div
-                ref={sentinelRef}
-                className="flex items-center justify-center pt-6 pb-2"
-              >
-                <span className="text-xs text-zinc-500">
-                  {loadingMore ? 'loading more…' : 'scroll for more'}
-                </span>
-              </div>
-            )}
-
-            {!hasMore && (
-              <p className="pt-6 pb-2 text-center text-xs text-zinc-600">
-                end of leaderboard
-              </p>
-            )}
-          </>
-        )}
-      </main>
-    </div>
+      {hasMore && (
+        <div
+          ref={sentinelRef}
+          className="flex items-center justify-center pt-6 pb-2"
+        >
+          <span className="text-xs text-zinc-500">
+            {loadingMore ? 'loading more…' : 'scroll for more'}
+          </span>
+        </div>
+      )}
+      {!hasMore && (
+        <p className="pt-6 pb-2 text-center text-xs text-zinc-600">
+          end of leaderboard
+        </p>
+      )}
+    </>
   );
 }
 
-/** Deterministic colored circle with the user's first letter, same name
- *  always produces the same color (hash → hue). */
+// ---- Battles tab -----------------------------------------------------------
+
+function BattlesTab({ initial }: { initial: BattleApiResponse | null }) {
+  const initialStatus: Status = initial
+    ? initial.error || !initial.entries
+      ? 'error'
+      : 'ready'
+    : 'error';
+  const [entries, setEntries] = useState<BattleRow[]>(initial?.entries ?? []);
+  const [hasMore, setHasMore] = useState(!!initial?.hasMore);
+  const [lastLoadedPage, setLastLoadedPage] = useState(initial?.entries ? 1 : 0);
+  const [status] = useState<Status>(initialStatus);
+  const errorMsg = initial?.error ?? 'network error';
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const fetchingRef = useRef(false);
+
+  const fetchPage = useCallback(
+    async (page: number): Promise<BattleApiResponse | null> => {
+      try {
+        const res = await fetch(`/api/leaderboard/battles?page=${page}`, {
+          cache: 'no-store',
+        });
+        return (await res.json()) as BattleApiResponse;
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
+
+  const loadMore = useCallback(async () => {
+    if (fetchingRef.current || !hasMore || status !== 'ready') return;
+    fetchingRef.current = true;
+    setLoadingMore(true);
+    const next = lastLoadedPage + 1;
+    const data = await fetchPage(next);
+    fetchingRef.current = false;
+    setLoadingMore(false);
+    if (!data || data.error || !data.entries) return;
+    setEntries((prev) => [...prev, ...data.entries!]);
+    setHasMore(!!data.hasMore);
+    setLastLoadedPage(next);
+  }, [fetchPage, hasMore, lastLoadedPage, status]);
+
+  useEffect(() => {
+    if (status !== 'ready' || !hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (es) => {
+        if (es.some((e) => e.isIntersecting)) void loadMore();
+      },
+      { rootMargin: '300px 0px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [status, hasMore, loadMore]);
+
+  if (status === 'error') {
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+        {errorMsg}
+      </div>
+    );
+  }
+  if (entries.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+        <p className="text-sm text-white">no battles yet</p>
+        <p className="mt-2 text-xs text-zinc-500">queue up to climb the ladder</p>
+      </div>
+    );
+  }
+  return (
+    <>
+      <ol className="flex flex-col gap-2">
+        {entries.map((row, i) => (
+          <BattleRow key={row.user_id} row={row} rank={i + 1} />
+        ))}
+      </ol>
+
+      {hasMore && (
+        <div
+          ref={sentinelRef}
+          className="flex items-center justify-center pt-6 pb-2"
+        >
+          <span className="text-xs text-zinc-500">
+            {loadingMore ? 'loading more…' : 'scroll for more'}
+          </span>
+        </div>
+      )}
+      {!hasMore && (
+        <p className="pt-6 pb-2 text-center text-xs text-zinc-600">
+          end of leaderboard
+        </p>
+      )}
+    </>
+  );
+}
+
+// ---- Rows ------------------------------------------------------------------
+
 function InitialAvatar({ name }: { name: string }) {
   const trimmed = name.trim();
   const initial = (trimmed.charAt(0) || '?').toUpperCase();
@@ -212,7 +400,7 @@ function InitialAvatar({ name }: { name: string }) {
   );
 }
 
-function Row({ row, rank }: { row: LeaderboardRow; rank: number }) {
+function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
   const tier = getTier(row.overall);
   const isGradient = tier.isGradient;
   const tierStyle: React.CSSProperties = isGradient
@@ -257,6 +445,36 @@ function Row({ row, rank }: { row: LeaderboardRow; rank: number }) {
           style={{ color: getScoreColor(row.overall) }}
         >
           {row.overall}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function BattleRow({ row, rank }: { row: BattleRow; rank: number }) {
+  const losses = Math.max(0, row.matches_played - row.matches_won);
+  return (
+    <li className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
+        {rank}
+      </div>
+      <InitialAvatar name={row.display_name} />
+      <div className="flex-1 min-w-0">
+        <div className="truncate text-sm font-medium text-white">
+          {row.display_name}
+        </div>
+        <div className="text-[11px] text-zinc-500">
+          {row.matches_played === 0
+            ? 'unranked'
+            : `${row.matches_won}W / ${losses}L · peak ${row.peak_elo}`}
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="font-num text-2xl font-extrabold leading-none tabular-nums text-white">
+          {row.elo}
+        </div>
+        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+          ELO
         </div>
       </div>
     </li>

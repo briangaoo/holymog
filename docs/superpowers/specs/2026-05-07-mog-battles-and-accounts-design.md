@@ -14,9 +14,9 @@ Add two major capabilities to holymog, additively over the existing solo-scan + 
    - **Public 1v1** — Omegle-style random matchmaking.
    - **Private parties** — up to 10 people, joined via a 6-char alphanumeric code, Zoom-grid layout.
 
-   Each battle is **10 seconds**. Per-player scoring uses a **lighter Grok prompt** that returns `{ overall, improvement }`, where `improvement` is one of a fixed enum (jawline / eyes / skin / cheekbones / nose / hair). **10 real Grok calls + 10 synthetic = 20 visible score updates per player per battle**, mirroring the solo scan jitter pattern. **Highest peak score wins** (tiebreak: earliest joiner). Each tile shows a live "improvement" ticker that updates with the latest call.
+   Each battle is **10 seconds**. Per-player scoring uses a **lighter Gemini prompt** that returns `{ overall, improvement }`, where `improvement` is one of a fixed enum (jawline / eyes / skin / cheekbones / nose / hair). **10 real Gemini calls + 10 synthetic = 20 visible score updates per player per battle**, mirroring the solo scan jitter pattern. **Highest peak score wins** (tiebreak: earliest joiner). Each tile shows a live "improvement" ticker that updates with the latest call.
 
-2. **Accounts** — sign-in via **Auth.js v5** (Google + Apple + Microsoft Entra ID OAuth, plus Resend-powered email magic link), hosted under **`auth.holymog.com`**, now **required for everything except solo scanning**. Supabase Auth is NOT used; Supabase is reduced to a managed Postgres + Storage backend (no Auth, no RLS). Auth.js stores users/sessions in Postgres via `@auth/pg-adapter`. Unlocks:
+2. **Accounts** — sign-in via **Auth.js v5** (Google OAuth + Gmail-Workspace-SMTP magic link sent from `auth@holymog.com`), hosted under **`auth.holymog.com`**, now **required for everything except solo scanning**. Supabase Auth is NOT used; Supabase is reduced to a managed Postgres + Storage backend (no Auth, no RLS). Auth.js stores users/sessions in Postgres via `@auth/pg-adapter`. Unlocks:
    - **Leaderboard submission** (auth-gated). Each account has at most one leaderboard entry, identified by `user_id`.
    - **Public battles + private parties** (both creating and joining are auth-gated).
    - **ELO** from public 1v1 battles (private parties never affect ELO — anti-farming).
@@ -115,9 +115,9 @@ OAuth + magic-link providers configured in `lib/auth.ts`. Register **two** redir
 - **Google** — Cloud Console OAuth 2.0 Client ID. Authorised redirect URIs: `https://holymog.vercel.app/api/auth/callback/google` (current) and `https://auth.holymog.com/api/auth/callback/google` (target).
 - **Apple** — Apple Developer Service ID. Return URLs: `https://holymog.vercel.app/api/auth/callback/apple` and `https://auth.holymog.com/api/auth/callback/apple`.
 - **Microsoft Entra ID** — Azure App registration with multi-tenant + personal accounts enabled. Redirect URIs: `https://holymog.vercel.app/api/auth/callback/microsoft-entra-id` and `https://auth.holymog.com/api/auth/callback/microsoft-entra-id`. Issuer `https://login.microsoftonline.com/common/v2.0`.
-- **Resend** (Auth.js built-in `Resend` provider) for magic-link email. From `hello@holymog.com` (verified in Resend's domain settings — the underlying domain doesn't need to match the app URL).
+- **Gmail Workspace SMTP** (Auth.js built-in `Nodemailer` provider) for magic-link email. SMTP-auth as `hello@holymog.com` using a Google app password; send-from `auth@holymog.com` (a free Workspace alias of the same mailbox, configured in Gmail's "Send mail as"). No external service, no extra DNS — Workspace already owns the domain.
 
-Required env vars: `AUTH_SECRET`, `AUTH_GOOGLE_ID/SECRET`, `AUTH_APPLE_ID/SECRET`, `AUTH_MICROSOFT_ENTRA_ID_ID/SECRET`, `AUTH_RESEND_KEY`, `AUTH_RESEND_FROM`, `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=https://holymog.vercel.app` (current) — flip to `https://auth.holymog.com` and add `AUTH_COOKIE_DOMAIN=.holymog.com` after we transition off Vercel Hobby. Plus `DATABASE_URL` (Supabase Connection-Pooling URL) for the `pg` driver.
+Required env vars: `AUTH_SECRET`, `AUTH_GOOGLE_ID/SECRET`, `EMAIL_SERVER_HOST` (smtp.gmail.com), `EMAIL_SERVER_PORT` (465), `EMAIL_SERVER_USER` (hello@holymog.com), `EMAIL_SERVER_PASSWORD` (Google app password), `EMAIL_FROM` (auth@holymog.com), `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=https://holymog.vercel.app` (current) — flip to `https://auth.holymog.com` and add `AUTH_COOKIE_DOMAIN=.holymog.com` after we transition off Vercel Hobby. Plus `DATABASE_URL` (Supabase Connection-Pooling URL) for the `pg` driver.
 
 Auth.js owns its own callback route at `/api/auth/[...nextauth]` — no custom callback handler. On first sign-in, a tiny `events.createUser` hook in the config inserts a corresponding `profiles` row with a derived `display_name` (lowercased, max 24 chars: OAuth `name` → email local-part → "player"). Names are not enforced unique.
 
@@ -147,7 +147,7 @@ One modal, opened from three entry points (header avatar, battle entrypoint, acc
 └────────────────────────────────────────┘
 ```
 
-The "email me a link" button expands inline into an email input + "send link" button. Click triggers `signIn('resend', { email, callbackUrl, redirect: false })`; on success the button text becomes "check your inbox". When the user clicks the magic-link URL in their inbox, Auth.js's verification handler at `https://holymog.vercel.app/api/auth/callback/resend` (or `https://auth.holymog.com/api/auth/callback/resend` after the flip) exchanges the token for a session and redirects to `callbackUrl`.
+The "email me a link" button expands inline into an email input + "send link" button. Click triggers `signIn('nodemailer', { email, callbackUrl, redirect: false })`; on success the button text becomes "check your inbox". When the user clicks the magic-link URL in their inbox, Auth.js's verification handler at `https://holymog.vercel.app/api/auth/callback/nodemailer` (or `https://auth.holymog.com/api/auth/callback/nodemailer` after the flip) exchanges the token for a session and redirects to `callbackUrl`.
 
 ### 5.3 Edge cases
 
@@ -189,7 +189,7 @@ create table profiles (
 - `select`: any authenticated user (display name + ELO + peak score visible to others for opponent display).
 - `insert/update`: only `auth.uid() = user_id`.
 
-The `improvement_counts` JSONB stores a histogram of which improvement labels Grok has assigned to this user across all their public battles. Used for the "most-called weakness" stat.
+The `improvement_counts` JSONB stores a histogram of which improvement labels Gemini has assigned to this user across all their public battles. Used for the "most-called weakness" stat.
 
 ### 6.1a `leaderboard` (modified, breaking change)
 
@@ -350,7 +350,7 @@ The wipe is acceptable because per the previous discussion the production leader
 │           ┌─ login modal (OAuth / magic link) ────────────┐         │
 └──────┬────┴─────┬────────────┬──────────────────────────┬─┴─────────┘
        │          │            │                          │
-       │ Grok     │ video      │ data                     │ auth tokens
+       │ Gemini     │ video      │ data                     │ auth tokens
        ▼          ▼            ▼                          ▼
  Vercel API   LiveKit SFU   Supabase Postgres        Supabase Auth
                                   ▲                       │
@@ -462,7 +462,7 @@ LiveKit `<GridLayout>` handles responsive sizing automatically:
 - 7-9: 3x3
 - 10: 5x2 or 2x5
 
-### 7.7 Battle Grok prompt (lightweight scoring)
+### 7.7 Battle Gemini prompt (lightweight scoring)
 
 Different from existing `/api/quick-score` and `/api/score`. Single image, returns `{ overall, improvement }`.
 
@@ -479,11 +479,11 @@ A natural smile is NOT distortion.
 Output ONLY: {"overall": <int 0-100>, "improvement": "<one of the 6>"}
 ```
 
-- Single image, `detail: 'low'`, `model: grok-4.20-0309-non-reasoning`.
+- Single image, `model: gemini-2.5-flash-lite` (override via `GEMINI_MODEL`), `responseMimeType: 'application/json'`.
 - Latency: ~700–900ms per call.
 - Cost: ~0.4K input tokens × $1.25/1M = $0.0005 per call. A 10-player private = 100 calls = $0.05 per battle.
 
-Validation: parse JSON, retry once with strict-prefix on parse failure, fall back to `{ overall: 50, improvement: 'eyes' }` if both fail (rare). Server also defensively clamps `improvement` to the 6-option enum — if Grok hallucinates a label outside the set, we coerce to `'eyes'`.
+Validation: parse JSON, retry once with strict-prefix on parse failure, fall back to `{ overall: 50, improvement: 'eyes' }` if both fail (rare). Server also defensively clamps `improvement` to the 6-option enum — if Gemini hallucinates a label outside the set, we coerce to `'eyes'`.
 
 **Frame source for the scoring call.** LiveKit owns the user's camera in a battle (it published the local track on join). To capture a frame for `/api/battle/score`, we attach the LiveKit `LocalVideoTrack`'s underlying `MediaStreamTrack` to a hidden off-screen `<video>` element, then draw it to a canvas (mirrored horizontally to match the existing solo-scan capture convention) and `toDataURL('image/jpeg', 0.85)` it. The same JPEG goes up to `/api/battle/score`. We never need a separate `<video>` for the user's own preview — LiveKit's `<ParticipantTile>` already shows it in the grid.
 
@@ -494,7 +494,7 @@ client (during active window, fires every ~1s) →
   POST /api/battle/score { battle_id, imageBase64 }
    ↳ server: assert auth.uid() in battle_participants for battle_id
    ↳ server: assert battles.state = 'active' AND now() < started_at + 11s
-   ↳ server: call Grok with the lightweight prompt
+   ↳ server: call Gemini with the lightweight prompt
    ↳ server: UPDATE battle_participants.peak_score = greatest(peak, overall)
    ↳ server: UPDATE profiles.improvement_counts
        SET = jsonb_set(coalesce(improvement_counts, '{}'),
@@ -689,7 +689,7 @@ All require auth (Supabase session). Battle-specific endpoints additionally chec
 
 End-to-end build, organised into shippable phases. Each ends in a deployable state.
 
-### Phase 0 — Auth + Profile + Account-tagged leaderboard
+### Phase 0 — Auth + Profile + Account-tagged leaderboard *(code ✅, setup pending)*
 - Supabase Auth providers configured (Google, Apple, magic link).
 - `profiles` table + RLS + initial migrations.
 - **Breaking change to `leaderboard` table:** truncate, drop `account_key` column, add `user_id NOT NULL` with the unique-per-user constraint and the new RLS policies (§6.6 migration script).
@@ -702,13 +702,13 @@ End-to-end build, organised into shippable phases. Each ends in a deployable sta
 - Header avatar component, wired up across non-`/scan` routes.
 - Removed: `lib/account.ts`, `hooks/useAccount.ts`, `components/AccountKeyCard.tsx`, `app/api/account/link-key/route.ts`, `app/api/account/[key]/route.ts` — all key-related code is deleted in this phase.
 
-### Phase 1 — Home page + Route restructure
+### Phase 1 — Home page + Route restructure ✅
 - `/` becomes the hub.
 - `/scan` is the moved-from-`/` solo flow.
 - Shared header component on `/`, `/mog`, `/leaderboard`, `/account`.
 - Stored-result preview cards, logged-in stat strips (placeholder strips OK until phase 3).
 
-### Phase 2 — LiveKit foundation + Battle scaffolding (1v1 public only)
+### Phase 2 — LiveKit foundation + Battle scaffolding (1v1 public only) ✅
 - LiveKit Cloud account + project. Three env vars added to `.env.local` and Vercel project:
   - `LIVEKIT_API_KEY` — server-only, used to mint access tokens.
   - `LIVEKIT_API_SECRET` — server-only, paired with the key.
@@ -716,27 +716,27 @@ End-to-end build, organised into shippable phases. Each ends in a deployable sta
 - `battles`, `battle_participants`, `matchmaking_queue` tables + RLS.
 - `pair_two()` Supabase RPC.
 - API routes: `/api/battle/queue`, `/api/battle/[id]/token`, `/api/battle/score`, `/api/battle/finish`, `/api/battle/leave`.
-- New lightweight Grok prompt + scoring endpoint.
+- New lightweight Gemini prompt + scoring endpoint.
 - `/mog` route with mode-select + queueing + starting/active/finished sub-states.
 - Score updates broadcast via Realtime channel.
 - Finalisation logic.
 - 1v1 fully playable end-to-end (no ELO yet, no private parties yet).
 
-### Phase 3 — ELO + Stats wiring
+### Phase 3 — ELO + Stats wiring ✅
 - ELO update logic in `/api/battle/finish`.
 - `improvement_counts` increment on each `/api/battle/score` call.
 - Best-scan capture in `/api/score`.
 - `/account` stats tab populated with real data.
 - Home-page personalised stat strips populated.
 
-### Phase 4 — Private parties
+### Phase 4 — Private parties ✅ *(code complete; smoke-test pending alongside Phase 5)*
 - 6-char Crockford code generation.
 - API routes: `/api/battle/create`, `/api/battle/join`, `/api/battle/start`.
 - Mode-select extended with create/join.
 - Lobby UI for private (host start button, joiner trickle-in via realtime).
 - LiveKit grid scaling tested up to 10 participants.
 
-### Phase 5 — Polish
+### Phase 5 — Polish ✅
 - Disconnect handling (mark `left_at`, dim tile, exclude from finalisation).
 - Reconnection if user accidentally closes tab during battle.
 - Battle-result share image (similar to existing solo share).
@@ -751,11 +751,11 @@ Each phase is a discrete shippable unit. After each, we deploy to production beh
 ## 14. Risks + open questions
 
 - **LiveKit free tier limits.** Cloud free tier is "a few thousand participant-minutes per month". A single 10-player 10s battle = 100 participant-seconds = 1.67 participant-minutes. Free tier handles ~1000 such battles per month. Worth monitoring; if usage outgrows it, evaluate self-hosted LiveKit on a VPS or Vercel-friendly alternative (Daily, 100ms).
-- **Grok rate limits.** A 10-player party fires 100 calls in 10s = 10 RPS sustained. xAI's published rate limits should accommodate this but we should check the account's specific tier. If limits are hit, fallback to slower call cadence (e.g., one call per 1.5s = 6 real calls per battle instead of 10) — UI cadence already handles variable fire timing.
+- **Gemini rate limits.** A 10-player party fires 100 calls in 10s = 10 RPS sustained. Gemini 2.5 Flash Lite's free-tier RPM is well above this when distributed across users (each call is its own auth context), but we should monitor the project quota in Google AI Studio. If limits are hit, fallback to slower call cadence (e.g., one call per 1.5s = 6 real calls per battle instead of 10) — UI cadence already handles variable fire timing.
 - **Supabase Realtime broadcast volume.** ~1000 events per 10-player battle. Within free-tier quotas but worth instrumenting.
 - **Anonymous user funnel.** Anyone landing on home who isn't signed in can't use battles. Risk: people bounce. Mitigation: the locked battle card shows a brief preview / GIF / "live now" count to motivate sign-up.
 - **Conversion friction.** Forcing sign-in to submit to the leaderboard means anonymous users who scan and want to brag now hit a gate they didn't before. Mitigation: the AuthModal copy on the leaderboard CTA is deliberately frictionless ("sign in with google · 5 seconds") and OAuth is one tap on mobile.
-- **Malformed Grok JSON during a battle.** Reuse the existing solo flow's retry-with-strict-prefix logic. Final fallback: `{ overall: 50, improvement: 'eyes' }` (neutral).
+- **Malformed Gemini JSON during a battle.** Reuse the existing solo flow's retry-with-strict-prefix logic. Final fallback: `{ overall: 50, improvement: 'eyes' }` (neutral).
 - **Display name conflicts on leaderboard.** Multiple accounts can have the same `display_name`. Not enforced unique. Acceptable — leaderboard ordering is by score, names are just display.
 - **LiveKit identity vs Supabase user_id.** LiveKit room participants are identified by a `participantIdentity` string. Use `user_id` as the identity. On token issuance, embed `display_name` in the token's metadata so the grid component can label tiles without an extra lookup.
 - **Mobile camera permission timing.** On `/scan`, camera prompts on flow start. On `/mog`, LiveKit prompts when joining the room. The two flows coexist but never simultaneously.

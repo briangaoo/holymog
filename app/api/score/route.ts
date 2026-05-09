@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { analyzeFaces } from '@/lib/vision';
 import { getRatelimit } from '@/lib/ratelimit';
+import { combineScores } from '@/lib/scoreEngine';
+import { auth } from '@/lib/auth';
+import { getPool } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -130,12 +133,18 @@ export async function POST(request: Request) {
     blobs.push(result.blob);
   }
 
-  if (!process.env.XAI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({ error: 'vision_unavailable' }, { status: 503 });
   }
 
   try {
     const { vision, tokens } = await analyzeFaces(blobs);
+
+    // Best-scan capture for signed-in users: if the new overall beats
+    // their stored best (or they don't have one yet), atomically upsert.
+    // Conditional WHERE makes this race-safe even with concurrent scans.
+    void persistBestScanIfBeaten(vision);
+
     return NextResponse.json(vision, {
       headers: {
         'X-Tokens-Input': String(tokens.input),
@@ -145,5 +154,32 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'vision_error';
     return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
+
+async function persistBestScanIfBeaten(
+  vision: import('@/types').VisionScore,
+): Promise<void> {
+  try {
+    const session = await auth();
+    const user = session?.user;
+    if (!user) return;
+
+    const final = combineScores(vision);
+    const pool = getPool();
+    await pool.query(
+      `update profiles
+          set best_scan = $1::jsonb,
+              best_scan_overall = $2
+        where user_id = $3
+          and (best_scan_overall is null or best_scan_overall < $2)`,
+      [
+        JSON.stringify({ vision, scores: final }),
+        final.overall,
+        user.id,
+      ],
+    );
+  } catch {
+    // Best-effort; never block the scan response.
   }
 }

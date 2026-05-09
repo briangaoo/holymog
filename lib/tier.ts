@@ -37,6 +37,15 @@ const TIERS: TierRow[] = [
   { letter: 'S+', min: 94, max: 100, color: S_GRADIENT, isGradient: true, glow: true },
 ];
 
+/**
+ * Minimum scan score that requires a photo on the leaderboard. At S-tier
+ * (≥87) we lock the photo toggle on so that high scores are reviewable —
+ * if a user doesn't want their face on the board, they have to skip the
+ * submission entirely. Both the client modal and the POST /api/leaderboard
+ * route enforce this.
+ */
+export const PHOTO_REQUIRED_THRESHOLD = 87;
+
 export function getTier(score: number): TierInfo {
   const clamped = Math.max(0, Math.min(100, Math.round(score)));
   const row = TIERS.find((t) => clamped >= t.min && clamped <= t.max) ?? TIERS[0];
@@ -75,7 +84,7 @@ const DESCRIPTORS: Record<string, string> = {
   'A+': 'mogger',
   'S-': 'chad',
   S: 'heartbreaker',
-  'S+': 'brian',
+  'S+': 'true adam',
 };
 
 export function getTierDescriptor(letter: string): string {
