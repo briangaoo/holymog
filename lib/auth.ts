@@ -1,6 +1,9 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
+import type { Provider } from 'next-auth/providers';
 import Google from 'next-auth/providers/google';
+import Apple from 'next-auth/providers/apple';
 import Nodemailer from 'next-auth/providers/nodemailer';
+import Resend from 'next-auth/providers/resend';
 import PostgresAdapter from '@auth/pg-adapter';
 import { getPool } from './db';
 
@@ -14,6 +17,75 @@ function deriveDisplayName(input: {
   const fromEmail = (input.email ?? '').split('@')[0] ?? '';
   const raw = fromName || fromEmail || 'player';
   return raw.toLowerCase().slice(0, MAX_NAME_LEN) || 'player';
+}
+
+/**
+ * Build the Auth.js providers list dynamically based on which env vars
+ * are configured. Each provider is opt-in:
+ *
+ *   - Google OAuth — activates when AUTH_GOOGLE_ID + AUTH_GOOGLE_SECRET
+ *     are set. Until then the AuthModal shows a greyed-out button.
+ *   - Apple OAuth — activates when AUTH_APPLE_ID + AUTH_APPLE_SECRET are
+ *     set. AUTH_APPLE_SECRET is a JWT generated from a .p8 key (rotates
+ *     every 6 months); see https://authjs.dev/getting-started/providers/apple
+ *     for the JWT-generation script. Until then the AuthModal shows a
+ *     greyed-out button.
+ *   - Email magic link — Gmail Workspace SMTP via Nodemailer is the
+ *     production path (sends from auth@holymog.com using a Google app
+ *     password). When EMAIL_SERVER_PASSWORD isn't set (e.g. workspace
+ *     access pending), we fall back to Resend.
+ *
+ * The exported `EMAIL_PROVIDER_ID` tells the AuthModal which provider id
+ * to pass to `signIn()` — `nodemailer` when Gmail SMTP is active,
+ * `resend` otherwise.
+ */
+const providers: Provider[] = [];
+
+if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
+  providers.push(
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+    }),
+  );
+}
+
+if (process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET) {
+  providers.push(
+    Apple({
+      clientId: process.env.AUTH_APPLE_ID,
+      clientSecret: process.env.AUTH_APPLE_SECRET,
+    }),
+  );
+}
+
+const useGmailSmtp = Boolean(process.env.EMAIL_SERVER_PASSWORD);
+export const EMAIL_PROVIDER_ID: 'nodemailer' | 'resend' = useGmailSmtp
+  ? 'nodemailer'
+  : 'resend';
+
+if (useGmailSmtp) {
+  providers.push(
+    Nodemailer({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST ?? 'smtp.gmail.com',
+        port: Number(process.env.EMAIL_SERVER_PORT ?? 465),
+        secure: Number(process.env.EMAIL_SERVER_PORT ?? 465) === 465,
+        auth: {
+          user: process.env.EMAIL_SERVER_USER,
+          pass: process.env.EMAIL_SERVER_PASSWORD,
+        },
+      },
+      from: process.env.EMAIL_FROM ?? 'auth@holymog.com',
+    }),
+  );
+} else if (process.env.AUTH_RESEND_KEY) {
+  providers.push(
+    Resend({
+      apiKey: process.env.AUTH_RESEND_KEY,
+      from: process.env.AUTH_RESEND_FROM ?? 'auth@holymog.com',
+    }),
+  );
 }
 
 const config: NextAuthConfig = {
@@ -40,29 +112,7 @@ const config: NextAuthConfig = {
           },
         }
       : undefined,
-  providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
-    }),
-    // Magic-link email via Gmail Workspace SMTP. We auth as the underlying
-    // mailbox owner (hello@holymog.com) using a Google App Password, and
-    // send From: auth@holymog.com (a free alias of the same mailbox set
-    // up at the Workspace admin level + in Gmail's "Send mail as"). No
-    // extra service / no extra DNS — Workspace already owns the domain.
-    Nodemailer({
-      server: {
-        host: process.env.EMAIL_SERVER_HOST ?? 'smtp.gmail.com',
-        port: Number(process.env.EMAIL_SERVER_PORT ?? 465),
-        secure: Number(process.env.EMAIL_SERVER_PORT ?? 465) === 465,
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
-        },
-      },
-      from: process.env.EMAIL_FROM ?? 'auth@holymog.com',
-    }),
-  ],
+  providers,
   pages: {
     // Auth.js's built-in error page is fine; if a sign-in error happens,
     // bounce the user back to / with the error in the query string.
