@@ -147,7 +147,168 @@ export type CosmeticKind = Cosmetic['kind'];
 //     smart: true, // only if the component reads userStats
 //   },
 export const FRAMES: Record<string, FrameDef> = {
-  // (agent A populates 16 entries here)
+  'frame.lava-lamp': {
+    slug: 'frame.lava-lamp',
+    kind: 'frame',
+    name: 'lava lamp',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/lava-lamp'),
+    ) as FrameComponent,
+    ringInset: 8,
+    haloColor: 'rgba(249,115,22,0.30)',
+  },
+  'frame.oil-slick': {
+    slug: 'frame.oil-slick',
+    kind: 'frame',
+    name: 'oil slick',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/oil-slick'),
+    ) as FrameComponent,
+    ringInset: 8,
+    haloColor: 'rgba(124,58,237,0.28)',
+  },
+  'frame.crt-scanline': {
+    slug: 'frame.crt-scanline',
+    kind: 'frame',
+    name: 'crt scanline',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/crt-scanline'),
+    ) as FrameComponent,
+    ringInset: 8,
+    haloColor: 'rgba(34,197,94,0.30)',
+  },
+  'frame.mobius': {
+    slug: 'frame.mobius',
+    kind: 'frame',
+    name: 'möbius',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/mobius'),
+    ) as FrameComponent,
+    ringInset: 12,
+    haloColor: 'rgba(203,213,225,0.25)',
+  },
+  'frame.cable': {
+    slug: 'frame.cable',
+    kind: 'frame',
+    name: 'cable',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/cable'),
+    ) as FrameComponent,
+    ringInset: 10,
+    haloColor: 'rgba(220,38,38,0.22)',
+  },
+  'frame.ferrofluid': {
+    slug: 'frame.ferrofluid',
+    kind: 'frame',
+    name: 'ferrofluid',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/ferrofluid'),
+    ) as FrameComponent,
+    ringInset: 10,
+    haloColor: 'rgba(15,23,42,0.55)',
+  },
+  'frame.torii': {
+    slug: 'frame.torii',
+    kind: 'frame',
+    name: 'torii',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/torii'),
+    ) as FrameComponent,
+    ringInset: 18,
+    haloColor: 'rgba(212,175,55,0.32)',
+  },
+  'frame.weather-front': {
+    slug: 'frame.weather-front',
+    kind: 'frame',
+    name: 'weather front',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/weather-front'),
+    ) as FrameComponent,
+    ringInset: 16,
+    haloColor: 'rgba(180,200,225,0.25)',
+  },
+  'frame.scan-ring': {
+    slug: 'frame.scan-ring',
+    kind: 'frame',
+    name: 'scan ring',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/scan-ring'),
+    ) as FrameComponent,
+    ringInset: 13,
+    haloColor: 'rgba(103,232,249,0.28)',
+  },
+  'frame.elo-medal': {
+    slug: 'frame.elo-medal',
+    kind: 'frame',
+    name: 'elo medal',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/elo-medal'),
+    ) as FrameComponent,
+    ringInset: 22,
+    haloColor: 'rgba(34,211,238,0.25)',
+  },
+  'frame.streak-pyre': {
+    slug: 'frame.streak-pyre',
+    kind: 'frame',
+    name: 'streak pyre',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/streak-pyre'),
+    ) as FrameComponent,
+    ringInset: 9,
+    haloColor: 'rgba(249,115,22,0.38)',
+    smart: true,
+  },
+  'frame.canthal': {
+    slug: 'frame.canthal',
+    kind: 'frame',
+    name: 'canthal',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/canthal'),
+    ) as FrameComponent,
+    ringInset: 14,
+    haloColor: 'rgba(251,191,36,0.28)',
+  },
+  'frame.crown-letters': {
+    slug: 'frame.crown-letters',
+    kind: 'frame',
+    name: 'crown letters',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/crown-letters'),
+    ) as FrameComponent,
+    ringInset: 17,
+    haloColor: 'rgba(34,211,238,0.28)',
+  },
+  'frame.scoreband': {
+    slug: 'frame.scoreband',
+    kind: 'frame',
+    name: 'scoreband',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/scoreband'),
+    ) as FrameComponent,
+    ringInset: 10,
+    haloColor: 'rgba(212,175,55,0.32)',
+    smart: true,
+  },
+  'frame.heartbreaker': {
+    slug: 'frame.heartbreaker',
+    kind: 'frame',
+    name: 'heartbreaker',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/heartbreaker'),
+    ) as FrameComponent,
+    ringInset: 14,
+    haloColor: 'rgba(220,38,38,0.30)',
+  },
+  'frame.stained-glass': {
+    slug: 'frame.stained-glass',
+    kind: 'frame',
+    name: 'stained glass',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/stained-glass'),
+    ) as FrameComponent,
+    ringInset: 11,
+    haloColor: 'rgba(107,33,168,0.32)',
+  },
 };
 // === END FRAMES ===================================================================
 
