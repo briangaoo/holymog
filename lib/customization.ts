@@ -315,7 +315,142 @@ export const FRAMES: Record<string, FrameDef> = {
 // === BADGES (Agent B — cosmetics-badges branch) ==================================
 // Populate this block with 15 entries.
 export const BADGES: Record<string, BadgeDef> = {
-  // (agent B populates 15 entries here)
+  'badge.ripple': {
+    slug: 'badge.ripple',
+    kind: 'badge',
+    name: 'ripple',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/ripple'),
+    ) as BadgeComponent,
+    description: 'concentric water ripples expanding outward',
+  },
+  'badge.eclipse': {
+    slug: 'badge.eclipse',
+    kind: 'badge',
+    name: 'eclipse',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/eclipse'),
+    ) as BadgeComponent,
+    description: 'total solar eclipse with corona flares licking outward',
+  },
+  'badge.match': {
+    slug: 'badge.match',
+    kind: 'badge',
+    name: 'match',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/match'),
+    ) as BadgeComponent,
+    description: 'a single match igniting, burning down, regenerating',
+  },
+  'badge.tarot-back': {
+    slug: 'badge.tarot-back',
+    kind: 'badge',
+    name: 'tarot back',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/tarot-back'),
+    ) as BadgeComponent,
+    description: 'sun and crescent moon stacked, gold on black',
+  },
+  'badge.compass': {
+    slug: 'badge.compass',
+    kind: 'badge',
+    name: 'compass',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/compass'),
+    ) as BadgeComponent,
+    description: 'cardinal-direction rose with a drifting needle',
+  },
+  'badge.honeycomb': {
+    slug: 'badge.honeycomb',
+    kind: 'badge',
+    name: 'honeycomb',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/honeycomb'),
+    ) as BadgeComponent,
+    description: 'hex cell with a slow gold liquid level rising and falling',
+  },
+  'badge.fractal': {
+    slug: 'badge.fractal',
+    kind: 'badge',
+    name: 'fractal',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/fractal'),
+    ) as BadgeComponent,
+    description: 'algorithmic snowflake redrawing one branch at a time',
+  },
+  'badge.morse': {
+    slug: 'badge.morse',
+    kind: 'badge',
+    name: 'morse',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/morse'),
+    ) as BadgeComponent,
+    description: 'three pulsing dots cycling a slow rhythmic morse pattern',
+  },
+  'badge.scan-1': {
+    slug: 'badge.scan-1',
+    kind: 'badge',
+    name: 'first scan',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/scan-1'),
+    ) as BadgeComponent,
+    description: 'scanner reticle with corner brackets locking onto a center dot',
+  },
+  'badge.identity': {
+    slug: 'badge.identity',
+    kind: 'badge',
+    name: 'identity',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/identity'),
+    ) as BadgeComponent,
+    description: 'face-profile silhouette with a single horizontal scan-line passing',
+  },
+  'badge.duelist': {
+    slug: 'badge.duelist',
+    kind: 'badge',
+    name: 'duelist',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/duelist'),
+    ) as BadgeComponent,
+    description: 'two profile silhouettes facing each other in 1v1 stance',
+  },
+  'badge.king': {
+    slug: 'badge.king',
+    kind: 'badge',
+    name: 'king',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/king'),
+    ) as BadgeComponent,
+    description: 'chess king piece with a faint pulsing aura',
+  },
+  'badge.tier-stamp': {
+    slug: 'badge.tier-stamp',
+    kind: 'badge',
+    name: 'tier stamp',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/tier-stamp'),
+    ) as BadgeComponent,
+    description: 'your current tier letter stamped into the badge with crisp brand colors',
+    smart: true,
+  },
+  'badge.holy-wordmark': {
+    slug: 'badge.holy-wordmark',
+    kind: 'badge',
+    name: 'holy wordmark',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/holy-wordmark'),
+    ) as BadgeComponent,
+    description: 'the holymog wordmark inside a thin halo, slow gold rotation',
+  },
+  'badge.gavel': {
+    slug: 'badge.gavel',
+    kind: 'badge',
+    name: 'gavel',
+    component: dynamic(
+      () => import('@/components/cosmetics/badges/gavel'),
+    ) as BadgeComponent,
+    description: 'a gavel mid-strike with a radial shockwave pulsing outward on impact',
+  },
 };
 // === END BADGES ===================================================================
 
