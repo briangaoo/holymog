@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>holymog store — v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #060608;
+    color: #f5f5f5;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    text-transform: lowercase;
+    min-height: 100vh;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(56,189,248,0.10) 0%, transparent 45%),
+      radial-gradient(ellipse at 90% 100%, rgba(168,85,247,0.10) 0%, transparent 45%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .wrap {
+    position: relative;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+    z-index: 1;
+  }
+  .topbar { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+  .back {
+    width: 36px; height: 36px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.02);
+    display: flex; align-items: center; justify-content: center;
+    color: #d4d4d8; cursor: pointer; transition: all .2s;
+  }
+  h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+  .pricing-note { margin-left: auto; font-size: 11px; color: #71717a; text-transform: uppercase; letter-spacing: 0.16em; }
+
+  .tabs {
+    display: flex; gap: 4px;
+    margin-top: 28px; padding: 4px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 999px;
+    width: fit-content;
+  }
+  .tab {
+    padding: 8px 18px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; color: #a1a1aa;
+    cursor: pointer; transition: all .2s;
+    display: flex; align-items: center; gap: 8px;
+    border: none; background: transparent;
+    text-transform: lowercase; font-family: inherit;
+  }
+  .tab .price-pill { font-size: 10px; color: #71717a; background: rgba(255,255,255,0.04); padding: 2px 7px; border-radius: 999px; font-weight: 500; }
+  .tab.active { background: #f5f5f5; color: #060608; }
+  .tab.active .price-pill { background: rgba(0,0,0,0.18); color: #060608; }
+
+  .section-head { margin: 36px 0 20px; display: flex; align-items: baseline; justify-content: space-between; }
+  .section-head h2 { font-size: 16px; font-weight: 700; }
+  .section-head .count { font-size: 11px; color: #71717a; text-transform: uppercase; letter-spacing: 0.18em; }
+
+  /* Bigger cards in v2 to show fidelity */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    border-radius: 20px; padding: 22px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(18px) saturate(150%);
+    transition: transform .25s, border-color .25s, box-shadow .25s;
+    overflow: hidden;
+  }
+  .card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.15); box-shadow: 0 20px 40px -16px rgba(0,0,0,0.6); }
+  .card .preview-area {
+    height: 180px;
+    margin: -10px -10px 18px;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.05), transparent 70%);
+    position: relative;
+    overflow: hidden;
+  }
+  .card .name { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .card .desc { font-size: 12px; color: #a1a1aa; line-height: 1.5; min-height: 36px; }
+  .card .footer {
+    margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card .own-state { font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.14em; }
+  .card .buy {
+    background: #f5f5f5; color: #060608; border: none;
+    border-radius: 999px; padding: 6px 14px;
+    font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+
+  .ceiling-callout {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(34,211,238,0.06);
+    border: 1px solid rgba(34,211,238,0.20);
+    border-radius: 12px;
+    font-size: 11px; color: #67e8f9; line-height: 1.6;
+    text-transform: uppercase; letter-spacing: 0.12em;
+  }
+
+  /* ====================================================
+     COSMETIC IMPLEMENTATIONS — v2 SHOWPIECES
+     ==================================================== */
+
+  /* Avatar placeholder used by frames */
+  .avatar-fill {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 35% 30%, #71717a, #27272a 70%);
+    display: flex; align-items: center; justify-content: center;
+    color: #f5f5f5; font-weight: 800; font-size: 26px;
+    letter-spacing: -0.03em;
+  }
+
+  /* ─── FRAME 1: AURORA BOREALIS (showpiece) ─── */
+  /* Real aurora: multiple translucent gradient bands rotating at
+     different speeds, SVG turbulence-driven displacement for organic
+     warp, signature outer halo. */
+  @keyframes aurora-band-1 { to { transform: rotate(360deg); } }
+  @keyframes aurora-band-2 { to { transform: rotate(-360deg); } }
+  @keyframes aurora-pulse {
+    0%, 100% { opacity: 0.85; filter: blur(0px); }
+    50% { opacity: 1; filter: blur(0.4px); }
+  }
+  .aurora-frame {
+    width: 130px; height: 130px;
+    position: relative;
+    border-radius: 50%;
+    filter: url(#aurora-warp);
+  }
+  .aurora-frame .band {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+  }
+  .aurora-frame .band.b1 {
+    background: conic-gradient(from 0deg,
+      transparent 0%, #06ffa5 12%, transparent 28%,
+      transparent 30%, #22d3ee 45%, transparent 62%,
+      transparent 65%, #a855f7 82%, transparent 100%);
+    animation: aurora-band-1 9s linear infinite;
+  }
+  .aurora-frame .band.b2 {
+    inset: 4px;
+    background: conic-gradient(from 0deg,
+      transparent 0%, #ec4899 18%, transparent 38%,
+      transparent 50%, #06ffa5 70%, transparent 90%);
+    animation: aurora-band-2 14s linear infinite;
+    opacity: 0.7; mix-blend-mode: screen;
+  }
+  .aurora-frame .band.b3 {
+    inset: 8px;
+    background: conic-gradient(from 90deg,
+      transparent 0%, #22d3ee 25%, transparent 50%,
+      transparent 60%, #a855f7 80%, transparent 100%);
+    animation: aurora-band-1 7s linear infinite, aurora-pulse 3s ease-in-out infinite;
+    opacity: 0.5; mix-blend-mode: screen;
+    filter: blur(1px);
+  }
+  .aurora-frame::before {
+    content: '';
+    position: absolute; inset: -28px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg,
+      rgba(6,255,165,0.5), rgba(34,211,238,0.5),
+      rgba(168,85,247,0.5), rgba(236,72,153,0.4),
+      rgba(6,255,165,0.5));
+    filter: blur(28px);
+    animation: aurora-band-1 9s linear infinite;
+    z-index: -1;
+  }
+  .aurora-frame .core {
+    position: absolute; inset: 14px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #0a0a0a;
+    z-index: 2;
+  }
+
+  /* ─── FRAME 2: PHOENIX WINGS (showpiece) ─── */
+  /* Two wing-shaped flame plumes flanking the avatar, breathing
+     rhythm, particles rising. Different from a "ring" frame. */
+  @keyframes phoenix-breath {
+    0%, 100% { transform: scaleY(1) scaleX(1); }
+    50% { transform: scaleY(1.08) scaleX(1.04); }
+  }
+  @keyframes ember-rise {
+    0% { transform: translate(0, 0); opacity: 0; }
+    20%, 70% { opacity: 1; }
+    100% { transform: translate(var(--dx, 0), -50px); opacity: 0; }
+  }
+  .phoenix-frame {
+    width: 140px; height: 140px;
+    position: relative;
+  }
+  .phoenix-frame .core {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #0a0a0a;
+    box-shadow:
+      inset 0 0 0 2px rgba(251,146,60,0.6),
+      0 0 20px rgba(251,146,60,0.5),
+      0 0 40px rgba(239,68,68,0.3);
+    z-index: 3;
+  }
+  .phoenix-frame .wing {
+    position: absolute; top: 50%;
+    width: 60px; height: 90px;
+    transform-origin: center;
+    animation: phoenix-breath 1.8s ease-in-out infinite;
+  }
+  .phoenix-frame .wing.left { left: 0; transform: translateY(-50%); }
+  .phoenix-frame .wing.right { right: 0; transform: translateY(-50%) scaleX(-1); }
+  .phoenix-frame .wing svg { width: 100%; height: 100%; filter: drop-shadow(0 0 12px rgba(239,68,68,0.6)); }
+  .phoenix-frame .ember {
+    position: absolute;
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fde68a, #f97316);
+    box-shadow: 0 0 8px #fde68a, 0 0 4px #f97316;
+    animation: ember-rise 2s ease-out infinite;
+  }
+  .phoenix-frame .ember.e1 { bottom: 30%; left: 25%; --dx: -10px; animation-delay: 0s; }
+  .phoenix-frame .ember.e2 { bottom: 40%; left: 70%; --dx: 8px; animation-delay: 0.5s; }
+  .phoenix-frame .ember.e3 { bottom: 35%; left: 50%; --dx: 4px; animation-delay: 1s; }
+  .phoenix-frame .ember.e4 { bottom: 25%; left: 35%; --dx: -6px; animation-delay: 1.4s; }
+  .phoenix-frame .ember.e5 { bottom: 45%; left: 80%; --dx: 12px; animation-delay: 0.8s; }
+
+  /* ─── FRAME 3: PLASMA FIELD (showpiece) ─── */
+  /* Turbulent plasma membrane via SVG filter chain. Looks alive. */
+  @keyframes plasma-rotate { to { transform: rotate(360deg); } }
+  @keyframes plasma-shift { to { transform: translateX(60px); } }
+  .plasma-frame {
+    width: 130px; height: 130px;
+    position: relative;
+    border-radius: 50%;
+  }
+  .plasma-frame::before {
+    content: '';
+    position: absolute; inset: -22px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(168,85,247,0.5), rgba(236,72,153,0.3) 50%, transparent 80%);
+    filter: blur(20px);
+    z-index: -1;
+  }
+  .plasma-frame .ring {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    filter: url(#plasma-warp) saturate(1.6);
+  }
+  .plasma-frame .ring::before {
+    content: '';
+    position: absolute; inset: -50%;
+    background:
+      radial-gradient(circle at 30% 40%, #a855f7 0%, transparent 30%),
+      radial-gradient(circle at 70% 30%, #ec4899 0%, transparent 35%),
+      radial-gradient(circle at 60% 70%, #22d3ee 0%, transparent 30%),
+      radial-gradient(circle at 20% 80%, #f97316 0%, transparent 25%),
+      #1a0a2e;
+    animation: plasma-rotate 18s linear infinite;
+  }
+  .plasma-frame .core {
+    position: absolute; inset: 10px;
+    border-radius: 50%;
+    background: #0a0a0a;
+    z-index: 2;
+  }
+
+  /* ─── BADGE: DIAMOND (showpiece) ─── */
+  /* Cut diamond polygon SVG, rotating internal light caustic,
+     periodic sparkle bursts. */
+  @keyframes diamond-shimmer {
+    0%, 100% { transform: translateX(-110%); }
+    50% { transform: translateX(110%); }
+  }
+  @keyframes diamond-sparkle-1 {
+    0%, 95%, 100% { opacity: 0; transform: scale(0); }
+    20%, 25% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes diamond-sparkle-2 {
+    0%, 50%, 100% { opacity: 0; transform: scale(0); }
+    65%, 70% { opacity: 1; transform: scale(1); }
+  }
+  .badge-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 14px 5px 6px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.10);
+  }
+  .badge-pill .name-text { font-size: 14px; font-weight: 600; color: #f5f5f5; }
+  .diamond-badge {
+    width: 26px; height: 26px;
+    position: relative;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+  .diamond-badge .gem {
+    width: 100%; height: 100%;
+    background:
+      conic-gradient(from 45deg,
+        #93c5fd 0%, #c7d2fe 12%, #fff 25%,
+        #ddd6fe 38%, #93c5fd 50%, #6366f1 62%,
+        #4f46e5 75%, #818cf8 88%, #93c5fd 100%);
+    clip-path: polygon(50% 0%, 90% 25%, 90% 75%, 50% 100%, 10% 75%, 10% 25%);
+    position: relative;
+    overflow: hidden;
+    filter: drop-shadow(0 0 4px rgba(99,102,241,0.7));
+  }
+  .diamond-badge .shimmer {
+    position: absolute; inset: 0;
+    background: linear-gradient(115deg,
+      transparent 30%, rgba(255,255,255,0.9) 50%, transparent 70%);
+    animation: diamond-shimmer 2.4s ease-in-out infinite;
+  }
+  .diamond-badge .sparkle {
+    position: absolute;
+    width: 8px; height: 8px;
+    background: radial-gradient(circle, #fff, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .diamond-badge .sparkle::before, .diamond-badge .sparkle::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    background: #fff;
+    transform: translate(-50%, -50%);
+  }
+  .diamond-badge .sparkle::before { width: 100%; height: 1px; }
+  .diamond-badge .sparkle::after { width: 1px; height: 100%; }
+  .diamond-badge .sparkle.s1 { top: -4px; right: -4px; animation: diamond-sparkle-1 3s ease-in-out infinite; }
+  .diamond-badge .sparkle.s2 { bottom: -4px; left: -2px; animation: diamond-sparkle-2 3s ease-in-out infinite; }
+
+  /* ─── BADGE: BLACK HOLE (showpiece) ─── */
+  /* Singularity center with rotating accretion disk + light bend */
+  @keyframes hole-rotate { to { transform: rotate(360deg); } }
+  .hole-badge {
+    width: 26px; height: 26px;
+    position: relative;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, #000 0%, #000 30%, #1a1a2e 100%);
+    overflow: hidden;
+    box-shadow: 0 0 8px rgba(168,85,247,0.6), inset 0 0 4px rgba(0,0,0,0.9);
+  }
+  .hole-badge::before {
+    content: '';
+    position: absolute; inset: -2px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg,
+      transparent 0%, #fbbf24 15%, #f97316 25%, #a855f7 40%,
+      transparent 50%, #22d3ee 65%, #06ffa5 80%, transparent 100%);
+    animation: hole-rotate 4s linear infinite;
+    filter: blur(0.5px);
+  }
+  .hole-badge::after {
+    content: '';
+    position: absolute; inset: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #000 60%, rgba(0,0,0,0.9) 100%);
+    box-shadow: inset 0 0 4px rgba(255,255,255,0.05);
+  }
+
+  /* ─── NAME FX: LIQUID CHROME (showpiece) ─── */
+  /* Mercury-flow gradient through text, with edge highlight + slight
+     wobble via SVG turbulence. */
+  @keyframes chrome-flow {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
+  }
+  .name-chrome {
+    background: linear-gradient(110deg,
+      #71717a 0%, #d4d4d8 15%, #fff 25%, #d4d4d8 35%,
+      #a1a1aa 50%, #71717a 60%, #d4d4d8 75%, #fff 85%, #71717a 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: chrome-flow 5s linear infinite;
+    font-weight: 800;
+    font-size: 30px;
+    filter: drop-shadow(0 0 1px rgba(255,255,255,0.3)) drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    letter-spacing: -0.02em;
+  }
+
+  /* ─── NAME FX: STARDUST (showpiece) ─── */
+  /* Text constantly emitting tiny sparkle particles drifting up. */
+  @keyframes stardust-emit {
+    0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translate(var(--dx), -30px) scale(0.2); opacity: 0; }
+  }
+  .name-stardust-wrap {
+    position: relative;
+    display: inline-block;
+    padding: 4px 20px;
+  }
+  .name-stardust-wrap .text {
+    color: #f5f5f5;
+    font-weight: 800;
+    font-size: 30px;
+    letter-spacing: -0.02em;
+    text-shadow:
+      0 0 4px rgba(255,255,255,0.4),
+      0 0 14px rgba(168,85,247,0.5),
+      0 0 24px rgba(34,211,238,0.4);
+    position: relative; z-index: 1;
+  }
+  .name-stardust-wrap .dust {
+    position: absolute;
+    width: 3px; height: 3px;
+    background: radial-gradient(circle, #fff, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: stardust-emit 2.5s ease-out infinite;
+  }
+  .name-stardust-wrap .dust.d1 { left: 10%; top: 70%; --dx: -5px; animation-delay: 0s; }
+  .name-stardust-wrap .dust.d2 { left: 25%; top: 80%; --dx: 3px; animation-delay: 0.4s; }
+  .name-stardust-wrap .dust.d3 { left: 45%; top: 75%; --dx: -3px; animation-delay: 0.8s; }
+  .name-stardust-wrap .dust.d4 { left: 60%; top: 80%; --dx: 6px; animation-delay: 1.2s; }
+  .name-stardust-wrap .dust.d5 { left: 80%; top: 70%; --dx: -4px; animation-delay: 1.6s; }
+  .name-stardust-wrap .dust.d6 { left: 92%; top: 80%; --dx: 5px; animation-delay: 2s; }
+
+  /* ─── THEME: COSMIC VOID (showpiece) ─── */
+  /* Deep parallax field with 50+ stars at 3 depths, drifting nebula
+     clouds, occasional shooting star. Real depth, not just dots. */
+  @keyframes star-twinkle-deep {
+    0%, 100% { opacity: var(--min, 0.3); }
+    50% { opacity: var(--max, 1); }
+  }
+  @keyframes nebula-drift-1 {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(20px, -10px); }
+  }
+  @keyframes nebula-drift-2 {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-15px, 10px); }
+  }
+  @keyframes shooting-real {
+    0% { transform: translate(0, 0) rotate(15deg); opacity: 0; }
+    5% { opacity: 1; }
+    25% { opacity: 1; }
+    100% { transform: translate(280px, 80px) rotate(15deg); opacity: 0; }
+  }
+  .theme-preview {
+    width: 100%; height: 100%;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .theme-cosmic-v2 {
+    background: radial-gradient(ellipse at 30% 60%, #0a0a14 0%, #050508 70%);
+  }
+  .theme-cosmic-v2 .nebula {
+    position: absolute;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    filter: blur(40px);
+    pointer-events: none;
+  }
+  .theme-cosmic-v2 .nebula.n1 {
+    top: -40px; left: -40px;
+    background: radial-gradient(circle, rgba(168,85,247,0.4), transparent 70%);
+    animation: nebula-drift-1 12s ease-in-out infinite;
+  }
+  .theme-cosmic-v2 .nebula.n2 {
+    bottom: -60px; right: -40px;
+    background: radial-gradient(circle, rgba(34,211,238,0.35), transparent 70%);
+    animation: nebula-drift-2 16s ease-in-out infinite;
+  }
+  .theme-cosmic-v2 .star {
+    position: absolute;
+    border-radius: 50%;
+    background: #fff;
+    animation: star-twinkle-deep var(--dur, 3s) ease-in-out infinite;
+  }
+  .theme-cosmic-v2 .star.deep { width: 1px; height: 1px; --min: 0.15; --max: 0.5; }
+  .theme-cosmic-v2 .star.mid { width: 1.5px; height: 1.5px; --min: 0.3; --max: 0.85; box-shadow: 0 0 2px #fff; }
+  .theme-cosmic-v2 .star.near { width: 2.5px; height: 2.5px; --min: 0.5; --max: 1; box-shadow: 0 0 4px #fff, 0 0 8px rgba(255,255,255,0.5); }
+  .theme-cosmic-v2 .shooting {
+    position: absolute;
+    top: 15%; left: -10%;
+    width: 80px; height: 1.5px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), #fff);
+    border-radius: 999px;
+    box-shadow: 0 0 6px #fff, 0 0 12px rgba(255,255,255,0.5);
+    animation: shooting-real 7s ease-out infinite;
+    transform-origin: 0 0;
+  }
+
+  /* ─── THEME: DEEP SEA (showpiece) ─── */
+  /* Caustic light dancing on top, rising bubbles with refraction,
+     light shafts from above. */
+  @keyframes caustic-shimmer {
+    0%, 100% { transform: translateX(0); opacity: 0.7; }
+    50% { transform: translateX(20px); opacity: 1; }
+  }
+  @keyframes bubble-rise {
+    0% { transform: translate(0, 0); opacity: 0; }
+    15% { opacity: 0.9; }
+    100% { transform: translate(var(--wob, 5px), -180px); opacity: 0; }
+  }
+  @keyframes light-shaft {
+    0%, 100% { opacity: 0.5; transform: scaleY(1); }
+    50% { opacity: 0.8; transform: scaleY(1.05); }
+  }
+  .theme-deepsea {
+    background:
+      linear-gradient(180deg, rgba(34,211,238,0.20) 0%, rgba(15,40,80,0.4) 30%, #050a1a 100%);
+  }
+  .theme-deepsea .caustic {
+    position: absolute;
+    top: 0; left: -20%; right: -20%;
+    height: 60px;
+    background:
+      radial-gradient(ellipse, rgba(165,243,252,0.5), transparent 70%);
+    filter: blur(8px);
+    animation: caustic-shimmer 4s ease-in-out infinite;
+    mix-blend-mode: screen;
+  }
+  .theme-deepsea .shaft {
+    position: absolute;
+    top: 0;
+    width: 20px; height: 100%;
+    background: linear-gradient(180deg, rgba(165,243,252,0.3) 0%, transparent 80%);
+    transform-origin: top center;
+    transform: skewX(-8deg);
+    animation: light-shaft 5s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .theme-deepsea .shaft.s1 { left: 25%; }
+  .theme-deepsea .shaft.s2 { left: 55%; animation-delay: -2s; }
+  .theme-deepsea .shaft.s3 { left: 78%; animation-delay: -4s; }
+  .theme-deepsea .bubble {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(165,243,252,0.3) 50%, transparent 80%);
+    box-shadow: inset 0 0 2px rgba(255,255,255,0.7);
+    animation: bubble-rise 6s linear infinite;
+  }
+
+  /* SVG filter wrappers */
+  svg.filter-defs {
+    position: absolute;
+    width: 0; height: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .legend {
+    margin-top: 36px;
+    padding: 18px 22px;
+    border: 1px dashed rgba(255,255,255,0.10);
+    border-radius: 14px;
+    font-size: 13px; color: #d4d4d8;
+    line-height: 1.7;
+  }
+  .legend strong { color: #f5f5f5; }
+  .legend .label { display: inline-block; padding: 1px 6px; border-radius: 4px; background: rgba(34,211,238,0.15); color: #67e8f9; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+<!-- SVG filter defs (turbulence + displacement for organic warp) -->
+<svg class="filter-defs">
+  <defs>
+    <filter id="aurora-warp" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="3" result="noise">
+        <animate attributeName="seed" values="3;9;15;3" dur="20s" repeatCount="indefinite" />
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" />
+    </filter>
+    <filter id="plasma-warp" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.025 0.04" numOctaves="3" seed="5" result="n">
+        <animate attributeName="seed" values="5;15;25;5" dur="14s" repeatCount="indefinite" />
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="14" />
+    </filter>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="back">←</div>
+    <h1>store · v2 showpieces</h1>
+    <span class="pricing-note">flat pricing · this is the bar</span>
+  </div>
+
+  <div class="ceiling-callout">
+    showing 1–2 designs per category at the actual fidelity ceiling.
+    every item in a category will land at this level — different vibes, same complexity budget.
+  </div>
+
+  <div class="tabs" style="margin-top: 24px;">
+    <button class="tab active"><span>frames</span><span class="price-pill">$6</span></button>
+    <button class="tab"><span>badges</span><span class="price-pill">$4</span></button>
+    <button class="tab"><span>name fx</span><span class="price-pill">$8</span></button>
+    <button class="tab"><span>themes</span><span class="price-pill">$10</span></button>
+  </div>
+
+  <div class="section-head">
+    <h2>frames · 8 designs · $6</h2>
+    <span class="count">3 of 8 shown</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="preview-area">
+        <div class="aurora-frame">
+          <div class="band b1"></div>
+          <div class="band b2"></div>
+          <div class="band b3"></div>
+          <div class="core"><div class="avatar-fill">B</div></div>
+        </div>
+      </div>
+      <div class="name">aurora borealis</div>
+      <div class="desc">three layered light ribbons swirling at different speeds, organic warp from svg turbulence, full color halo bleeding outward</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$6</button></div>
+    </div>
+
+    <div class="card">
+      <div class="preview-area">
+        <div class="phoenix-frame">
+          <div class="wing left">
+            <svg viewBox="0 0 60 90" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="wing-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#fde68a" />
+                  <stop offset="40%" stop-color="#fb923c" />
+                  <stop offset="80%" stop-color="#dc2626" />
+                  <stop offset="100%" stop-color="#7f1d1d" />
+                </linearGradient>
+              </defs>
+              <path d="M 50 10 Q 5 20, 10 60 Q 15 85, 50 80 Q 35 60, 50 40 Q 30 50, 50 10 Z"
+                fill="url(#wing-grad)" opacity="0.95"/>
+              <path d="M 50 20 Q 15 30, 22 65 Q 30 78, 50 75 Q 38 60, 50 45 Z"
+                fill="#fbbf24" opacity="0.6"/>
+            </svg>
+          </div>
+          <div class="wing right">
+            <svg viewBox="0 0 60 90" xmlns="http://www.w3.org/2000/svg">
+              <path d="M 50 10 Q 5 20, 10 60 Q 15 85, 50 80 Q 35 60, 50 40 Q 30 50, 50 10 Z"
+                fill="url(#wing-grad)" opacity="0.95"/>
+              <path d="M 50 20 Q 15 30, 22 65 Q 30 78, 50 75 Q 38 60, 50 45 Z"
+                fill="#fbbf24" opacity="0.6"/>
+            </svg>
+          </div>
+          <div class="ember e1"></div>
+          <div class="ember e2"></div>
+          <div class="ember e3"></div>
+          <div class="ember e4"></div>
+          <div class="ember e5"></div>
+          <div class="core"><div class="avatar-fill" style="font-size: 22px;">B</div></div>
+        </div>
+      </div>
+      <div class="name">phoenix wings</div>
+      <div class="desc">two flame plumes flanking your avatar, breathing rhythm, embers rising with realistic physics — a frame, not a ring</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$6</button></div>
+    </div>
+
+    <div class="card">
+      <div class="preview-area">
+        <div class="plasma-frame">
+          <div class="ring"></div>
+          <div class="core"><div class="avatar-fill">B</div></div>
+        </div>
+      </div>
+      <div class="name">plasma field</div>
+      <div class="desc">turbulent membrane of color flowing through the ring — svg displacement filter makes it feel alive, almost biological</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$6</button></div>
+    </div>
+  </div>
+
+  <div class="section-head" style="margin-top: 48px;">
+    <h2>badges · 8 designs · $4</h2>
+    <span class="count">2 of 8 shown</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="preview-area">
+        <div class="badge-pill">
+          <div class="diamond-badge">
+            <div class="gem">
+              <div class="shimmer"></div>
+            </div>
+            <div class="sparkle s1"></div>
+            <div class="sparkle s2"></div>
+          </div>
+          <span class="name-text">briangao</span>
+        </div>
+      </div>
+      <div class="name">diamond</div>
+      <div class="desc">cut diamond polygon with rotating internal light caustic and periodic sparkle bursts at the corners</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$4</button></div>
+    </div>
+
+    <div class="card">
+      <div class="preview-area">
+        <div class="badge-pill">
+          <div class="hole-badge"></div>
+          <span class="name-text">briangao</span>
+        </div>
+      </div>
+      <div class="name">black hole</div>
+      <div class="desc">singularity center with a rotating accretion disk emitting hawking radiation in shifting colors</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$4</button></div>
+    </div>
+  </div>
+
+  <div class="section-head" style="margin-top: 48px;">
+    <h2>name fx · 5 designs · $8</h2>
+    <span class="count">2 of 5 shown</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="preview-area">
+        <span class="name-chrome">briangao</span>
+      </div>
+      <div class="name">liquid chrome</div>
+      <div class="desc">mercury-flow gradient through your name with edge highlight and subtle reflection — feels like polished metal</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$8</button></div>
+    </div>
+
+    <div class="card">
+      <div class="preview-area">
+        <span class="name-stardust-wrap">
+          <span class="text">briangao</span>
+          <span class="dust d1"></span>
+          <span class="dust d2"></span>
+          <span class="dust d3"></span>
+          <span class="dust d4"></span>
+          <span class="dust d5"></span>
+          <span class="dust d6"></span>
+        </span>
+      </div>
+      <div class="name">stardust</div>
+      <div class="desc">your name constantly emits tiny sparkle particles drifting upward and fading — ambient glow follows the text</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$8</button></div>
+    </div>
+  </div>
+
+  <div class="section-head" style="margin-top: 48px;">
+    <h2>themes · 5 designs · $10</h2>
+    <span class="count">2 of 5 shown</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="preview-area" style="padding: 0;">
+        <div class="theme-preview theme-cosmic-v2">
+          <span class="nebula n1"></span>
+          <span class="nebula n2"></span>
+          <!-- 3-depth star field -->
+          <span class="star deep" style="top: 12%; left: 18%; --dur: 4s;"></span>
+          <span class="star deep" style="top: 28%; left: 65%; --dur: 5s; animation-delay: 1s;"></span>
+          <span class="star deep" style="top: 45%; left: 22%; --dur: 3.5s; animation-delay: 0.5s;"></span>
+          <span class="star deep" style="top: 60%; left: 75%; --dur: 4.5s; animation-delay: 1.5s;"></span>
+          <span class="star deep" style="top: 75%; left: 35%; --dur: 5s; animation-delay: 2s;"></span>
+          <span class="star deep" style="top: 88%; left: 60%; --dur: 4s; animation-delay: 0.8s;"></span>
+          <span class="star deep" style="top: 5%; left: 50%; --dur: 3s; animation-delay: 1.2s;"></span>
+          <span class="star deep" style="top: 35%; left: 5%; --dur: 4s; animation-delay: 0.3s;"></span>
+          <span class="star deep" style="top: 55%; left: 88%; --dur: 5s; animation-delay: 1.8s;"></span>
+          <span class="star deep" style="top: 80%; left: 12%; --dur: 4.5s; animation-delay: 2.3s;"></span>
+          <span class="star deep" style="top: 22%; left: 92%; --dur: 3.5s;"></span>
+          <span class="star deep" style="top: 68%; left: 50%; --dur: 4s; animation-delay: 1.7s;"></span>
+          <span class="star mid" style="top: 18%; left: 30%; --dur: 3s;"></span>
+          <span class="star mid" style="top: 38%; left: 80%; --dur: 4s; animation-delay: 1s;"></span>
+          <span class="star mid" style="top: 50%; left: 15%; --dur: 3.5s; animation-delay: 0.5s;"></span>
+          <span class="star mid" style="top: 70%; left: 68%; --dur: 4s; animation-delay: 1.5s;"></span>
+          <span class="star mid" style="top: 85%; left: 45%; --dur: 3s; animation-delay: 2s;"></span>
+          <span class="star mid" style="top: 8%; left: 75%; --dur: 4s; animation-delay: 0.8s;"></span>
+          <span class="star mid" style="top: 32%; left: 48%; --dur: 3.5s; animation-delay: 1.2s;"></span>
+          <span class="star near" style="top: 25%; left: 40%; --dur: 2.5s;"></span>
+          <span class="star near" style="top: 65%; left: 25%; --dur: 3s; animation-delay: 1s;"></span>
+          <span class="star near" style="top: 15%; left: 85%; --dur: 2.8s; animation-delay: 0.5s;"></span>
+          <span class="star near" style="top: 78%; left: 80%; --dur: 3s; animation-delay: 1.4s;"></span>
+          <span class="shooting"></span>
+        </div>
+      </div>
+      <div class="name">cosmic void</div>
+      <div class="desc">deep space behind your profile · 3-depth parallax star field · drifting nebula clouds · shooting stars</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$10</button></div>
+    </div>
+
+    <div class="card">
+      <div class="preview-area" style="padding: 0;">
+        <div class="theme-preview theme-deepsea">
+          <span class="caustic"></span>
+          <span class="shaft s1"></span>
+          <span class="shaft s2"></span>
+          <span class="shaft s3"></span>
+          <span class="bubble" style="left: 15%; bottom: 0; --wob: 4px;"></span>
+          <span class="bubble" style="left: 35%; bottom: 0; --wob: -3px; animation-delay: 1.2s;"></span>
+          <span class="bubble" style="left: 55%; bottom: 0; --wob: 6px; animation-delay: 2.4s; width: 8px; height: 8px;"></span>
+          <span class="bubble" style="left: 75%; bottom: 0; --wob: -4px; animation-delay: 0.6s;"></span>
+          <span class="bubble" style="left: 90%; bottom: 0; --wob: 3px; animation-delay: 3.2s; width: 4px; height: 4px;"></span>
+          <span class="bubble" style="left: 25%; bottom: 0; --wob: -5px; animation-delay: 4s; width: 5px; height: 5px;"></span>
+        </div>
+      </div>
+      <div class="name">deep sea</div>
+      <div class="desc">caustic light dancing on the surface · light shafts piercing down · bubbles rising with refractive highlights</div>
+      <div class="footer"><span class="own-state">not owned</span><button class="buy">$10</button></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <p><span class="label">v2</span><strong>this is the bar.</strong> not stubs.</p>
+    <p style="margin-top:10px">techniques being used here: <strong>svg filter chains</strong> (turbulence + displacementMap), <strong>multi-layer compositing</strong> (mix-blend-mode screen), <strong>parallax depth</strong> (3 star tiers in cosmic void), <strong>particle systems</strong> (embers, dust, bubbles), <strong>gradient flow animation</strong> (chrome name fx), <strong>polygon clip-paths</strong> (diamond facets), <strong>conic gradient with screen blend</strong> (aurora bands).</p>
+    <p style="margin-top:10px">if you approve this fidelity, every item in the full 26-item catalog hits this level. each category gets ~5–8 distinct vibes (ocean / fire / space / quantum / etc.) at matching complexity.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

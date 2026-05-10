@@ -2,6 +2,22 @@ import type { FinalScores, SubScores, VisionScore } from '@/types';
 
 type SubKey = keyof SubScores;
 
+/**
+ * Return the sub-score key with the lowest value. Used by the live-data
+ * `name.callout` cosmetic ("(jawline)" suffix on the user's display name)
+ * and exposed through API payloads as `weakest_sub_score`.
+ */
+export function weakestSubScore(scores: FinalScores): keyof SubScores {
+  const entries: Array<[keyof SubScores, number]> = [
+    ['jawline', scores.sub.jawline],
+    ['eyes', scores.sub.eyes],
+    ['skin', scores.sub.skin],
+    ['cheekbones', scores.sub.cheekbones],
+  ];
+  entries.sort((a, b) => a[1] - b[1]);
+  return entries[0][0];
+}
+
 function avg(xs: number[]): number {
   if (xs.length === 0) return 50;
   return xs.reduce((a, b) => a + b, 0) / xs.length;

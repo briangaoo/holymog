@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { analyzeQuick } from '@/lib/vision';
+import { getRatelimit } from '@/lib/ratelimit';
+import { readClientIp } from '@/lib/scanLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,10 +37,20 @@ function detectMime(buf: Buffer): string {
 
 /**
  * Lightweight live-meter endpoint. Single image, single number out, uses
- * detail:low for cheap input. NOT rate limited, burst use during scan flow
- * (10 calls / 5s) is the entire point.
+ * detail:low for cheap input. Per-IP rate-limited to bound abuse cost —
+ * the scan flow legitimately fires ~5 calls per scan, so 60/min easily
+ * accommodates real users while capping a runaway bot at $0.01-ish/min.
  */
 export async function POST(request: Request) {
+  const ip = readClientIp(request);
+  const limiter = getRatelimit('quickScore');
+  if (limiter) {
+    const result = await limiter.limit(ip);
+    if (!result.success) {
+      return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+    }
+  }
+
   let body: Body;
   try {
     body = (await request.json()) as Body;

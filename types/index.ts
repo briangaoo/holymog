@@ -70,8 +70,8 @@ export type FlowState =
   | { type: 'detected'; stableSince: number }
   | { type: 'capturing' }
   | { type: 'mapping'; frames: Frame[] }
-  | { type: 'revealing'; scores: FinalScores; capturedImage: string }
-  | { type: 'complete'; scores: FinalScores; capturedImage: string }
+  | { type: 'revealing'; scores: FinalScores; capturedImage: string; vision?: VisionScore }
+  | { type: 'complete'; scores: FinalScores; capturedImage: string; vision?: VisionScore }
   | { type: 'error'; message: string };
 
 export type FlowAction =
@@ -79,10 +79,10 @@ export type FlowAction =
   | { type: 'FACE_LOST' }
   | { type: 'FACE_STABLE' }
   | { type: 'CAPTURE'; frames: Frame[] }
-  | { type: 'MAPPING_DONE'; scores: FinalScores }
+  | { type: 'MAPPING_DONE'; scores: FinalScores; vision?: VisionScore }
   | { type: 'REVEAL_DONE' }
   | { type: 'RETAKE' }
-  | { type: 'HYDRATE'; scores: FinalScores; capturedImage: string }
+  | { type: 'HYDRATE'; scores: FinalScores; capturedImage: string; vision?: VisionScore }
   | { type: 'ERROR'; message: string };
 
 export type TierInfo = {

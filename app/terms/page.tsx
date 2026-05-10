@@ -185,18 +185,50 @@ export default function TermsPage() {
                 <span className="font-semibold text-white/85">
                   Retention & destruction schedule.
                 </span>{' '}
-                Face-scan images are not stored on our servers except (a)
-                a single image you opt to submit to the leaderboard, which
-                we retain for as long as the entry is active and delete
-                within thirty (30) days of removal, account deletion, or a
-                deletion request, and (b) the score breakdown of your
-                personal-best scan, which contains numeric outputs only
-                (no image). Battle-frame images are forwarded to the AI
-                model, scored, and discarded; we do not persist them. All
-                biometric identifiers will be permanently destroyed when
-                the initial purpose for collection has been satisfied,
-                or within three (3) years of your last interaction with
-                the Service, whichever occurs first.
+                If you are <span className="font-semibold">signed in</span>,
+                each face-scan image is archived to a private storage
+                bucket (
+                <code className="font-mono text-[12px]">holymog-scans</code>
+                ) and retained until: (a) you delete your account, (b)
+                you request individual deletion, or (c) three (3) years
+                after your last interaction with the Service —
+                whichever comes first. The bucket is{' '}
+                <span className="font-semibold">never publicly readable</span>
+                ; images are served only via short-lived authenticated
+                URLs after we verify ownership. The archive serves
+                three purposes: (i) so you can review your record-
+                scoring photo from your account; (ii) integrity review
+                of high-score submissions (see below); (iii) source-of-
+                truth if you later choose to publish a scan to the
+                public leaderboard. Public leaderboard photos (opt-in,
+                optional at every tier) are stored in a separate public
+                bucket and deleted within thirty (30) days of removal,
+                account deletion, or deletion request. Battle-frame
+                images are forwarded to the AI model, scored, and
+                discarded immediately; we do not persist them.
+                Anonymous (non-signed-in) scan images are not retained
+                at all. All biometric identifiers will be permanently
+                destroyed when the initial purpose for collection has
+                been satisfied, or per the retention schedule above.
+              </li>
+              <li>
+                <span className="font-semibold text-white/85">
+                  Top-score (≥ S-tier) review.
+                </span>{' '}
+                Scans whose overall score reaches{' '}
+                <span className="font-semibold">87 or above</span>{' '}
+                (S-tier and above) are flagged for human review. A
+                holymog operator inspects the saved image to verify it
+                plausibly belongs to the submitting account-holder
+                rather than being a celebrity photo, AI composite, or
+                other ineligible submission. Review is{' '}
+                <span className="font-semibold">verification only</span>
+                {' '}— it neither approves nor denies leaderboard
+                placement. Reviewers are bound by the same
+                confidentiality and use-limitation rules as the rest of
+                the Service and are forbidden from sharing or
+                redistributing reviewed images. By submitting a scan
+                that scores ≥ 87, you consent to this human review.
               </li>
               <li>
                 <span className="font-semibold text-white/85">
@@ -359,10 +391,10 @@ export default function TermsPage() {
               refer matters to law enforcement for any violation of this
               section. To report a violation, email{' '}
               <a
-                href="mailto:abuse@holymog.com"
+                href="mailto:safety@holymog.com"
                 className="font-medium text-white/85 underline-offset-4 hover:underline"
               >
-                abuse@holymog.com
+                safety@holymog.com
               </a>
               .
             </p>
@@ -444,10 +476,10 @@ export default function TermsPage() {
             <p className="mt-3">
               To report abuse during or after a battle, email{' '}
               <a
-                href="mailto:abuse@holymog.com"
+                href="mailto:safety@holymog.com"
                 className="font-medium text-white/85 underline-offset-4 hover:underline"
               >
-                abuse@holymog.com
+                safety@holymog.com
               </a>{' '}
               with the battle ID (visible in the result screen) and a
               brief description.
@@ -799,10 +831,10 @@ export default function TermsPage() {
               </a>
               . To report abuse or violations, email{' '}
               <a
-                href="mailto:abuse@holymog.com"
+                href="mailto:safety@holymog.com"
                 className="font-medium text-white underline-offset-4 hover:underline"
               >
-                abuse@holymog.com
+                safety@holymog.com
               </a>
               . For DMCA copyright notices, email{' '}
               <a

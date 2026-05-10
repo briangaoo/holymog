@@ -195,7 +195,15 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                   enabled={APPLE_ENABLED}
                   onClick={() => oauth('apple')}
                   variant="black"
-                  icon={<AppleLogo />}
+                  icon={
+                    <Image
+                      src="/apple-logo.png"
+                      alt=""
+                      width={20}
+                      height={24}
+                      className="h-5 w-auto object-contain"
+                    />
+                  }
                   label="continue with apple"
                 />
 
@@ -331,18 +339,3 @@ function ProviderButton({
   );
 }
 
-/** Apple brand mark, inline so we don't need an asset file. */
-function AppleLogo() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden
-      className="h-[18px] w-[18px]"
-    >
-      <path d="M17.05 20.28c-.98.95-2.05.94-3.08.43-1.09-.52-2.08-.53-3.2 0-1.39.66-2.13.47-3-.43-5-5.04-4.28-12.7 1.27-12.97 1.34.07 2.27.74 3.06.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.5 4.08zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-    </svg>
-  );
-}

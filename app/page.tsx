@@ -39,7 +39,7 @@ export default function HomePage() {
             <SpectralRim accent="rgba(16,185,129,0.95)" className="rounded-3xl">
               <ScanCard />
             </SpectralRim>
-            <SpectralRim accent="rgba(245,158,11,0.95)" className="rounded-3xl">
+            <SpectralRim accent="rgba(56,189,248,0.95)" className="rounded-3xl">
               <BattleCard />
             </SpectralRim>
           </div>
@@ -165,19 +165,19 @@ function BattleCard() {
       className="group relative flex min-h-[340px] flex-col overflow-hidden rounded-3xl border border-white/10 p-8 transition-all hover:border-white/25"
       style={{
         backgroundColor: '#0a0a0a',
-        // Amber rim — mog battles' official accent.
+        // Sky-blue rim — mog battles' official accent.
         boxShadow:
-          'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(245,158,11,0.22)',
+          'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(56,189,248,0.22)',
         touchAction: 'manipulation',
       }}
     >
-      {/* Off-frame amber radial — yellow-gold glow from the bottom-left. */}
+      {/* Off-frame sky radial — light-blue glow from the bottom-left. */}
       <span
         aria-hidden
         className="pointer-events-none absolute -bottom-24 -left-24 h-[26rem] w-[26rem] rounded-full blur-3xl"
         style={{
           background:
-            'radial-gradient(circle, rgba(245,158,11,0.95) 0%, rgba(234,179,8,0.45) 35%, transparent 65%)',
+            'radial-gradient(circle, rgba(56,189,248,0.95) 0%, rgba(14,165,233,0.45) 35%, transparent 65%)',
         }}
       />
       <span

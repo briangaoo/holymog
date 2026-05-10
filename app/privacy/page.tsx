@@ -135,26 +135,76 @@ export default function PrivacyPage() {
               While scanning, your camera frames are processed in your
               browser via MediaPipe FaceLandmarker, cropped to your face,
               downsized to 768 px max, and sent to our backend, which
-              forwards them to the Gemini AI service for scoring. We do
-              not retain these images on our servers unless: (a) you
-              explicitly submit them to the public leaderboard, or (b)
-              the scan beats your previous best, in which case the
-              resulting score breakdown (numeric outputs only, no image)
-              is saved to your profile.
+              forwards them to the Gemini AI service for scoring.
             </p>
 
             <p className="mt-2 font-semibold text-white/85">
-              Leaderboard photos
+              Saved scan archive (signed-in users)
             </p>
             <p>
-              If you opt to include a photo with your leaderboard
-              submission &mdash; or if your overall score is at or above
-              the S-tier threshold (≥ 87) where photo submission is
-              required for integrity review &mdash; that photo is
-              uploaded to our Supabase storage bucket and made publicly
-              accessible alongside your display name and score. You can
-              delete your leaderboard entry at any time, which removes
-              the photo from our storage.
+              If you are signed in, the resulting scan image is also
+              archived to a <span className="font-semibold">private
+              storage bucket</span> (
+              <code className="font-mono text-[12px]">holymog-scans</code>
+              ). Purposes:{' '}
+              <span className="font-semibold">(a)</span> so you can view
+              your record-scoring photo from your account at any time,
+              even if you don&apos;t share it publicly;{' '}
+              <span className="font-semibold">(b)</span> for integrity
+              review of high-score submissions (see below); and{' '}
+              <span className="font-semibold">(c)</span> as the source
+              of truth if you later opt to display a saved scan on the
+              public leaderboard. The bucket is{' '}
+              <span className="font-semibold">never publicly readable</span>
+              {' '}— images are served only via short-lived
+              authenticated URLs after we verify you own the scan or
+              are an authorised reviewer. You can delete your saved
+              scans at any time by deleting your account, or by
+              emailing{' '}
+              <a
+                href="mailto:hello@holymog.com"
+                className="text-white underline-offset-2 hover:underline"
+              >
+                hello@holymog.com
+              </a>{' '}
+              to request individual deletion.
+            </p>
+
+            <p className="mt-2 font-semibold text-white/85">
+              Anti-cheat review of high scores (≥ S-tier, 87+)
+            </p>
+            <p>
+              When a scan&apos;s overall score reaches{' '}
+              <span className="font-semibold">87 or above</span> (S-tier
+              and up), the saved image is flagged in our admin queue
+              and we receive a notification email containing a short-
+              lived signed link to the image. A human reviewer
+              <span className="font-semibold"> verifies legitimacy only</span>
+              {' '}— that the face plausibly belongs to the
+              account-holder rather than being a celebrity image, AI
+              composite, or other ineligible submission. The review
+              does <span className="font-semibold">not</span> approve or
+              deny placement on the leaderboard; it&apos;s purely a
+              top-of-board integrity check. Reviewers cannot share or
+              redistribute the image.
+            </p>
+
+            <p className="mt-2 font-semibold text-white/85">
+              Public leaderboard photo (optional, opt-in)
+            </p>
+            <p>
+              Whether to display your face on the public scan
+              leaderboard is{' '}
+              <span className="font-semibold">always optional</span>{' '}
+              — at every tier, including S+. If you opt in, a copy
+              of your scan image is published to a public storage bucket
+              alongside your display name and score. You can flip the{' '}
+              <span className="font-semibold">
+                &ldquo;hide my scan photo from the leaderboard&rdquo;
+              </span>{' '}
+              toggle in account → privacy at any time to suppress the
+              public copy (the private archive copy is unaffected).
+              Removing your leaderboard entry deletes the public copy.
             </p>
 
             <p className="mt-2 font-semibold text-white/85">Gameplay data</p>
@@ -905,10 +955,10 @@ export default function PrivacyPage() {
               </a>
               . To report abuse or violations, email{' '}
               <a
-                href="mailto:abuse@holymog.com"
+                href="mailto:safety@holymog.com"
                 className="font-medium text-white underline-offset-4 hover:underline"
               >
-                abuse@holymog.com
+                safety@holymog.com
               </a>
               .
             </p>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { generateBattleCode } from '@/lib/battle-code';
+import { isSubscriber } from '@/lib/subscription';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic';
 const MAX_CODE_ATTEMPTS = 5;
 // Postgres unique-violation code surfaced by pg
 const UNIQUE_VIOLATION = '23505';
+
+const MAX_PARTICIPANTS_FREE = 10;
+const MAX_PARTICIPANTS_SUB = 20;
 
 /**
  * POST /api/battle/create
@@ -37,6 +41,13 @@ export async function POST() {
     );
     const displayName = profileResult.rows[0]?.display_name ?? 'host';
 
+    // holymog+ subscribers can host parties up to 20 participants
+    // (vs 10 for free users).
+    const subscriber = await isSubscriber(user.id);
+    const maxParticipants = subscriber
+      ? MAX_PARTICIPANTS_SUB
+      : MAX_PARTICIPANTS_FREE;
+
     let battleId: string | null = null;
     let code: string | null = null;
     let livekitRoom: string | null = null;
@@ -50,10 +61,10 @@ export async function POST() {
           id: string;
           livekit_room: string;
         }>(
-          `insert into battles (kind, code, host_user_id, livekit_room, state)
-             values ('private', $1, $2, $3, 'lobby')
+          `insert into battles (kind, code, host_user_id, livekit_room, state, max_participants)
+             values ('private', $1, $2, $3, 'lobby', $4)
              returning id, livekit_room`,
-          [candidate, user.id, `private-${candidate}`],
+          [candidate, user.id, `private-${candidate}`, maxParticipants],
         );
         battleId = result.rows[0].id;
         code = candidate;

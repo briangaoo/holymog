@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Lock } from 'lucide-react';
 import { getScoreColor } from '@/lib/scoreColor';
 import type { VisionScore } from '@/types';
 
@@ -79,9 +79,14 @@ export type TokenSummary = {
 };
 
 type Props = {
-  vision: VisionScore;
+  vision?: VisionScore;
   presentation: number;
   tokens?: TokenSummary;
+  /** When false, the breakdown is hidden behind a sign-in CTA. The full vision
+   *  payload is also stripped server-side for unauthenticated users — this is
+   *  defense-in-depth so a stale cache or tampered state can't leak fields. */
+  signedIn: boolean;
+  onSignIn?: () => void;
 };
 
 // Gemini 2.5 Flash Lite pricing: $0.10 / 1M input, $0.40 / 1M output.
@@ -98,8 +103,12 @@ function formatCost(input: number, output: number): string {
   return `$${dollars.toFixed(4)}`;
 }
 
-export function MoreDetail({ vision, presentation, tokens }: Props) {
+export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }: Props) {
   const [open, setOpen] = useState(false);
+
+  if (!signedIn || !vision) {
+    return <MoreDetailLocked onSignIn={onSignIn} />;
+  }
 
   return (
     <div className="w-full">
@@ -203,6 +212,63 @@ export function MoreDetail({ vision, presentation, tokens }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function MoreDetailLocked({ onSignIn }: { onSignIn?: () => void }) {
+  return (
+    <div className="w-full pt-2">
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        {/* Decorative blurred placeholder rows so the locked card feels like
+            content sitting behind frosted glass, not an empty box. */}
+        <div
+          aria-hidden
+          className="pointer-events-none select-none space-y-2 opacity-40 blur-md"
+        >
+          {[
+            ['jawline', 78],
+            ['eyes', 64],
+            ['skin', 71],
+            ['cheekbones', 82],
+            ['hair', 59],
+            ['symmetry', 73],
+          ].map(([label, value]) => (
+            <div
+              key={label as string}
+              className="flex items-center justify-between text-[13px]"
+            >
+              <span className="text-zinc-300">{label as string}</span>
+              <span className="font-num font-semibold tabular-nums text-zinc-200">
+                {value as number}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 px-6 text-center backdrop-blur-[2px]">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/[0.06]">
+            <Lock size={14} className="text-zinc-200" aria-hidden />
+          </span>
+          <p className="text-sm font-semibold text-white">
+            full breakdown is for accounts
+          </p>
+          <p className="max-w-[260px] text-[11px] leading-relaxed text-zinc-400">
+            sign in to see all 30 fields, save your best scan, and get 10
+            scans / day
+          </p>
+          {onSignIn && (
+            <button
+              type="button"
+              onClick={onSignIn}
+              style={{ touchAction: 'manipulation' }}
+              className="mt-1 rounded-full bg-white px-4 py-2 text-xs font-semibold text-black transition-colors hover:bg-zinc-100"
+            >
+              sign in / sign up
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

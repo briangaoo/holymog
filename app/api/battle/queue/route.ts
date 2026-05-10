@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
+import {
+  checkAchievements,
+  type AchievementGrant,
+} from '@/lib/achievements';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -59,10 +63,22 @@ export async function POST() {
     );
     const battleId = pairResult.rows[0]?.battle_id ?? null;
 
-    if (battleId) {
-      return NextResponse.json({ battle_id: battleId, paired: true });
+    // Achievement firing — first queue grants `theme.match-found`.
+    let grants: AchievementGrant[] = [];
+    try {
+      grants = await checkAchievements(user.id, { battleQueued: true });
+    } catch {
+      // Best-effort.
     }
-    return NextResponse.json({ queued: true });
+
+    if (battleId) {
+      return NextResponse.json({
+        battle_id: battleId,
+        paired: true,
+        achievements: grants,
+      });
+    }
+    return NextResponse.json({ queued: true, achievements: grants });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'queue_failed' },

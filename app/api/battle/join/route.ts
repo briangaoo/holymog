@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { isValidBattleCode, normaliseBattleCode } from '@/lib/battle-code';
 import { broadcastBattleEvent } from '@/lib/realtime';
+import { getRatelimit } from '@/lib/ratelimit';
+import { readClientIp } from '@/lib/scanLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +24,18 @@ export async function POST(request: Request) {
   const user = session?.user;
   if (!user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+
+  // Block code-enumeration: 32^6 codes total, plenty of headroom past
+  // legitimate use, but tight enough that brute-force is infeasible.
+  // Keyed by user.id and IP both — a single user can't burn the bucket
+  // with multiple IPs, and a botnet can't share one user.
+  const limiter = getRatelimit('battleJoin');
+  if (limiter) {
+    const result = await limiter.limit(`${user.id}:${readClientIp(request)}`);
+    if (!result.success) {
+      return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+    }
   }
 
   let body: Body;

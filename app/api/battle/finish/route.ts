@@ -3,6 +3,10 @@ import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { broadcastBattleEvent } from '@/lib/realtime';
 import { computeElo } from '@/lib/elo';
+import {
+  checkAchievements,
+  type AchievementGrant,
+} from '@/lib/achievements';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -182,8 +186,10 @@ export async function POST(request: Request) {
         const elo = computeElo({
           winnerElo: winnerProfile.elo,
           winnerMatches: winnerProfile.matches_played,
+          winnerScore: participants[0].peak_score,
           loserElo: loserProfile.elo,
           loserMatches: loserProfile.matches_played,
+          loserScore: participants[1].peak_score,
         });
 
         // Winner: bump streak, peak_elo, matches_won.
@@ -224,6 +230,24 @@ export async function POST(request: Request) {
             delta: elo.loserDelta,
           },
         ];
+
+        // Snapshot the post-battle ELO + delta + battle_id for both
+        // players. The sparkline reads `elo`; the "biggest swings"
+        // panel reads `delta` joined back to `battles` for opponent
+        // attribution.
+        await client.query(
+          `insert into elo_history (user_id, elo, delta, battle_id)
+             values ($1, $2, $3, $5), ($4, $6, $7, $5)`,
+          [
+            winnerId,
+            elo.newWinnerElo,
+            elo.winnerDelta,
+            loserId,
+            battleId,
+            elo.newLoserElo,
+            elo.loserDelta,
+          ],
+        );
       }
     }
 
@@ -255,7 +279,36 @@ export async function POST(request: Request) {
     };
     void broadcastBattleEvent(battleId, 'battle.finished', payload);
 
-    return NextResponse.json({ result: payload });
+    // Achievement firing — only for the caller (we'll toast them
+    // client-side). Other participants pick up grants on their next
+    // request that fires through checkAchievements.
+    let grants: AchievementGrant[] = [];
+    try {
+      const callerStats = await pool.query<{
+        matches_won: number;
+        elo: number;
+        current_streak: number;
+      }>(
+        `select matches_won, elo, current_streak from profiles where user_id = $1 limit 1`,
+        [user.id],
+      );
+      const s = callerStats.rows[0];
+      if (s) {
+        // currentWinStreak = current_streak (same field; consecutive wins).
+        // eloGainedFromBase computed against the 1000 starting ELO.
+        grants = await checkAchievements(user.id, {
+          matchesWon: s.matches_won,
+          elo: s.elo,
+          eloGainedFromBase: s.elo - 1000,
+          currentStreak: s.current_streak,
+          currentWinStreak: s.current_streak,
+        });
+      }
+    } catch {
+      // Best-effort.
+    }
+
+    return NextResponse.json({ result: payload, achievements: grants });
   } catch (err) {
     await client.query('rollback').catch(() => {});
     return NextResponse.json(

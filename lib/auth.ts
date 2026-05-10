@@ -6,6 +6,7 @@ import Nodemailer from 'next-auth/providers/nodemailer';
 import Resend from 'next-auth/providers/resend';
 import PostgresAdapter from '@auth/pg-adapter';
 import { getPool } from './db';
+import { magicLinkEmail } from './auth-email';
 
 const MAX_NAME_LEN = 24;
 
@@ -64,7 +65,15 @@ export const EMAIL_PROVIDER_ID: 'nodemailer' | 'resend' = useGmailSmtp
   ? 'nodemailer'
   : 'resend';
 
+// Both email providers run the same custom HTML template (lib/auth-email.ts):
+//   - Nodemailer (Gmail SMTP) gets a `sendVerificationRequest` that calls
+//     a fresh transporter and sends the rendered html/text directly.
+//   - Resend gets a `sendVerificationRequest` that POSTs to the Resend
+//     REST API with the same payload.
+// Keeping the template in one place means the email looks identical
+// regardless of which provider is live.
 if (useGmailSmtp) {
+  const fromAddress = process.env.EMAIL_FROM ?? 'auth@holymog.com';
   providers.push(
     Nodemailer({
       server: {
@@ -76,14 +85,69 @@ if (useGmailSmtp) {
           pass: process.env.EMAIL_SERVER_PASSWORD,
         },
       },
-      from: process.env.EMAIL_FROM ?? 'auth@holymog.com',
+      from: fromAddress,
+      async sendVerificationRequest({ identifier, url }) {
+        const { subject, html, text } = magicLinkEmail({
+          url,
+          recipient: identifier,
+        });
+        const nodemailer = await import('nodemailer');
+        const transport = nodemailer.createTransport({
+          host: process.env.EMAIL_SERVER_HOST ?? 'smtp.gmail.com',
+          port: Number(process.env.EMAIL_SERVER_PORT ?? 465),
+          secure: Number(process.env.EMAIL_SERVER_PORT ?? 465) === 465,
+          auth: {
+            user: process.env.EMAIL_SERVER_USER,
+            pass: process.env.EMAIL_SERVER_PASSWORD,
+          },
+        });
+        const result = await transport.sendMail({
+          to: identifier,
+          from: fromAddress,
+          subject,
+          html,
+          text,
+        });
+        const failed = result.rejected
+          .concat(result.pending ?? [])
+          .filter(Boolean);
+        if (failed.length) {
+          throw new Error(`SMTP send failed for ${failed.join(', ')}`);
+        }
+      },
     }),
   );
 } else if (process.env.AUTH_RESEND_KEY) {
+  const apiKey = process.env.AUTH_RESEND_KEY;
+  const fromAddress = process.env.AUTH_RESEND_FROM ?? 'auth@holymog.com';
   providers.push(
     Resend({
-      apiKey: process.env.AUTH_RESEND_KEY,
-      from: process.env.AUTH_RESEND_FROM ?? 'auth@holymog.com',
+      apiKey,
+      from: fromAddress,
+      async sendVerificationRequest({ identifier, url }) {
+        const { subject, html, text } = magicLinkEmail({
+          url,
+          recipient: identifier,
+        });
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: fromAddress,
+            to: identifier,
+            subject,
+            html,
+            text,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          throw new Error(`Resend send failed: ${res.status} ${body.slice(0, 200)}`);
+        }
+      },
     }),
   );
 }

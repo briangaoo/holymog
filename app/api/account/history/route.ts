@@ -17,16 +17,20 @@ type HistoryRow = {
 };
 
 /**
- * GET /api/account/history?page=N
+ * GET /api/account/history
  *
- * Paginated list of finished battles for the signed-in user. Each row
- * includes the battle kind, finish time, the user's own peak/win flag,
- * and a snapshot of every other participant's display name + peak so
- * the UI can render "you vs <opponent> · 84 → win" lines.
+ * Query params:
+ *   - page=N (default 1)
+ *   - kind=public|private (optional filter)
+ *   - result=won|lost (optional filter)
+ *   - opponent=string (optional — case-insensitive prefix match on
+ *     any participant's display_name in battles the user was in)
  *
- * Ordering: most recent first (finished_at desc, joined_at desc as
- * tiebreak so unfinished/abandoned rows still surface in a deterministic
- * order). Only kind in ('public','private') with state='finished'.
+ * Each row includes the user's own peak/win flag plus a snapshot of
+ * every other participant's display name + peak. The response also
+ * carries a `summary` block (count, won, win_rate, peak) computed
+ * over the full filtered set so the UI can render header chips
+ * without a second round-trip.
  */
 export async function GET(request: Request) {
   const session = await auth();
@@ -41,9 +45,48 @@ export async function GET(request: Request) {
     Number.isFinite(pageParam) && pageParam >= 1 ? Math.floor(pageParam) : 1;
   const offset = (page - 1) * PAGE_SIZE;
 
+  const kindFilter = searchParams.get('kind');
+  const kind =
+    kindFilter === 'public' || kindFilter === 'private' ? kindFilter : null;
+
+  const resultFilter = searchParams.get('result');
+  const result =
+    resultFilter === 'won' || resultFilter === 'lost' ? resultFilter : null;
+
+  const opponentRaw = searchParams.get('opponent') ?? '';
+  const opponent = opponentRaw.trim().toLowerCase().slice(0, 24);
+
   const pool = getPool();
 
-  // 1) Pull this user's recent finished battles.
+  // Build the WHERE clause incrementally. All filters AND together.
+  const whereParts: string[] = [`p.user_id = $1`, `b.state = 'finished'`];
+  const params: unknown[] = [user.id];
+  let i = 2;
+
+  if (kind) {
+    whereParts.push(`b.kind = $${i++}`);
+    params.push(kind);
+  }
+  if (result) {
+    whereParts.push(`p.is_winner = $${i++}`);
+    params.push(result === 'won');
+  }
+  if (opponent) {
+    whereParts.push(
+      `exists (
+         select 1 from battle_participants op
+          where op.battle_id = b.id
+            and op.user_id <> $1
+            and op.display_name ilike $${i}
+       )`,
+    );
+    params.push(`${opponent}%`);
+    i++;
+  }
+  const whereSql = whereParts.join(' and ');
+
+  // 1) Page of matching battles.
+  const myRowsParams = [...params, PAGE_SIZE, offset];
   const myRows = await pool.query<{
     battle_id: string;
     kind: 'public' | 'private';
@@ -56,17 +99,50 @@ export async function GET(request: Request) {
             p.is_winner, p.peak_score, p.joined_at
        from battle_participants p
        join battles b on b.id = p.battle_id
-      where p.user_id = $1 and b.state = 'finished'
+      where ${whereSql}
       order by b.finished_at desc nulls last, p.joined_at desc
-      limit $2 offset $3`,
-    [user.id, PAGE_SIZE, offset],
+      limit $${i} offset $${i + 1}`,
+    myRowsParams,
   );
 
+  // 2) Summary over the full filtered set (not just this page). Cheap
+  // when the set is small; for large histories this is still a single
+  // count query so well-indexed.
+  const summaryResult = await pool.query<{
+    total: number;
+    won: number;
+    peak: number | null;
+  }>(
+    `select count(*)::int as total,
+            count(*) filter (where p.is_winner)::int as won,
+            max(p.peak_score)::int as peak
+       from battle_participants p
+       join battles b on b.id = p.battle_id
+      where ${whereSql}`,
+    params,
+  );
+  const summaryRow = summaryResult.rows[0] ?? { total: 0, won: 0, peak: null };
+  const summary = {
+    total: summaryRow.total,
+    won: summaryRow.won,
+    lost: summaryRow.total - summaryRow.won,
+    win_rate:
+      summaryRow.total > 0
+        ? Math.round((summaryRow.won / summaryRow.total) * 100)
+        : null,
+    peak: summaryRow.peak,
+  };
+
   if (myRows.rows.length === 0) {
-    return NextResponse.json({ entries: [], hasMore: false, page });
+    return NextResponse.json({
+      entries: [],
+      hasMore: false,
+      page,
+      summary,
+    });
   }
 
-  // 2) Fetch every OTHER participant for those battles in one shot.
+  // 3) Opponent snapshots for the page's battles, batched.
   const battleIds = myRows.rows.map((r) => r.battle_id);
   const opponents = await pool.query<{
     battle_id: string;
@@ -107,5 +183,6 @@ export async function GET(request: Request) {
     entries,
     hasMore: entries.length === PAGE_SIZE,
     page,
+    summary,
   });
 }

@@ -1,12 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import {
+  Activity,
+  Crown,
+  Image as ImageIcon,
+  LineChart,
+  Sparkles,
+  Swords,
+  Trophy,
+  TrendingDown,
+  TrendingUp,
+  User,
+  Zap,
+} from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 import { getTier, getTierDescriptor } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import { computePresentation } from '@/lib/scoreEngine';
 import { MoreDetail } from './MoreDetail';
+import { Sparkline } from './Sparkline';
+import { Section } from './account/settings/shared';
 import type { FinalScores, VisionScore } from '@/types';
 
 type Profile = {
@@ -20,9 +34,30 @@ type Profile = {
   best_scan_overall: number | null;
   best_scan: { vision: VisionScore; scores: FinalScores } | null;
   improvement_counts: Record<string, number>;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-type AccountResponse = { profile: Profile | null };
+type EloPoint = { elo: number; recorded_at: string };
+type SwingEntry = {
+  delta: number;
+  opponent_display_name: string | null;
+  finished_at: string | null;
+};
+
+type AccountResponse = {
+  profile: Profile | null;
+  entry?: { image_url?: string | null } | null;
+  total_scans?: number;
+  account_age_days?: number;
+  highest_overall_ever?: number | null;
+  elo_sparkline?: EloPoint[];
+  most_improved?: { metric: string; delta: number } | null;
+  recent_battle_results?: boolean[];
+  biggest_win?: SwingEntry | null;
+  biggest_loss?: SwingEntry | null;
+  scan_overalls?: number[];
+};
 
 const IMPROVEMENT_KEYS = [
   'jawline',
@@ -33,12 +68,63 @@ const IMPROVEMENT_KEYS = [
   'hair',
 ] as const;
 
-export function AccountStatsTab() {
+const TIER_BANDS: Array<{ letter: string; min: number }> = [
+  { letter: 'S+', min: 95 },
+  { letter: 'S', min: 90 },
+  { letter: 'S-', min: 87 },
+  { letter: 'A', min: 73 },
+  { letter: 'B', min: 58 },
+  { letter: 'C', min: 43 },
+  { letter: 'D', min: 28 },
+  { letter: 'F', min: 0 },
+];
+
+/**
+ * Stats tab — section-card layout matching the new settings vibe:
+ * Discord-style accent colours per section, sentence-case headers,
+ * larger fonts, hover micro-states on rows.
+ *
+ * Sections (top → bottom): identity, multiplayer, recent battles,
+ * biggest swings, best scan, scan distribution, weakness frequency,
+ * most-improved (when there's enough scan history).
+ */
+export function AccountStatsTab({
+  initial,
+}: {
+  initial?: AccountResponse | null;
+}) {
   const { user } = useUser();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(
+    initial?.profile ?? null,
+  );
+  const [leaderboardPhoto, setLeaderboardPhoto] = useState<string | null>(
+    initial?.entry?.image_url ?? null,
+  );
+  const [aggregates, setAggregates] = useState<{
+    total_scans: number;
+    account_age_days: number;
+    highest_overall_ever: number | null;
+    elo_sparkline: EloPoint[];
+    most_improved: { metric: string; delta: number } | null;
+    recent_battle_results: boolean[];
+    biggest_win: SwingEntry | null;
+    biggest_loss: SwingEntry | null;
+    scan_overalls: number[];
+  }>({
+    total_scans: initial?.total_scans ?? 0,
+    account_age_days: initial?.account_age_days ?? 0,
+    highest_overall_ever: initial?.highest_overall_ever ?? null,
+    elo_sparkline: initial?.elo_sparkline ?? [],
+    most_improved: initial?.most_improved ?? null,
+    recent_battle_results: initial?.recent_battle_results ?? [],
+    biggest_win: initial?.biggest_win ?? null,
+    biggest_loss: initial?.biggest_loss ?? null,
+    scan_overalls: initial?.scan_overalls ?? [],
+  });
+  const [loaded, setLoaded] = useState(initial != null);
 
   useEffect(() => {
+    if (initial != null) return;
     if (!user) return;
     let cancelled = false;
     (async () => {
@@ -48,6 +134,18 @@ export function AccountStatsTab() {
         const data = (await res.json()) as AccountResponse;
         if (cancelled) return;
         setProfile(data.profile);
+        setLeaderboardPhoto(data.entry?.image_url ?? null);
+        setAggregates({
+          total_scans: data.total_scans ?? 0,
+          account_age_days: data.account_age_days ?? 0,
+          highest_overall_ever: data.highest_overall_ever ?? null,
+          elo_sparkline: data.elo_sparkline ?? [],
+          most_improved: data.most_improved ?? null,
+          recent_battle_results: data.recent_battle_results ?? [],
+          biggest_win: data.biggest_win ?? null,
+          biggest_loss: data.biggest_loss ?? null,
+          scan_overalls: data.scan_overalls ?? [],
+        });
       } finally {
         if (!cancelled) setLoaded(true);
       }
@@ -55,193 +153,17 @@ export function AccountStatsTab() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!user) return <p className="text-sm text-zinc-500">not signed in</p>;
-  if (!loaded) return <p className="text-sm text-zinc-500">loading…</p>;
+  if (!user || !loaded) return null;
   if (!profile) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-center text-sm text-zinc-400">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center text-sm text-zinc-400">
         could not load profile
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <IdentityHero profile={profile} />
-      <BestScanHero
-        overall={profile.best_scan_overall}
-        bestScan={profile.best_scan}
-      />
-      <MultiplayerOverview profile={profile} />
-      <ImprovementChart counts={profile.improvement_counts} />
-    </div>
-  );
-}
-
-// ---- Identity hero ---------------------------------------------------------
-
-function IdentityHero({ profile }: { profile: Profile }) {
-  const tier = profile.best_scan_overall !== null
-    ? getTier(profile.best_scan_overall)
-    : null;
-  const descriptor = tier ? getTierDescriptor(tier.letter) : null;
-
-  return (
-    <FadeIn delay={0}>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 p-6">
-        <BackgroundGlass color="rgba(168,85,247,0.55)" />
-        <div className="relative flex flex-col gap-1">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-white/55">
-            you
-          </div>
-          <h2 className="text-3xl font-bold leading-tight text-white">
-            {profile.display_name}
-          </h2>
-          {descriptor && (
-            <div className="mt-1 text-sm text-white/65">
-              <span className="font-semibold">{descriptor}</span>
-              {tier && (
-                <span className="ml-2 inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.18em] text-white/40">
-                  tier
-                  <span
-                    className="font-num font-extrabold normal-case"
-                    style={tierLetterStyle(tier)}
-                  >
-                    {tier.letter}
-                  </span>
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-    </FadeIn>
-  );
-}
-
-// ---- Best scan hero --------------------------------------------------------
-
-function BestScanHero({
-  overall,
-  bestScan,
-}: {
-  overall: number | null;
-  bestScan: { vision: VisionScore; scores: FinalScores } | null;
-}) {
-  if (overall === null || !bestScan) return <NoBestScanCard />;
-
-  const tier = getTier(overall);
-  const color = getScoreColor(overall);
-  const descriptor = getTierDescriptor(tier.letter);
-  const presentation =
-    bestScan.scores.presentation ?? computePresentation(bestScan.vision);
-
-  // Five composite bars in fixed display order, sized 0..100.
-  const composites: Array<{ label: string; value: number }> = [
-    { label: 'jawline', value: bestScan.scores.sub?.jawline ?? 0 },
-    { label: 'eyes', value: bestScan.scores.sub?.eyes ?? 0 },
-    { label: 'skin', value: bestScan.scores.sub?.skin ?? 0 },
-    { label: 'cheekbones', value: bestScan.scores.sub?.cheekbones ?? 0 },
-    { label: 'presentation', value: presentation },
-  ];
-
-  return (
-    <FadeIn delay={0.05}>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 p-6">
-        <BackgroundGlass
-          color={tier.isGradient ? 'rgba(168,85,247,0.65)' : `${color}aa`}
-        />
-
-        <div className="relative flex flex-col gap-5">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-white/55">
-            best scan
-          </div>
-
-          {/* Score row: tier letter, number, descriptor */}
-          <div className="flex items-end gap-4">
-            <span
-              className="font-num text-7xl font-extrabold leading-none tabular-nums"
-              style={tierLetterStyle(tier)}
-            >
-              {tier.letter}
-            </span>
-            <div className="flex flex-col">
-              <span
-                className="font-num text-5xl font-extrabold leading-none tabular-nums"
-                style={{ color, textShadow: `0 0 28px ${color}55` }}
-              >
-                {overall}
-              </span>
-              <span className="mt-1 text-sm text-white/65">{descriptor}</span>
-            </div>
-          </div>
-
-          {/* Composite bars */}
-          <div className="flex flex-col gap-2">
-            {composites.map((c) => (
-              <CompositeBar key={c.label} label={c.label} value={c.value} />
-            ))}
-          </div>
-
-          {/* All-30 detail collapsible */}
-          <MoreDetail vision={bestScan.vision} presentation={presentation} />
-        </div>
-      </section>
-    </FadeIn>
-  );
-}
-
-function CompositeBar({ label, value }: { label: string; value: number }) {
-  const color = getScoreColor(value);
-  const pct = Math.max(0, Math.min(100, value));
-
-  return (
-    <div className="flex items-center gap-3">
-      <span className="w-24 flex-shrink-0 text-[11px] uppercase tracking-[0.16em] text-white/55">
-        {label}
-      </span>
-      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{ backgroundColor: color, boxShadow: `0 0 14px ${color}66` }}
-        />
-      </div>
-      <span
-        className="font-num w-10 text-right text-sm font-bold tabular-nums"
-        style={{ color }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function NoBestScanCard() {
-  return (
-    <FadeIn delay={0.05}>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 p-8 text-center">
-        <BackgroundGlass color="rgba(255,255,255,0.18)" />
-        <div className="relative flex flex-col items-center gap-2">
-          <div className="text-3xl">📸</div>
-          <p className="text-sm text-white">no scan on record</p>
-          <p className="text-xs leading-relaxed text-white/55">
-            scan once while signed in and your best result lands here with the full
-            30-field breakdown.
-          </p>
-        </div>
-      </section>
-    </FadeIn>
-  );
-}
-
-// ---- Multiplayer overview --------------------------------------------------
-
-function MultiplayerOverview({ profile }: { profile: Profile }) {
   const losses = profile.matches_played - profile.matches_won;
   const winRate =
     profile.matches_played > 0
@@ -250,250 +172,667 @@ function MultiplayerOverview({ profile }: { profile: Profile }) {
   const eloDelta = profile.elo - profile.peak_elo;
 
   return (
-    <FadeIn delay={0.1}>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 p-6">
-        <BackgroundGlass color="rgba(34,211,238,0.45)" />
-
-        <div className="relative flex flex-col gap-4">
-          <div className="flex items-baseline justify-between">
-            <h3 className="text-[10px] uppercase tracking-[0.18em] text-white/55">
-              multiplayer
-            </h3>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">
-              {profile.matches_played} battle
-              {profile.matches_played === 1 ? '' : 's'}
-            </div>
-          </div>
-
-          {/* Big ELO display */}
-          <div className="flex items-end gap-3">
-            <span className="font-num text-6xl font-extrabold leading-none tabular-nums text-white">
-              {profile.elo}
-            </span>
-            <div className="flex flex-col leading-tight">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-white/45">
-                ELO
-              </span>
-              <span className="text-[11px] text-white/55">
-                peak <span className="font-semibold">{profile.peak_elo}</span>
-                {eloDelta < 0 && (
-                  <span className="ml-1 text-amber-300/80">{eloDelta}</span>
-                )}
-              </span>
-            </div>
-          </div>
-
-          {/* 3-cell stat row */}
-          <div className="grid grid-cols-3 gap-2">
-            <StatCell
-              label="record"
-              value={`${profile.matches_won}–${losses}`}
-              sub={
-                winRate !== null
-                  ? `${winRate}% wr`
-                  : profile.matches_played === 0
-                    ? 'unranked'
-                    : null
-              }
-            />
-            <StatCell
-              label="streak"
-              value={profile.current_streak.toString()}
-              sub={`peak ${profile.longest_streak}`}
-              accent={profile.current_streak >= 3 ? '#10b981' : undefined}
-            />
-            <StatCell
-              label="win rate"
-              value={winRate !== null ? `${winRate}%` : '—'}
-              sub={
-                winRate !== null
-                  ? winRate >= 60
-                    ? 'mogger'
-                    : winRate >= 40
-                      ? 'fair'
-                      : 'rough'
-                  : null
-              }
-              accent={
-                winRate !== null
-                  ? winRate >= 60
-                    ? '#10b981'
-                    : winRate >= 40
-                      ? '#f59e0b'
-                      : '#ef4444'
-                  : undefined
-              }
-            />
-          </div>
-        </div>
-      </section>
-    </FadeIn>
-  );
-}
-
-function StatCell({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string | null;
-  accent?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5 rounded-xl border border-white/10 bg-black/30 p-3 backdrop-blur">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">
-        {label}
-      </div>
-      <div
-        className="font-num text-xl font-extrabold tabular-nums leading-none"
-        style={{ color: accent ?? '#ffffff' }}
-      >
-        {value}
-      </div>
-      {sub && <div className="text-[10px] text-white/45">{sub}</div>}
+    <div className="flex flex-col gap-5">
+      <IdentitySection
+        profile={profile}
+        accountAgeDays={aggregates.account_age_days}
+        totalScans={aggregates.total_scans}
+        highestOverallEver={aggregates.highest_overall_ever}
+      />
+      <MultiplayerSection
+        elo={profile.elo}
+        peakElo={profile.peak_elo}
+        eloDelta={eloDelta}
+        wins={profile.matches_won}
+        losses={losses}
+        winRate={winRate}
+        played={profile.matches_played}
+        currentStreak={profile.current_streak}
+        longestStreak={profile.longest_streak}
+        sparklinePoints={aggregates.elo_sparkline.map((p) => p.elo)}
+      />
+      {aggregates.recent_battle_results.length > 0 && (
+        <RecentBattlesSection results={aggregates.recent_battle_results} />
+      )}
+      {(aggregates.biggest_win || aggregates.biggest_loss) && (
+        <BiggestSwingsSection
+          win={aggregates.biggest_win}
+          loss={aggregates.biggest_loss}
+        />
+      )}
+      <BestScanSection
+        overall={profile.best_scan_overall}
+        bestScan={profile.best_scan}
+        leaderboardPhoto={leaderboardPhoto}
+      />
+      {aggregates.scan_overalls.length > 0 && (
+        <TierDistributionSection scans={aggregates.scan_overalls} />
+      )}
+      <WeaknessSection counts={profile.improvement_counts} />
+      {aggregates.most_improved && (
+        <MostImprovedSection most={aggregates.most_improved} />
+      )}
     </div>
   );
 }
 
-// ---- Improvement chart -----------------------------------------------------
+// ---- Identity ------------------------------------------------------------
 
-function ImprovementChart({ counts }: { counts: Record<string, number> }) {
-  const rows = useMemo(() => {
-    const max = Math.max(
-      0,
-      ...IMPROVEMENT_KEYS.map((k) => Number(counts?.[k] ?? 0)),
-    );
-    return IMPROVEMENT_KEYS.map((label) => {
-      const count = Number(counts?.[label] ?? 0);
-      return {
-        label,
-        count,
-        pct: max > 0 ? (count / max) * 100 : 0,
-        isTop: max > 0 && count === max,
-      };
-    });
-  }, [counts]);
-
-  const total = rows.reduce((acc, r) => acc + r.count, 0);
-
-  return (
-    <FadeIn delay={0.15}>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 p-6">
-        <BackgroundGlass color="rgba(245,158,11,0.45)" />
-
-        <div className="relative flex flex-col gap-4">
-          <div className="flex items-baseline justify-between">
-            <h3 className="text-[10px] uppercase tracking-[0.18em] text-white/55">
-              most-called weaknesses
-            </h3>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">
-              {total} call{total === 1 ? '' : 's'}
-            </div>
-          </div>
-
-          {total === 0 ? (
-            <p className="text-xs leading-relaxed text-white/55">
-              what the model thinks needs the most work — populated as you battle.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {rows.map((r) => (
-                <div key={r.label} className="flex items-center gap-3">
-                  <span
-                    className={`w-24 flex-shrink-0 text-[11px] uppercase tracking-[0.16em] ${
-                      r.isTop ? 'text-amber-300' : 'text-white/55'
-                    }`}
-                  >
-                    {r.label}
-                  </span>
-                  <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${r.pct}%` }}
-                      transition={{
-                        duration: 0.8,
-                        ease: [0.22, 1, 0.36, 1],
-                        delay: 0.2,
-                      }}
-                      className="absolute inset-y-0 left-0 rounded-full"
-                      style={{
-                        backgroundColor: r.isTop ? '#f59e0b' : 'rgba(255,255,255,0.55)',
-                        boxShadow: r.isTop ? '0 0 14px #f59e0b66' : undefined,
-                      }}
-                    />
-                  </div>
-                  <span
-                    className={`font-num w-8 text-right text-sm font-bold tabular-nums ${
-                      r.isTop ? 'text-amber-300' : 'text-white/70'
-                    }`}
-                  >
-                    {r.count}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-    </FadeIn>
-  );
-}
-
-// ---- Shared visuals --------------------------------------------------------
-
-function BackgroundGlass({ color }: { color: string }) {
-  // Same dark+frosted+single-radial treatment as the home cards.
-  return (
-    <>
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ backgroundColor: '#0a0a0a' }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-24 -top-24 h-[22rem] w-[22rem] rounded-full blur-3xl"
-        style={{
-          background: `radial-gradient(circle, ${color} 0%, transparent 65%)`,
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 backdrop-blur-2xl"
-        style={{ backgroundColor: 'rgba(255,255,255,0.025)' }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 35%)',
-        }}
-      />
-    </>
-  );
-}
-
-function FadeIn({
-  children,
-  delay = 0,
+function IdentitySection({
+  profile,
+  accountAgeDays,
+  totalScans,
+  highestOverallEver,
 }: {
-  children: React.ReactNode;
-  delay?: number;
+  profile: Profile;
+  accountAgeDays: number;
+  totalScans: number;
+  highestOverallEver: number | null;
+}) {
+  const tier =
+    profile.best_scan_overall !== null ? getTier(profile.best_scan_overall) : null;
+  const descriptor = tier ? getTierDescriptor(tier.letter) : null;
+  const highestTier =
+    highestOverallEver !== null ? getTier(highestOverallEver) : null;
+
+  return (
+    <Section
+      label="identity"
+      description={`${profile.display_name} · ${formatAgeDays(accountAgeDays)} on holymog`}
+      icon={User}
+      accent="sky"
+    >
+      <Row label="username" value={profile.display_name} />
+      {tier && (
+        <Row
+          label="current tier"
+          value={
+            <span className="inline-flex items-center gap-2">
+              <span
+                className="font-num text-base font-bold"
+                style={tierLetterStyle(tier)}
+              >
+                {tier.letter}
+              </span>
+              {descriptor && (
+                <span className="text-[12px] text-zinc-500">{descriptor}</span>
+              )}
+            </span>
+          }
+        />
+      )}
+      {highestOverallEver !== null && highestTier && (
+        <Row
+          label="highest score ever"
+          value={
+            <span className="inline-flex items-center gap-2">
+              <span
+                className="font-num text-base font-semibold tabular-nums"
+                style={{ color: getScoreColor(highestOverallEver) }}
+              >
+                {highestOverallEver}
+              </span>
+              <span
+                className="font-num text-base font-bold"
+                style={tierLetterStyle(highestTier)}
+              >
+                {highestTier.letter}
+              </span>
+            </span>
+          }
+        />
+      )}
+      <Row
+        label="lifetime"
+        value={
+          <span className="font-num tabular-nums text-[13px] text-zinc-200">
+            {totalScans} scan{totalScans === 1 ? '' : 's'}
+            <span className="mx-1.5 text-zinc-600">·</span>
+            {profile.matches_played} battle{profile.matches_played === 1 ? '' : 's'}
+          </span>
+        }
+      />
+    </Section>
+  );
+}
+
+// ---- Multiplayer ---------------------------------------------------------
+
+function MultiplayerSection(props: {
+  elo: number;
+  peakElo: number;
+  eloDelta: number;
+  wins: number;
+  losses: number;
+  winRate: number | null;
+  played: number;
+  currentStreak: number;
+  longestStreak: number;
+  sparklinePoints: number[];
+}) {
+  const {
+    elo,
+    peakElo,
+    eloDelta,
+    wins,
+    losses,
+    winRate,
+    played,
+    currentStreak,
+    longestStreak,
+    sparklinePoints,
+  } = props;
+
+  return (
+    <Section
+      label="multiplayer"
+      description="how you rank in mog battles."
+      icon={Swords}
+      accent="rose"
+    >
+      <Row
+        label="elo"
+        value={
+          <span className="flex items-center gap-2">
+            <span className="font-num text-lg font-semibold tabular-nums text-white">
+              {elo}
+            </span>
+            <span className="font-num text-[12px] text-zinc-500 tabular-nums">
+              peak {peakElo}
+              {eloDelta < 0 && (
+                <span className="ml-1 text-rose-400/80">{eloDelta}</span>
+              )}
+            </span>
+          </span>
+        }
+      />
+      {sparklinePoints.length >= 2 && (
+        <Row
+          label="elo over time"
+          value={
+            <Sparkline
+              points={sparklinePoints}
+              width={140}
+              height={32}
+              stroke="rgba(244,63,94,0.85)"
+              fill="rgba(244,63,94,0.10)"
+            />
+          }
+        />
+      )}
+      <Row
+        label="record"
+        value={
+          <span className="flex items-center gap-2">
+            <span className="font-num text-[14px] font-semibold tabular-nums text-white">
+              {wins}W · {losses}L
+            </span>
+            {winRate !== null && (
+              <span className="font-num text-[12px] tabular-nums text-zinc-500">
+                {winRate}% win rate
+              </span>
+            )}
+          </span>
+        }
+      />
+      <Row
+        label="streak"
+        value={
+          <span className="flex items-center gap-2">
+            <span
+              className={`font-num text-[14px] font-semibold tabular-nums ${
+                currentStreak >= 3 ? 'text-emerald-300' : 'text-white'
+              }`}
+            >
+              {currentStreak}
+            </span>
+            <span className="font-num text-[12px] tabular-nums text-zinc-500">
+              longest {longestStreak}
+            </span>
+          </span>
+        }
+      />
+      <Row
+        label="battles played"
+        value={
+          <span className="font-num text-[14px] font-semibold tabular-nums text-white">
+            {played}
+          </span>
+        }
+      />
+    </Section>
+  );
+}
+
+// ---- Recent battles strip ------------------------------------------------
+
+function RecentBattlesSection({ results }: { results: boolean[] }) {
+  // Server returns newest-first; render oldest-left for natural reading.
+  const ordered = [...results].reverse();
+  const padded = [
+    ...Array.from({ length: Math.max(0, 10 - ordered.length) }).map(() => null),
+    ...ordered,
+  ];
+  return (
+    <Section
+      label="recent battles"
+      description="last 10 results, newest on the right."
+      icon={Activity}
+      accent="emerald"
+    >
+      <div className="flex items-center gap-2 border-t border-white/5 px-4 py-4">
+        <div className="flex flex-1 gap-1">
+          {padded.map((r, i) => (
+            <span
+              key={i}
+              title={r === null ? 'no battle' : r ? 'win' : 'loss'}
+              className={`h-3 flex-1 rounded ${
+                r === null
+                  ? 'bg-white/[0.04]'
+                  : r
+                    ? 'bg-emerald-400/85'
+                    : 'bg-rose-500/70'
+              }`}
+            />
+          ))}
+        </div>
+        <span className="font-num text-[10px] tabular-nums text-zinc-500">
+          new →
+        </span>
+      </div>
+    </Section>
+  );
+}
+
+// ---- Biggest swings ------------------------------------------------------
+
+function BiggestSwingsSection({
+  win,
+  loss,
+}: {
+  win: SwingEntry | null;
+  loss: SwingEntry | null;
 }) {
   return (
-    <motion.div
-      initial={{ y: 10, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay }}
+    <Section
+      label="biggest swings"
+      description="your largest single-battle elo moves."
+      icon={Zap}
+      accent="amber"
     >
-      {children}
-    </motion.div>
+      <div className="grid grid-cols-1 sm:grid-cols-2">
+        <SwingCard kind="win" entry={win} />
+        <SwingCard kind="loss" entry={loss} />
+      </div>
+    </Section>
   );
 }
+
+function SwingCard({
+  kind,
+  entry,
+}: {
+  kind: 'win' | 'loss';
+  entry: SwingEntry | null;
+}) {
+  const isWin = kind === 'win';
+  const Icon = isWin ? TrendingUp : TrendingDown;
+  return (
+    <div
+      className={`flex flex-col gap-1.5 border-t border-white/5 px-4 py-4 sm:[&:nth-child(2)]:border-l ${
+        isWin ? 'sm:[&]:border-l-0' : ''
+      }`}
+      style={{
+        borderLeftColor: 'rgba(255,255,255,0.06)',
+      }}
+    >
+      <div
+        className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${isWin ? 'text-emerald-300' : 'text-rose-300'}`}
+      >
+        <Icon size={11} aria-hidden /> {isWin ? 'biggest win' : 'biggest loss'}
+      </div>
+      {entry ? (
+        <>
+          <div
+            className={`font-num text-2xl font-bold tabular-nums ${
+              isWin ? 'text-emerald-300' : 'text-rose-300'
+            }`}
+          >
+            {entry.delta > 0 ? `+${entry.delta}` : entry.delta} elo
+          </div>
+          <div className="text-[12px] text-zinc-400">
+            {entry.opponent_display_name ? (
+              <>
+                vs{' '}
+                <span className="text-zinc-200">{entry.opponent_display_name}</span>
+              </>
+            ) : (
+              <span className="text-zinc-500">unknown opponent</span>
+            )}
+            {entry.finished_at && (
+              <span className="ml-1 text-zinc-600">
+                · {formatRelative(entry.finished_at)}
+              </span>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="text-[13px] text-zinc-500">no data yet</div>
+      )}
+    </div>
+  );
+}
+
+// ---- Best scan -----------------------------------------------------------
+
+function BestScanSection({
+  overall,
+  bestScan,
+  leaderboardPhoto,
+}: {
+  overall: number | null;
+  bestScan: { vision: VisionScore; scores: FinalScores } | null;
+  leaderboardPhoto: string | null;
+}) {
+  if (overall === null || !bestScan) {
+    return (
+      <Section
+        label="best scan"
+        description="your top score and full breakdown."
+        icon={Crown}
+        accent="purple"
+      >
+        <p className="border-t border-white/5 px-4 py-4 text-[13px] text-zinc-500">
+          no scan on record — scan once while signed in to populate this.
+        </p>
+      </Section>
+    );
+  }
+
+  const tier = getTier(overall);
+  const presentation =
+    bestScan.scores.presentation ?? computePresentation(bestScan.vision);
+
+  const subs: Array<[string, number]> = [
+    ['jawline', bestScan.scores.sub?.jawline ?? 0],
+    ['eyes', bestScan.scores.sub?.eyes ?? 0],
+    ['skin', bestScan.scores.sub?.skin ?? 0],
+    ['cheekbones', bestScan.scores.sub?.cheekbones ?? 0],
+    ['presentation', presentation],
+  ];
+
+  return (
+    <Section
+      label="best scan"
+      description="your top score and full breakdown."
+      icon={Crown}
+      accent="purple"
+    >
+      {leaderboardPhoto && (
+        <div className="flex items-center gap-4 border-t border-white/5 px-4 py-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={leaderboardPhoto}
+            alt=""
+            className="h-16 w-16 flex-shrink-0 rounded-xl border border-white/15 object-cover"
+          />
+          <div className="flex flex-1 items-center gap-3">
+            <span
+              className="font-num text-3xl font-bold tabular-nums"
+              style={{ color: getScoreColor(overall) }}
+            >
+              {overall}
+            </span>
+            <span
+              className="font-num text-2xl font-bold"
+              style={tierLetterStyle(tier)}
+            >
+              {tier.letter}
+            </span>
+          </div>
+          <span className="text-[10px] text-zinc-500">
+            <ImageIcon
+              size={10}
+              aria-hidden
+              className="mr-1 inline-block text-zinc-600"
+            />
+            on board
+          </span>
+        </div>
+      )}
+      {!leaderboardPhoto && (
+        <Row
+          label="overall"
+          value={
+            <span className="flex items-center gap-2">
+              <span
+                className="font-num text-lg font-semibold tabular-nums"
+                style={{ color: getScoreColor(overall) }}
+              >
+                {overall}
+              </span>
+              <span
+                className="font-num text-base font-bold"
+                style={tierLetterStyle(tier)}
+              >
+                {tier.letter}
+              </span>
+            </span>
+          }
+        />
+      )}
+      {subs.map(([name, value]) => (
+        <Row
+          key={name}
+          label={name}
+          value={
+            <span className="flex items-center gap-2">
+              <MetricBar value={value} />
+              <span
+                className="font-num w-8 text-right text-[13px] font-semibold tabular-nums"
+                style={{ color: getScoreColor(value) }}
+              >
+                {Math.round(value)}
+              </span>
+            </span>
+          }
+        />
+      ))}
+      <div className="border-t border-white/5 px-4 py-3">
+        <MoreDetail
+          vision={bestScan.vision}
+          presentation={presentation}
+          signedIn
+        />
+      </div>
+    </Section>
+  );
+}
+
+function MetricBar({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(100, value));
+  const color = getScoreColor(value);
+  return (
+    <span
+      aria-hidden
+      className="relative h-1.5 w-28 overflow-hidden rounded-full bg-white/[0.06]"
+    >
+      <span
+        className="absolute inset-y-0 left-0 rounded-full"
+        style={{ width: `${pct}%`, backgroundColor: color }}
+      />
+    </span>
+  );
+}
+
+// ---- Tier distribution ---------------------------------------------------
+
+function TierDistributionSection({ scans }: { scans: number[] }) {
+  // Bucket each scan into one of TIER_BANDS by min threshold.
+  const counts = TIER_BANDS.map((band) => ({ ...band, count: 0 }));
+  for (const overall of scans) {
+    for (const band of counts) {
+      if (overall >= band.min) {
+        band.count += 1;
+        break;
+      }
+    }
+  }
+  const max = Math.max(1, ...counts.map((c) => c.count));
+  const total = scans.length;
+
+  return (
+    <Section
+      label="tier distribution"
+      description={`${total} scan${total === 1 ? '' : 's'} grouped by tier.`}
+      icon={LineChart}
+      accent="cyan"
+    >
+      {counts.map((c) => {
+        const pct = total > 0 ? Math.round((c.count / total) * 100) : 0;
+        const w = max > 0 ? (c.count / max) * 100 : 0;
+        const tier = getTier(c.min);
+        return (
+          <div
+            key={c.letter}
+            className="flex items-center gap-3 border-t border-white/5 px-4 py-2.5"
+          >
+            <span
+              className="font-num w-7 text-base font-bold"
+              style={tierLetterStyle(tier)}
+            >
+              {c.letter}
+            </span>
+            <span
+              aria-hidden
+              className="relative h-2 flex-1 overflow-hidden rounded-full bg-white/[0.04]"
+            >
+              <span
+                className="absolute inset-y-0 left-0 rounded-full"
+                style={{
+                  width: `${w}%`,
+                  background:
+                    'linear-gradient(90deg, rgba(34,211,238,0.45) 0%, rgba(34,211,238,0.85) 100%)',
+                }}
+              />
+            </span>
+            <span className="font-num w-12 text-right text-[12px] tabular-nums text-zinc-300">
+              {c.count}
+            </span>
+            <span className="font-num w-10 text-right text-[11px] tabular-nums text-zinc-500">
+              {pct}%
+            </span>
+          </div>
+        );
+      })}
+    </Section>
+  );
+}
+
+// ---- Weakness frequency --------------------------------------------------
+
+function WeaknessSection({ counts }: { counts: Record<string, number> }) {
+  const max = Math.max(0, ...IMPROVEMENT_KEYS.map((k) => counts?.[k] ?? 0));
+  const total = IMPROVEMENT_KEYS.reduce((a, k) => a + (counts?.[k] ?? 0), 0);
+
+  return (
+    <Section
+      label="weakness frequency"
+      description={`${total} weakness call${total === 1 ? '' : 's'} from your battles.`}
+      icon={Trophy}
+      accent="violet"
+    >
+      {total === 0 ? (
+        <p className="border-t border-white/5 px-4 py-4 text-[13px] text-zinc-500">
+          populated as you battle — no calls yet.
+        </p>
+      ) : (
+        IMPROVEMENT_KEYS.map((key) => {
+          const count = counts?.[key] ?? 0;
+          const pct = max > 0 ? (count / max) * 100 : 0;
+          const isTop = max > 0 && count === max;
+          return (
+            <div
+              key={key}
+              className="flex items-center gap-3 border-t border-white/5 px-4 py-2.5"
+            >
+              <span className="w-24 text-[13px] text-zinc-300">{key}</span>
+              <span
+                aria-hidden
+                className="relative h-2 flex-1 overflow-hidden rounded-full bg-white/[0.04]"
+              >
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full"
+                  style={{
+                    width: `${pct}%`,
+                    backgroundColor: isTop
+                      ? '#a855f7'
+                      : 'rgba(255,255,255,0.45)',
+                  }}
+                />
+              </span>
+              <span
+                className={`font-num w-8 text-right text-[13px] font-semibold tabular-nums ${
+                  isTop ? 'text-violet-300' : 'text-zinc-400'
+                }`}
+              >
+                {count}
+              </span>
+            </div>
+          );
+        })
+      )}
+    </Section>
+  );
+}
+
+// ---- Most-improved -------------------------------------------------------
+
+function MostImprovedSection({
+  most,
+}: {
+  most: { metric: string; delta: number };
+}) {
+  return (
+    <Section
+      label="most improved"
+      description="biggest gain from your earliest scans to recent ones."
+      icon={Sparkles}
+      accent="emerald"
+    >
+      <div className="flex items-center gap-3 border-t border-white/5 px-4 py-4">
+        <Sparkles size={18} className="text-emerald-300" aria-hidden />
+        <span className="text-[14px] text-white">
+          your <span className="font-semibold">{most.metric}</span> score is up{' '}
+          <span className="font-num font-semibold tabular-nums text-emerald-300">
+            +{most.delta} pts
+          </span>
+        </span>
+      </div>
+    </Section>
+  );
+}
+
+// ---- Row primitive -------------------------------------------------------
+
+function Row({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-white/5 px-4 py-3">
+      <span className="text-[12px] text-zinc-400">{label}</span>
+      <span className="min-w-0 truncate text-right text-[13px] text-zinc-100">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ---- Helpers -------------------------------------------------------------
 
 function tierLetterStyle(tier: ReturnType<typeof getTier>): React.CSSProperties {
   if (tier.isGradient) {
@@ -502,8 +841,28 @@ function tierLetterStyle(tier: ReturnType<typeof getTier>): React.CSSProperties 
       WebkitBackgroundClip: 'text',
       backgroundClip: 'text',
       color: 'transparent',
-      textShadow: tier.glow ? '0 0 30px rgba(168,85,247,0.55)' : undefined,
     };
   }
   return { color: tier.color };
+}
+
+function formatAgeDays(days: number): string {
+  if (days <= 0) return 'just joined';
+  if (days === 1) return '1 day';
+  if (days < 30) return `${days} days`;
+  if (days < 365) return `${Math.round(days / 30)} months`;
+  return `${Math.round(days / 365)} years`;
+}
+
+function formatRelative(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const diffMs = Date.now() - t;
+  const days = Math.round(diffMs / 86_400_000);
+  if (days < 1) return 'today';
+  if (days === 1) return '1d ago';
+  if (days < 30) return `${days}d ago`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.round(days / 365)}y ago`;
 }

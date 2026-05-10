@@ -4,19 +4,16 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useRef,
   useState,
 } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, Check, ShieldCheck, X } from 'lucide-react';
 import type { FinalScores } from '@/types';
 import { getTier, PHOTO_REQUIRED_THRESHOLD } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import { useUser } from '@/hooks/useUser';
 import { clearLeaderboardCache } from '@/lib/leaderboardCache';
-
-const MAX_NAME_LEN = 24;
 
 type Props = {
   open: boolean;
@@ -48,71 +45,36 @@ export function LeaderboardModal({
 }: Props) {
   const { user, loading: userLoading } = useUser();
 
-  const [name, setName] = useState('');
+  // The display name is read from the user's profile — not editable here.
+  const [profileName, setProfileName] = useState<string | null>(null);
   const [includePhoto, setIncludePhoto] = useState(false);
-  // S-tier biometric consent. Required by BIPA + GDPR Art. 9 to be
-  // affirmative, informed, and recorded — we gate the submit button
-  // behind this checkbox and only show it for S-tier scores (≥87) where
-  // a face photo must be uploaded for review.
-  const [biometricConsent, setBiometricConsent] = useState(false);
+  // Privacy + storage acknowledgement — required for any submission.
+  // The user has to actively confirm they understand:
+  //   1. Their scan image is saved server-side (we already do this on
+  //      every scan via /api/score → holymog-scans private bucket).
+  //   2. If their score is ≥ S-tier, the saved image is reviewed by
+  //      a human for legitimacy. No auto-action against the entry —
+  //      it's anti-cheat verification only.
+  // BIPA + GDPR Art. 9 require affirmative, informed, and recorded
+  // consent for biometric processing.
+  const [scanDataConsent, setScanDataConsent] = useState(false);
   const [previous, setPrevious] = useState<PreviousEntry | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
-  // Briefly flag when an uppercase letter was auto-lowercased.
-  const [lastTransform, setLastTransform] = useState<{
-    upper: string;
-    lower: string;
-    id: number;
-  } | null>(null);
-  const lastTransformTimerRef = useRef<number | null>(null);
-
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const triggerLetterMorph = useCallback((upper: string, lower: string) => {
-    const id = Date.now() + Math.random();
-    setLastTransform({ upper, lower, id });
-    if (lastTransformTimerRef.current !== null) {
-      window.clearTimeout(lastTransformTimerRef.current);
-    }
-    lastTransformTimerRef.current = window.setTimeout(() => {
-      setLastTransform((cur) => (cur && cur.id === id ? null : cur));
-      lastTransformTimerRef.current = null;
-    }, 1400);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (lastTransformTimerRef.current !== null) {
-        window.clearTimeout(lastTransformTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  // S-tier (≥87) forces the photo on. Same threshold the server enforces.
-  const photoRequired = scores.overall >= PHOTO_REQUIRED_THRESHOLD;
+  // S-tier scores trigger the human review flow but no longer require
+  // a photo on the public board — privacy first, anti-cheat is handled
+  // server-side via the saved image archive.
+  const triggersReview = scores.overall >= PHOTO_REQUIRED_THRESHOLD;
 
   // Reset state every open. useLayoutEffect ensures no flash of stale data.
   useLayoutEffect(() => {
     if (!open) return;
-    setName('');
-    // If this score qualifies as S-tier, the photo is mandatory — start
-    // checked. Otherwise default to off and let the user opt in.
-    setIncludePhoto(photoRequired);
-    // Biometric consent always defaults to FALSE on open so the user has
-    // to affirmatively re-consent for each S-tier submission. Required
-    // for BIPA/GDPR informed-consent compliance.
-    setBiometricConsent(false);
+    setProfileName(null);
+    setIncludePhoto(false);
+    setScanDataConsent(false);
     setPrevious(null);
     setStatus({ kind: 'idle' });
-    setLastTransform(null);
-    if (lastTransformTimerRef.current !== null) {
-      window.clearTimeout(lastTransformTimerRef.current);
-      lastTransformTimerRef.current = null;
-    }
-    const t = window.setTimeout(() => inputRef.current?.focus(), 150);
-    return () => window.clearTimeout(t);
-  }, [open, photoRequired]);
+  }, [open]);
 
   // Once we know we're signed in, fetch profile + existing leaderboard row.
   useEffect(() => {
@@ -132,10 +94,8 @@ export function LeaderboardModal({
           } | null;
         };
         if (cancelled) return;
-        if (data.entry?.name) {
-          setName(data.entry.name);
-        } else if (data.profile?.display_name) {
-          setName(data.profile.display_name);
+        if (data.profile?.display_name) {
+          setProfileName(data.profile.display_name);
         }
         if (data.entry) {
           setPrevious({
@@ -144,8 +104,7 @@ export function LeaderboardModal({
             tier: data.entry.tier,
             hasPhoto: !!data.entry.image_url,
           });
-          // S-tier locks the photo on regardless of the previous state.
-          setIncludePhoto(photoRequired || !!data.entry.image_url);
+          setIncludePhoto(!!data.entry.image_url);
         }
       } catch {
         // best-effort prefill
@@ -154,14 +113,12 @@ export function LeaderboardModal({
     return () => {
       cancelled = true;
     };
-  }, [open, user, photoRequired]);
+  }, [open, user]);
 
   const submit = useCallback(async () => {
-    const trimmed = name.trim();
-    if (trimmed.length === 0 || trimmed.length > MAX_NAME_LEN) return;
     setStatus({ kind: 'submitting' });
     try {
-      const body: Record<string, unknown> = { name: trimmed, scores };
+      const body: Record<string, unknown> = { scores };
       if (includePhoto) body.imageBase64 = capturedImage;
 
       const res = await fetch('/api/leaderboard', {
@@ -184,7 +141,9 @@ export function LeaderboardModal({
                 ? 'leaderboard not yet available'
                 : data.error === 'photo_required_for_high_scores'
                   ? 'S-tier scores require a photo for review'
-                  : 'could not save, try again';
+                  : data.error === 'profile_not_found'
+                    ? 'profile not found, try again'
+                    : 'could not save, try again';
         setStatus({ kind: 'error', message: msg });
         return;
       }
@@ -196,11 +155,7 @@ export function LeaderboardModal({
     } catch {
       setStatus({ kind: 'error', message: 'network error' });
     }
-  }, [name, scores, includePhoto, capturedImage, onSubmitted, onClose]);
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') void submit();
-  };
+  }, [scores, includePhoto, capturedImage, onSubmitted, onClose]);
 
   const newScore = scores.overall;
   const newTier = getTier(newScore);
@@ -213,10 +168,8 @@ export function LeaderboardModal({
   const submitDisabled =
     status.kind === 'submitting' ||
     status.kind === 'success' ||
-    name.trim().length === 0 ||
-    // S-tier scores can't submit until the user explicitly checks the
-    // biometric-consent box. Required for BIPA/GDPR informed consent.
-    (photoRequired && !biometricConsent);
+    !profileName ||
+    !scanDataConsent;
 
   return (
     <AnimatePresence>
@@ -265,108 +218,34 @@ export function LeaderboardModal({
               <>
                 <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  you · {name || 'set a name'}
+                  you · {profileName ?? '…'}
                 </div>
 
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={name}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    const lowered = raw.toLowerCase();
-                    if (raw !== lowered) {
-                      let upper = '';
-                      let lower = '';
-                      for (let i = 0; i < raw.length; i++) {
-                        if (raw[i] !== lowered[i]) {
-                          upper = raw[i];
-                          lower = lowered[i];
-                          break;
-                        }
-                      }
-                      if (upper) triggerLetterMorph(upper, lower);
-                    }
-                    setName(lowered.slice(0, MAX_NAME_LEN));
-                  }}
-                  onKeyDown={onKeyDown}
-                  placeholder="your name"
-                  maxLength={MAX_NAME_LEN}
-                  className="mb-1 w-full rounded-xl border border-white/15 bg-white/[0.04] px-3 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-white/30 focus:outline-none"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  aria-label="Name"
-                />
-                <div className="relative mb-3 h-[14px] text-[11px] leading-[14px]">
-                  <AnimatePresence initial={false}>
-                    {lastTransform ? (
-                      <motion.div
-                        key={`morph-${lastTransform.id}`}
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.18 }}
-                        className="absolute inset-0 inline-flex items-center gap-1.5 normal-case"
-                      >
-                        <motion.span
-                          initial={{ scale: 1.6, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ duration: 0.28, ease: 'easeOut' }}
-                          className="inline-flex items-baseline gap-0.5 font-mono"
-                        >
-                          <span className="text-zinc-400 opacity-70">
-                            {lastTransform.upper}
-                          </span>
-                          <span className="mx-0.5 text-zinc-500">→</span>
-                          <motion.span
-                            initial={{ scale: 0.6, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{
-                              duration: 0.28,
-                              delay: 0.08,
-                              ease: 'easeOut',
-                            }}
-                            className="font-semibold text-amber-300"
-                          >
-                            {lastTransform.lower}
-                          </motion.span>
-                        </motion.span>
-                        <span className="text-zinc-500">auto-lowercased</span>
-                      </motion.div>
-                    ) : (
-                      <motion.span
-                        key="default"
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.18 }}
-                        className="absolute inset-0 block text-zinc-500"
-                      >
-                        e.g. brian gao
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
+                {/* Read-only username display */}
+                <div className="mb-1 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3">
+                  <span className="text-sm text-zinc-400">
+                    {profileName ?? '…'}
+                  </span>
+                  <Link
+                    href="/account"
+                    onClick={onClose}
+                    className="text-[11px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+                  >
+                    edit in settings
+                  </Link>
                 </div>
+                <p className="mb-3 text-[11px] text-zinc-600">
+                  username is set in your account settings
+                </p>
 
+                {/* Optional public photo — never required, regardless
+                    of tier. Privacy-first: the user's face appears on
+                    the board only if they explicitly opt in here. */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (photoRequired) return;
-                    setIncludePhoto((v) => !v);
-                  }}
+                  onClick={() => setIncludePhoto((v) => !v)}
                   aria-pressed={includePhoto}
-                  aria-disabled={photoRequired}
-                  disabled={photoRequired}
-                  title={
-                    photoRequired
-                      ? 'photo is required for S-tier scores so the leaderboard can be reviewed'
-                      : undefined
-                  }
-                  className={`mb-3 flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
-                    photoRequired
-                      ? 'cursor-not-allowed border-emerald-500/30 bg-emerald-500/[0.06]'
-                      : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'
-                  }`}
+                  className="mb-3 flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3 text-left transition-colors hover:bg-white/[0.05]"
                   style={{ touchAction: 'manipulation' }}
                 >
                   <span
@@ -382,17 +261,12 @@ export function LeaderboardModal({
                     )}
                   </span>
                   <span className="flex-1">
-                    <span
-                      className={`block text-sm ${photoRequired ? 'text-zinc-300' : 'text-white'}`}
-                    >
-                      {photoRequired
-                        ? 'photo required (S-tier)'
-                        : 'also share my photo'}
+                    <span className="block text-sm text-white">
+                      also show my face on the board
                     </span>
                     <span className="block text-[11px] text-zinc-500">
-                      {photoRequired
-                        ? "S-tier scores need a photo so we can review the board. don't want to share? skip the submission."
-                        : 'shows next to your name on the board'}
+                      shows next to your name publicly. you can toggle
+                      this off anytime in settings → privacy.
                     </span>
                   </span>
                   {includePhoto && (
@@ -408,73 +282,91 @@ export function LeaderboardModal({
                   )}
                 </button>
 
-                {/* S-tier biometric consent. Required by BIPA + GDPR
-                    Art. 9 to be affirmative + informed before any
-                    biometric upload. Surfaced as a discrete gate above
-                    the submit button so the user has to deliberately
-                    check the box for each S-tier submission. */}
-                {photoRequired && (
-                  <button
-                    type="button"
-                    onClick={() => setBiometricConsent((v) => !v)}
-                    aria-pressed={biometricConsent}
-                    style={{ touchAction: 'manipulation' }}
-                    className={`mb-3 flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
-                      biometricConsent
-                        ? 'border-emerald-500/40 bg-emerald-500/[0.08]'
-                        : 'border-amber-500/40 bg-amber-500/[0.06]'
-                    }`}
-                  >
-                    <span
-                      className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
-                        biometricConsent
-                          ? 'border-emerald-500 bg-emerald-500'
-                          : 'border-amber-500/70 bg-transparent'
-                      }`}
+                {/* High-score review notice — informational only, no
+                    extra checkbox. The data-storage acknowledgement
+                    below covers the BIPA/GDPR consent requirement. */}
+                {triggersReview && (
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-3">
+                    <AlertTriangle
+                      size={13}
                       aria-hidden
-                    >
-                      {biometricConsent && (
-                        <Check size={13} strokeWidth={3} className="text-black" />
-                      )}
-                    </span>
-                    <span className="flex flex-col gap-0.5">
-                      <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-amber-300">
-                        <ShieldCheck size={11} aria-hidden /> S-tier consent
-                      </span>
-                      <span className="text-sm text-white">
-                        I consent to uploading my face image as biometric
-                        information.
-                      </span>
-                      <span className="text-[11px] leading-relaxed text-zinc-400">
-                        Required because S-tier submissions include a
-                        photo. We process biometric information only to
-                        display your score on the public leaderboard. See
-                        our{' '}
-                        <Link
-                          href="/terms#03"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-white/85 underline-offset-2 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          biometric consent
-                        </Link>{' '}
-                        and{' '}
-                        <Link
-                          href="/privacy#03"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-white/85 underline-offset-2 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          privacy policy
-                        </Link>
-                        . You can revoke at any time by emailing
-                        hello@holymog.com.
-                      </span>
-                    </span>
-                  </button>
+                      className="mt-0.5 flex-shrink-0 text-amber-300"
+                    />
+                    <p className="text-[11px] leading-relaxed text-amber-100/85">
+                      <span className="font-semibold text-amber-200">
+                        S-tier review.
+                      </span>{' '}
+                      scores at this level are flagged for human review
+                      to keep the top of the board legitimate. we
+                      verify only — no auto-removal of valid entries.
+                    </p>
+                  </div>
                 )}
+
+                {/* Scan-data storage consent. Always required (every
+                    submission). Covers the BIPA/GDPR informed-consent
+                    requirement for biometric processing. The image is
+                    saved server-side already (every scan goes into
+                    holymog-scans private bucket via /api/score) — the
+                    user is acknowledging that fact. */}
+                <button
+                  type="button"
+                  onClick={() => setScanDataConsent((v) => !v)}
+                  aria-pressed={scanDataConsent}
+                  style={{ touchAction: 'manipulation' }}
+                  className={`mb-3 flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                    scanDataConsent
+                      ? 'border-emerald-500/40 bg-emerald-500/[0.08]'
+                      : 'border-white/10 bg-white/[0.02]'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+                      scanDataConsent
+                        ? 'border-emerald-500 bg-emerald-500'
+                        : 'border-white/30 bg-transparent'
+                    }`}
+                    aria-hidden
+                  >
+                    {scanDataConsent && (
+                      <Check size={13} strokeWidth={3} className="text-black" />
+                    )}
+                  </span>
+                  <span className="flex flex-col gap-0.5">
+                    <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-emerald-300">
+                      <ShieldCheck size={11} aria-hidden /> scan storage
+                    </span>
+                    <span className="text-sm text-white">
+                      I understand my scan image is saved.
+                    </span>
+                    <span className="text-[11px] leading-relaxed text-zinc-400">
+                      every scan is stored in our private archive
+                      regardless of whether you share it on the board —
+                      so you can view your top scan in account, and so
+                      we can review S-tier scores for legitimacy.
+                      details:{' '}
+                      <Link
+                        href="/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-white/85 underline-offset-2 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        privacy policy
+                      </Link>
+                      {' · '}
+                      <Link
+                        href="/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-white/85 underline-offset-2 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        terms
+                      </Link>
+                    </span>
+                  </span>
+                </button>
 
                 {previous && (
                   <ComparisonBlock

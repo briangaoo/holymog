@@ -33,6 +33,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
           type: 'revealing',
           scores: action.scores,
           capturedImage: last?.image ?? '',
+          vision: action.vision,
         };
       }
       return state;
@@ -42,6 +43,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
           type: 'complete',
           scores: state.scores,
           capturedImage: state.capturedImage,
+          vision: state.vision,
         };
       }
       return state;
@@ -52,6 +54,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
         type: 'complete',
         scores: action.scores,
         capturedImage: action.capturedImage,
+        vision: action.vision,
       };
     case 'ERROR':
       return { type: 'error', message: action.message };

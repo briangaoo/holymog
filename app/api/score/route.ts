@@ -1,9 +1,26 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { analyzeFaces } from '@/lib/vision';
 import { getRatelimit } from '@/lib/ratelimit';
 import { combineScores } from '@/lib/scoreEngine';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
+import { getOrIssueAnonymousId } from '@/lib/anonymousId';
+import {
+  checkScanLimit,
+  readClientIp,
+  recordScanAttempt,
+} from '@/lib/scanLimit';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { sendEmail, appUrl } from '@/lib/email';
+import { PHOTO_REQUIRED_THRESHOLD } from '@/lib/tier';
+import {
+  checkAchievements,
+  type AchievementGrant,
+} from '@/lib/achievements';
+import type { VisionScore } from '@/types';
+
+const SCANS_BUCKET = 'holymog-scans';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -92,9 +109,30 @@ function validateAndBlob(
 }
 
 export async function POST(request: Request) {
+  // Auth + scan-limit gate run BEFORE the IP rate limit, so an attacker can't
+  // burn through Gemini budget by hammering the endpoint past their limit.
+  const session = await auth();
+  const userId = session?.user?.id ?? null;
+  const anonId = userId ? null : await getOrIssueAnonymousId();
+  const ip = readClientIp(request);
+
+  const limit = await checkScanLimit({ userId, anonId, ip });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      {
+        error: 'scan_limit_exceeded',
+        reason: limit.reason,
+        used: limit.used,
+        limit: limit.limit,
+        signedIn: limit.signedIn,
+        resetInSeconds: limit.resetInSeconds,
+      },
+      { status: 429 },
+    );
+  }
+
   const limiter = getRatelimit();
   if (limiter) {
-    const ip = request.headers.get('x-forwarded-for') ?? 'anonymous';
     const result = await limiter.limit(ip);
     if (!result.success) {
       return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
@@ -137,34 +175,223 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'vision_unavailable' }, { status: 503 });
   }
 
+  let vision: VisionScore;
+  let inputTokens = 0;
+  let outputTokens = 0;
   try {
-    const { vision, tokens } = await analyzeFaces(blobs);
-
-    // Best-scan capture for signed-in users: if the new overall beats
-    // their stored best (or they don't have one yet), atomically upsert.
-    // Conditional WHERE makes this race-safe even with concurrent scans.
-    void persistBestScanIfBeaten(vision);
-
-    return NextResponse.json(vision, {
-      headers: {
-        'X-Tokens-Input': String(tokens.input),
-        'X-Tokens-Output': String(tokens.output),
-      },
-    });
+    const result = await analyzeFaces(blobs);
+    vision = result.vision;
+    inputTokens = result.tokens.input;
+    outputTokens = result.tokens.output;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'vision_error';
     return NextResponse.json({ error: message }, { status: 502 });
   }
+
+  // Server-side scoring. Anon never receives the raw vision payload — the
+  // 30-field breakdown is the value prop behind the sign-in gate.
+  const scores = combineScores(vision);
+
+  // Best-effort: persist to profile + record the attempt. Fire-and-forget so
+  // the response isn't blocked by DB latency.
+  void recordScanAttempt({ userId, anonId, ip });
+  if (userId) {
+    void persistBestScanIfBeaten(userId, vision);
+    // Archive the scan image + score to the private bucket. Uses the
+    // most recent (best stabilised) frame from the request. Anti-cheat
+    // review queue: scores ≥ PHOTO_REQUIRED_THRESHOLD are flagged and
+    // admin gets an email.
+    const lastImage = rawImages[rawImages.length - 1];
+    void persistScanHistory(userId, scores, vision, lastImage);
+  }
+
+  // Achievement firing: only for signed-in users. Counts scan_history
+  // post-persistScanHistory so the just-completed scan is included.
+  // Wrapped in try/catch so achievement DB hiccups never block the
+  // score response.
+  let grants: AchievementGrant[] = [];
+  if (userId) {
+    try {
+      const pool = getPool();
+      const counts = await pool.query<{ total: number; best: number | null }>(
+        `select count(*)::int as total, max(overall)::int as best
+           from scan_history where user_id = $1`,
+        [userId],
+      );
+      const total = counts.rows[0]?.total ?? 0;
+      // Compare against the freshly computed scores.overall as well, since
+      // persistScanHistory is fire-and-forget and may not have committed yet.
+      const best = Math.max(counts.rows[0]?.best ?? 0, scores.overall);
+      grants = await checkAchievements(userId, {
+        totalScans: total,
+        bestScanOverall: best,
+      });
+    } catch {
+      // Best-effort — achievements aren't load-bearing on the response.
+    }
+  }
+
+  // Strip vision for anon. The `scores` object also has `vision` attached by
+  // combineScores — clear that field too so DevTools/network can't read it.
+  const responseScores = userId ? scores : { ...scores, vision: undefined };
+
+  return NextResponse.json(
+    {
+      scores: responseScores,
+      vision: userId ? vision : null,
+      achievements: grants,
+    },
+    {
+      headers: {
+        'X-Tokens-Input': String(inputTokens),
+        'X-Tokens-Output': String(outputTokens),
+      },
+    },
+  );
+}
+
+/**
+ * Append the scan to scan_history AND archive the user's face image
+ * to the private holymog-scans bucket. Image lives at:
+ *
+ *   {user_id}/{scan_id}.{ext}
+ *
+ * The bucket is private (public=false) — no anon access. Images are
+ * served back to the user via /api/account/scans/[id]/image which
+ * mints a short-lived signed URL after auth + ownership check.
+ *
+ * If the score reaches PHOTO_REQUIRED_THRESHOLD (S- and above), the
+ * row is flagged with `requires_review = true` and admin is emailed
+ * the signed-URL preview. Manual review confirms legitimacy — no
+ * auto-action against the leaderboard, just human verification that
+ * top-of-board entries aren't celebrity photos / synthesised faces.
+ */
+async function persistScanHistory(
+  userId: string,
+  scores: ReturnType<typeof combineScores>,
+  vision: VisionScore,
+  imageBase64: string | undefined,
+): Promise<void> {
+  try {
+    const scanId = crypto.randomUUID();
+    let imagePath: string | null = null;
+    const requiresReview = scores.overall >= PHOTO_REQUIRED_THRESHOLD;
+
+    // Image upload (best-effort): if it fails we still write the
+    // scan_history row so stats / improvement calculations stay
+    // accurate. The image_path column is nullable for that reason.
+    if (imageBase64) {
+      const supabase = getSupabaseAdmin();
+      if (supabase) {
+        const decoded = decodeBase64(imageBase64);
+        if (decoded && decoded.byteLength <= MAX_BYTES) {
+          const mime = detectMime(decoded);
+          if (mime === 'image/jpeg' || mime === 'image/png') {
+            const ext = mime === 'image/png' ? 'png' : 'jpg';
+            const path = `${userId}/${scanId}.${ext}`;
+            const { error: uploadErr } = await supabase.storage
+              .from(SCANS_BUCKET)
+              .upload(path, decoded, {
+                contentType: mime,
+                cacheControl: '3600',
+                upsert: false, // scan_id is unique; never overwrite
+              });
+            if (!uploadErr) {
+              imagePath = path;
+            }
+          }
+        }
+      }
+    }
+
+    const pool = getPool();
+    await pool.query(
+      `insert into scan_history
+         (id, user_id, overall, jawline, eyes, skin, cheekbones, presentation, vision, image_path, requires_review)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)`,
+      [
+        scanId,
+        userId,
+        scores.overall,
+        scores.sub.jawline,
+        scores.sub.eyes,
+        scores.sub.skin,
+        scores.sub.cheekbones,
+        scores.presentation ?? null,
+        JSON.stringify(vision),
+        imagePath,
+        requiresReview,
+      ],
+    );
+
+    if (requiresReview && imagePath) {
+      void notifyAdminOfHighScoreScan({
+        userId,
+        scanId,
+        overall: scores.overall,
+        imagePath,
+      });
+    }
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Email the configured admin address with a link to the high-score
+ * scan for manual review. Best-effort; failure doesn't surface to the
+ * user. The link goes to a short-lived signed URL so the admin
+ * doesn't need to log into Supabase to see it.
+ */
+async function notifyAdminOfHighScoreScan(args: {
+  userId: string;
+  scanId: string;
+  overall: number;
+  imagePath: string;
+}): Promise<void> {
+  const adminTo = process.env.ADMIN_REVIEW_EMAIL;
+  if (!adminTo) return;
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return;
+    const { data: signed } = await supabase.storage
+      .from(SCANS_BUCKET)
+      .createSignedUrl(args.imagePath, 60 * 60 * 24 * 7); // 7 days
+    if (!signed?.signedUrl) return;
+
+    const subject = `holymog · high-score review · ${args.overall}`;
+    const html = `<!doctype html><html><body style="font-family:sans-serif;margin:24px;background:#0a0a0a;color:#f5f5f5;">
+      <h2>High-score scan flagged for review</h2>
+      <p><strong>User ID:</strong> ${args.userId}</p>
+      <p><strong>Scan ID:</strong> ${args.scanId}</p>
+      <p><strong>Overall:</strong> ${args.overall} (≥ ${PHOTO_REQUIRED_THRESHOLD})</p>
+      <p><a href="${signed.signedUrl}" style="color:#38bdf8;">view scan image</a> (7-day signed link)</p>
+      <p style="color:#a1a1aa;font-size:12px;margin-top:16px;">
+        Review for legitimacy only — verify the face appears to belong
+        to the user. No auto-action; this is a human-in-the-loop
+        anti-cheat check on top-of-board entries.
+      </p>
+      <p style="color:#71717a;font-size:11px;">
+        <a href="${appUrl('/account/' + args.userId)}" style="color:#71717a;">user profile</a>
+      </p>
+    </body></html>`;
+    await sendEmail({
+      to: adminTo,
+      subject,
+      html,
+      text: `High-score scan ${args.overall} from ${args.userId}\n\n${signed.signedUrl}`,
+      tags: [{ name: 'kind', value: 'high_score_review' }],
+    });
+  } catch {
+    // best-effort
+  }
 }
 
 async function persistBestScanIfBeaten(
-  vision: import('@/types').VisionScore,
+  userId: string,
+  vision: VisionScore,
 ): Promise<void> {
   try {
-    const session = await auth();
-    const user = session?.user;
-    if (!user) return;
-
     const final = combineScores(vision);
     const pool = getPool();
     await pool.query(
@@ -176,10 +403,11 @@ async function persistBestScanIfBeaten(
       [
         JSON.stringify({ vision, scores: final }),
         final.overall,
-        user.id,
+        userId,
       ],
     );
   } catch {
-    // Best-effort; never block the scan response.
+    // never block the response
   }
 }
+

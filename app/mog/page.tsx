@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
+  ArrowRight,
   Check,
   Copy,
   Download,
@@ -23,6 +24,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppHeader } from '@/components/AppHeader';
 import { AuthModal } from '@/components/AuthModal';
+import { SpectralRim } from '@/components/SpectralRim';
 import { useUser } from '@/hooks/useUser';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import {
@@ -51,7 +53,6 @@ type Phase =
       code: string;
       isHost: boolean;
     }
-  | { kind: 'queueing' }
   | { kind: 'joining'; battleId: string }
   | {
       kind: 'active';
@@ -163,6 +164,17 @@ export default function MogPage() {
     }
   }, [phase]);
 
+  // Back button: from mode-select, navigate home. From any sub-phase,
+  // reset back to mode-select (cancels lobby / queue / join flow).
+  // Defined here (above early returns) so the hook order stays stable.
+  const onBack = useCallback(() => {
+    if (phase.kind === 'mode-select') {
+      router.push('/');
+      return;
+    }
+    setPhase({ kind: 'mode-select' });
+  }, [phase.kind, router]);
+
   if (loading || !reconnectChecked) {
     return (
       <div className="min-h-dvh bg-black">
@@ -217,23 +229,43 @@ export default function MogPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-black">
+    <div className="relative min-h-dvh overflow-hidden bg-black">
+      {/* Ambient sky-blue wash anchored top-right — sets the page identity
+          without dominating. Mirrors the home-page card colour. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-32 -top-32 h-[40rem] w-[40rem] rounded-full blur-3xl"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(14,165,233,0.06) 35%, transparent 70%)',
+        }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -bottom-40 -left-40 h-[36rem] w-[36rem] rounded-full blur-3xl"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(2,132,199,0.10) 0%, transparent 60%)',
+        }}
+      />
+
       <AppHeader authNext="/mog" />
-      <main className="mx-auto w-full max-w-md px-5 py-6">
-        <div className="mb-4 flex items-center gap-2">
-          <BackButton onBack={() => setPhase({ kind: 'mode-select' })} />
-          <h1 className="text-2xl font-bold text-white">mog battles</h1>
+      <main className="relative mx-auto w-full max-w-md px-5 py-6 sm:max-w-2xl">
+        <div className="mb-6 flex items-center gap-3">
+          <BackButton onBack={onBack} />
+          <h1 className="text-2xl font-bold tracking-tight text-white">
+            mog battles
+          </h1>
         </div>
 
         {phase.kind === 'mode-select' && (
-          <ModeSelect
-            onQueue={() => setPhase({ kind: 'queueing' })}
-            onPaired={(battleId) =>
-              setPhase({ kind: 'joining', battleId })
-            }
-            onCreate={() => setPhase({ kind: 'creating' })}
-            onJoin={() => setPhase({ kind: 'join-input' })}
-          />
+          <>
+            <ModeSelect
+              onCreate={() => setPhase({ kind: 'creating' })}
+              onJoin={() => setPhase({ kind: 'join-input' })}
+            />
+            <BattleStats />
+          </>
         )}
 
         {phase.kind === 'creating' && (
@@ -275,18 +307,6 @@ export default function MogPage() {
           />
         )}
 
-        {phase.kind === 'queueing' && (
-          <Queueing
-            userId={user.id}
-            onPaired={(battleId) =>
-              setPhase({ kind: 'joining', battleId })
-            }
-            onCancel={async () => {
-              await fetch('/api/battle/queue', { method: 'DELETE' });
-              setPhase({ kind: 'mode-select' });
-            }}
-          />
-        )}
 
         {phase.kind === 'joining' && (
           <Joining
@@ -310,102 +330,465 @@ export default function MogPage() {
 
 function BackButton({ onBack }: { onBack: () => void }) {
   return (
-    <Link
-      href="/"
-      onClick={(e) => {
-        e.preventDefault();
-        onBack();
-      }}
-      aria-label="Back home"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:text-white"
+    <button
+      type="button"
+      onClick={onBack}
+      aria-label="Back"
+      style={{ touchAction: 'manipulation' }}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-zinc-300 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
     >
-      <ArrowLeft size={18} />
-    </Link>
+      <ArrowLeft size={16} />
+    </button>
   );
 }
 
 // ---- Mode select -----------------------------------------------------------
 
 function ModeSelect({
-  onQueue,
-  onPaired,
   onCreate,
   onJoin,
 }: {
-  onQueue: () => void;
-  onPaired: (battleId: string) => void;
   onCreate: () => void;
   onJoin: () => void;
 }) {
-  const findBattle = useCallback(async () => {
-    onQueue();
-    try {
-      const res = await fetch('/api/battle/queue', { method: 'POST' });
-      const data = (await res.json()) as {
-        battle_id?: string;
-        paired?: boolean;
-      };
-      if (data.battle_id && data.paired) {
-        onPaired(data.battle_id);
-      }
-      // Otherwise (queued: true), Queueing's realtime + polling pairs us.
-    } catch {
-      // Queueing component keeps polling.
-    }
-  }, [onQueue, onPaired]);
+  const router = useRouter();
+  // Public matchmaking is its own full-screen route. We navigate so the
+  // experience can take over the entire viewport (no AppHeader, no
+  // page chrome) and own its own browser-history entry.
+  const findBattle = useCallback(() => {
+    router.push('/mog/battle');
+  }, [router]);
 
   return (
-    <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={findBattle}
-        style={{ touchAction: 'manipulation' }}
-        className="group relative flex flex-col gap-3 overflow-hidden rounded-3xl border border-white/10 p-6 text-left transition-all hover:border-white/25"
-      >
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(239,68,68,0.18) 0%, rgba(249,115,22,0.18) 100%)',
-          }}
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full opacity-50 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #ef4444, transparent 70%)' }}
-        />
-        <Search size={26} className="relative text-white" aria-hidden />
-        <div className="relative flex flex-col gap-1">
-          <span className="text-2xl font-bold text-white">find a battle</span>
-          <span className="text-sm text-zinc-200">
-            1v1 against a stranger · ~15s including matchmaking
-          </span>
-        </div>
-      </button>
+    <div className="flex flex-col gap-4">
+      {/* Hero "find a battle" — sky-blue spectral rim + off-frame radial,
+          mirrors the home-page battle card so the brand identity
+          carries through. */}
+      <SpectralRim accent="rgba(56,189,248,0.95)" className="rounded-3xl">
+        <button
+          type="button"
+          onClick={findBattle}
+          style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
+          className="group relative flex w-full flex-col overflow-hidden rounded-3xl border border-white/10 p-7 text-left transition-all hover:border-white/20"
+        >
+          {/* Sky radial glow off-frame on the bottom-right */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -bottom-24 -right-24 h-[22rem] w-[22rem] rounded-full blur-3xl"
+            style={{
+              background:
+                'radial-gradient(circle, rgba(56,189,248,0.55) 0%, rgba(14,165,233,0.22) 35%, transparent 65%)',
+            }}
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 backdrop-blur-2xl"
+            style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+          />
+          {/* Top sheen */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 35%)',
+            }}
+          />
+          {/* Inner sky rim, matches the home card */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-3xl"
+            style={{
+              boxShadow:
+                'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(56,189,248,0.22)',
+            }}
+          />
+
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className="relative flex h-2 w-2"
+                >
+                  <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/70" />
+                  <span className="relative h-2 w-2 rounded-full bg-sky-400" />
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-300">
+                  ranked · live
+                </span>
+              </div>
+              <Swords
+                size={36}
+                aria-hidden
+                className="text-white drop-shadow-lg"
+              />
+              <div className="flex flex-col gap-1">
+                <span className="text-3xl font-bold leading-none tracking-tight text-white">
+                  find a battle
+                </span>
+                <span className="text-sm text-white/75">
+                  1v1 against a stranger · ~15s incl. matchmaking
+                </span>
+              </div>
+            </div>
+            <ArrowRight
+              size={20}
+              aria-hidden
+              className="mt-1 text-white/70 transition-transform group-hover:translate-x-1"
+            />
+          </div>
+        </button>
+      </SpectralRim>
+
+      {/* Section divider — small label so the parties block reads as
+          "alternative" and the hero clearly dominates. */}
+      <div className="flex items-center gap-3 px-1 pt-1">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+          or play with friends
+        </span>
+        <span aria-hidden className="h-px flex-1 bg-white/5" />
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onCreate}
-          style={{ touchAction: 'manipulation' }}
-          className="group relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5 text-left transition-all hover:border-white/25 hover:bg-white/[0.05]"
+        {/* Create — rose accent. Warm host vibe, distinct from the
+            cool sky-blue hero so the secondary row has its own
+            personality. (Green is reserved for the scan brand.) */}
+        <SpectralRim
+          accent="rgba(244,63,94,0.6)"
+          spotlight={140}
+          className="rounded-3xl"
         >
-          <Users size={20} className="text-white" aria-hidden />
-          <span className="text-base font-semibold text-white">create party</span>
-          <span className="text-xs text-zinc-400">share a code · up to 10</span>
-        </button>
-        <button
-          type="button"
-          onClick={onJoin}
-          style={{ touchAction: 'manipulation' }}
-          className="group relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5 text-left transition-all hover:border-white/25 hover:bg-white/[0.05]"
+          <button
+            type="button"
+            onClick={onCreate}
+            style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
+            className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-3xl border border-white/10 p-5 text-left transition-all hover:border-white/20"
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -top-16 -left-16 h-44 w-44 rounded-full blur-3xl"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(244,63,94,0.30) 0%, transparent 65%)',
+              }}
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-3xl"
+              style={{
+                boxShadow:
+                  'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(244,63,94,0.10)',
+              }}
+            />
+            <Users size={20} aria-hidden className="relative text-rose-200" />
+            <span className="relative text-base font-semibold text-white">
+              create party
+            </span>
+            <span className="relative text-xs text-zinc-400">
+              share a code · up to 10
+            </span>
+          </button>
+        </SpectralRim>
+
+        {/* Join — violet accent. Cool but distinctly different from the
+            sky-blue primary; "portal / enter" reads electric-purple. */}
+        <SpectralRim
+          accent="rgba(168,85,247,0.6)"
+          spotlight={140}
+          className="rounded-3xl"
         >
-          <Swords size={20} className="text-white" aria-hidden />
-          <span className="text-base font-semibold text-white">join party</span>
-          <span className="text-xs text-zinc-400">enter a 6-char code</span>
-        </button>
+          <button
+            type="button"
+            onClick={onJoin}
+            style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
+            className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-3xl border border-white/10 p-5 text-left transition-all hover:border-white/20"
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -bottom-16 -right-16 h-44 w-44 rounded-full blur-3xl"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(168,85,247,0.30) 0%, transparent 65%)',
+              }}
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-3xl"
+              style={{
+                boxShadow:
+                  'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(168,85,247,0.10)',
+              }}
+            />
+            <Search size={20} aria-hidden className="relative text-violet-200" />
+            <span className="relative text-base font-semibold text-white">
+              join party
+            </span>
+            <span className="relative text-xs text-zinc-400">
+              enter a 6-char code
+            </span>
+          </button>
+        </SpectralRim>
       </div>
+    </div>
+  );
+}
+
+// ---- Battle stats panel ----------------------------------------------------
+
+type ProfileStats = {
+  display_name: string;
+  elo: number;
+  peak_elo: number;
+  matches_played: number;
+  matches_won: number;
+  current_streak: number;
+  longest_streak: number;
+  best_scan_overall: number | null;
+};
+
+type RecentBattle = {
+  battle_id: string;
+  is_winner: boolean;
+  peak_score: number;
+  finished_at: string | null;
+};
+
+const RECENT_RIBBON_LENGTH = 10;
+
+/**
+ * Personal battle stats — shown below the mode-select cards. Pulls
+ * `/api/account/me` and `/api/account/history?page=1` in parallel.
+ * Renders a 6-cell stat grid plus a recent W/L ribbon (most recent on
+ * the right). Pre-battle users see "play your first battle" copy
+ * instead of an awkward "0W·0L".
+ */
+function BattleStats() {
+  const [profile, setProfile] = useState<ProfileStats | null>(null);
+  const [recent, setRecent] = useState<RecentBattle[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [meRes, histRes] = await Promise.all([
+          fetch('/api/account/me', { cache: 'no-store' }),
+          fetch('/api/account/history?page=1', { cache: 'no-store' }),
+        ]);
+        if (cancelled) return;
+        if (meRes.ok) {
+          const data = (await meRes.json()) as { profile: ProfileStats | null };
+          setProfile(data.profile);
+        }
+        if (histRes.ok) {
+          const data = (await histRes.json()) as { entries?: RecentBattle[] };
+          setRecent((data.entries ?? []).slice(0, RECENT_RIBBON_LENGTH));
+        }
+      } catch {
+        // best-effort; show empty stats
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!loaded) {
+    return (
+      <section className="mt-6 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+        <div className="h-3 w-24 rounded bg-white/[0.06]" />
+        <div className="mt-4 grid grid-cols-3 gap-x-4 gap-y-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <div className="h-2 w-12 rounded bg-white/[0.05]" />
+              <div className="h-6 w-16 rounded bg-white/[0.05]" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!profile) {
+    return null;
+  }
+
+  const losses = profile.matches_played - profile.matches_won;
+  const winRate =
+    profile.matches_played > 0
+      ? Math.round((profile.matches_won / profile.matches_played) * 100)
+      : null;
+  const eloDelta = profile.elo - profile.peak_elo;
+  const unranked = profile.matches_played === 0;
+  const streakHot = profile.current_streak >= 3;
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+      <header className="mb-5 flex items-baseline justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+          your battles
+        </span>
+        {unranked ? (
+          <span className="text-[10px] uppercase tracking-[0.16em] text-sky-300/80">
+            unranked
+          </span>
+        ) : (
+          <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+            {profile.matches_played} played
+          </span>
+        )}
+      </header>
+
+      <div className="grid grid-cols-3 gap-x-4 gap-y-5">
+        <Stat
+          label="elo"
+          value={profile.elo}
+          accent="sky"
+          sub={
+            eloDelta < 0 ? (
+              <span className="text-sky-400/80">{eloDelta}</span>
+            ) : eloDelta > 0 ? (
+              <span className="text-emerald-400/80">+{eloDelta}</span>
+            ) : null
+          }
+        />
+        <Stat label="peak" value={profile.peak_elo} accent="purple" />
+        <Stat
+          label="streak"
+          value={profile.current_streak}
+          accent={streakHot ? 'emerald' : undefined}
+          sub={
+            profile.longest_streak > 0
+              ? `longest ${profile.longest_streak}`
+              : null
+          }
+        />
+        <Stat
+          label="record"
+          value={
+            unranked ? (
+              <span className="text-zinc-500">—</span>
+            ) : (
+              <>
+                <span className="text-white">{profile.matches_won}</span>
+                <span className="text-zinc-500">W · </span>
+                <span className="text-white">{losses}</span>
+                <span className="text-zinc-500">L</span>
+              </>
+            )
+          }
+        />
+        <Stat
+          label="win rate"
+          value={winRate !== null ? `${winRate}%` : <span className="text-zinc-500">—</span>}
+          accent={winRate !== null && winRate >= 50 ? 'emerald' : undefined}
+        />
+        <Stat
+          label="best scan"
+          value={
+            profile.best_scan_overall === null ? (
+              <span className="text-zinc-500">—</span>
+            ) : (
+              profile.best_scan_overall
+            )
+          }
+          accent={profile.best_scan_overall === null ? undefined : 'emerald'}
+        />
+      </div>
+
+      {/* Recent W/L ribbon */}
+      {recent.length > 0 && (
+        <div className="mt-5 flex items-center gap-3">
+          <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+            recent
+          </span>
+          <div className="flex gap-1">
+            {/* Pad to RECENT_RIBBON_LENGTH so the ribbon doesn't shrink
+                for users with fewer than 10 battles — empty slots show as
+                neutral pips on the LEFT (oldest side). */}
+            {Array.from({ length: RECENT_RIBBON_LENGTH - recent.length }).map(
+              (_, i) => (
+                <span
+                  key={`empty-${i}`}
+                  aria-hidden
+                  className="h-2 w-5 rounded-sm bg-white/[0.04]"
+                />
+              ),
+            )}
+            {/* recent is finished_at desc — most recent first. We render
+                left-to-right oldest→newest so the rightmost cell is the
+                user's last result, which is the conventional reading
+                order for win/loss strips. */}
+            {[...recent].reverse().map((r) => (
+              <span
+                key={r.battle_id}
+                title={r.is_winner ? 'win' : 'loss'}
+                className={`h-2 w-5 rounded-sm ${
+                  r.is_winner
+                    ? 'bg-emerald-400/85'
+                    : 'bg-zinc-600/80'
+                }`}
+              />
+            ))}
+          </div>
+          <span
+            aria-hidden
+            className="ml-auto text-[10px] uppercase tracking-[0.16em] text-zinc-600"
+          >
+            new →
+          </span>
+        </div>
+      )}
+
+      {unranked && recent.length === 0 && (
+        <p className="mt-4 rounded-2xl border border-sky-500/15 bg-sky-500/[0.04] px-3 py-2.5 text-[11px] text-sky-200/85">
+          play your first battle to start ranking. you&apos;re placed
+          provisionally for your first 30 matches (k=32) before settling.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  accent?: 'sky' | 'emerald' | 'cyan' | 'purple';
+}) {
+  const valueColor =
+    accent === 'sky'
+      ? 'text-sky-300'
+      : accent === 'emerald'
+        ? 'text-emerald-300'
+        : accent === 'cyan'
+          ? 'text-cyan-300'
+          : accent === 'purple'
+            ? 'text-purple-300'
+            : 'text-white';
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+        {label}
+      </span>
+      <span
+        className={`font-num text-2xl font-extrabold tabular-nums leading-none ${valueColor}`}
+      >
+        {value}
+      </span>
+      {sub && (
+        <span className="font-num text-[10px] tabular-nums text-zinc-500">
+          {sub}
+        </span>
+      )}
     </div>
   );
 }
@@ -481,7 +864,7 @@ function JoinInput({
           onChange={(e) => setRaw(e.target.value)}
           maxLength={BATTLE_CODE_LENGTH + 2}
           placeholder="e.g. K7M2P9"
-          className="font-num w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-2xl font-bold tracking-[0.3em] text-white placeholder:text-zinc-700 focus:border-white/30 focus:outline-none"
+          className="font-num w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-2xl font-bold uppercase tracking-[0.3em] text-white placeholder:text-zinc-700 focus:border-white/30 focus:outline-none"
           style={{ textTransform: 'uppercase' }}
         />
       </div>
@@ -709,7 +1092,7 @@ function Lobby({
           party code
         </div>
         <div className="mt-2 flex items-center gap-3">
-          <span className="font-num text-4xl font-extrabold tracking-[0.3em] text-white">
+          <span className="font-num text-4xl font-extrabold uppercase tracking-[0.3em] text-white">
             {code}
           </span>
           <button
@@ -744,7 +1127,12 @@ function Lobby({
               key={p.user_id}
               className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 text-sm"
             >
-              <span className="text-white">{p.display_name}</span>
+              <Link
+                href={`/@${p.display_name}`}
+                className="text-white hover:underline underline-offset-2"
+              >
+                {p.display_name}
+              </Link>
               <span className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
                 {p.user_id === userId && <span>you</span>}
                 {/* host indicator: first joiner is the host (insert order) */}
@@ -809,85 +1197,8 @@ function prettyStartError(code: string | undefined): string {
   }
 }
 
-// ---- Queueing --------------------------------------------------------------
+// (Public matchmaking lives at /mog/battle as its own full-screen route.)
 
-function Queueing({
-  userId,
-  onPaired,
-  onCancel,
-}: {
-  userId: string;
-  onPaired: (battleId: string) => void;
-  onCancel: () => void;
-}) {
-  // Subscribe to Postgres changes on battle_participants for our user_id.
-  // When pair_two() inserts a row for us, the subscription fires and we
-  // navigate to /joining.
-  useEffect(() => {
-    const supabase = getSupabaseBrowser();
-    const channel = supabase
-      .channel(`mm:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'battle_participants',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload: { new: { battle_id?: string } }) => {
-          const row = payload.new;
-          if (row.battle_id) onPaired(row.battle_id);
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [userId, onPaired]);
-
-  // Backup: poll /api/battle/queue every ~3s. If the realtime subscription
-  // misses an event for any reason, the next poll will pair us via
-  // pair_two() (idempotent).
-  useEffect(() => {
-    const id = window.setInterval(async () => {
-      try {
-        const res = await fetch('/api/battle/queue', { method: 'POST' });
-        const data = (await res.json()) as { battle_id?: string };
-        if (data.battle_id) onPaired(data.battle_id);
-      } catch {
-        // ignore
-      }
-    }, 3000);
-    return () => window.clearInterval(id);
-  }, [onPaired]);
-
-  return (
-    <div className="flex flex-col items-center gap-6 rounded-3xl border border-white/10 bg-white/[0.02] p-8 text-center">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-      >
-        <Swords size={36} className="text-zinc-400" aria-hidden />
-      </motion.div>
-      <div>
-        <p className="text-base font-semibold text-white">finding an opponent…</p>
-        <p className="mt-1 text-xs text-zinc-500">
-          hold tight — usually under 30 seconds
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={onCancel}
-        style={{ touchAction: 'manipulation' }}
-        className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-xs text-white hover:bg-white/[0.07]"
-      >
-        <X size={12} aria-hidden /> cancel
-      </button>
-    </div>
-  );
-}
 
 // ---- Joining (fetch token + battle metadata) -------------------------------
 
@@ -1253,7 +1564,12 @@ function ResultCell({
           {tier.letter}
         </span>
       </div>
-      <div className="truncate text-sm text-zinc-300">{entry.display_name}</div>
+      <Link
+        href={`/@${entry.display_name}`}
+        className="truncate text-sm text-zinc-300 hover:text-white hover:underline underline-offset-2"
+      >
+        {entry.display_name}
+      </Link>
     </motion.div>
   );
 }

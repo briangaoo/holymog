@@ -6,6 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   Home as HomeIcon,
+  Lock,
   RotateCcw,
   Share2,
   Trophy,
@@ -50,6 +51,17 @@ const TOTAL_DISPLAY_COUNT = REAL_CALL_COUNT * 2;
 // mapping, so mapping just waits for the heavy /api/score call to complete.
 const MAPPING_MIN_MS = 0;
 
+/** Mirror of the public `/api/scan/check` shape — sensitive internals
+ *  (anon_id, ip_hash, oldest timestamps) are kept server-side. */
+type ScanLimit = {
+  allowed: boolean;
+  used: number;
+  limit: number;
+  signedIn: boolean;
+  reason: 'anon_lifetime' | 'auth_daily' | 'anon_ip_daily' | null;
+  resetInSeconds: number | null;
+};
+
 type TokenAccum = {
   liveInput: number;
   liveOutput: number;
@@ -71,7 +83,19 @@ const EMPTY_TOKENS: TokenAccum = {
 const STORAGE_KEY = 'holymog-last-result';
 const PRIVACY_KEY = 'holymog-privacy-acknowledged';
 
-type SavedResult = { scores: FinalScores; capturedImage: string; ts: number };
+type SavedResult = {
+  scores: FinalScores;
+  capturedImage: string;
+  ts: number;
+  /**
+   * Full 30-field vision payload for post-sign-in migration into
+   * profile.best_scan. Optional so that pre-existing localStorage
+   * entries from before this field was added still load (loadSavedResult
+   * just returns them without `vision` and the migration watcher
+   * skips them).
+   */
+  vision?: VisionScore;
+};
 
 function loadSavedResult(): SavedResult | null {
   if (typeof window === 'undefined') return null;
@@ -115,7 +139,9 @@ export default function Home() {
   const [shareOpen, setShareOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [scanLimit, setScanLimit] = useState<ScanLimit | null>(null);
   const { user: signedInUser } = useUser();
+  const isSignedIn = !!signedInUser;
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
   const [videoSize, setVideoSize] = useState({ width: 720, height: 1280 });
 
@@ -329,7 +355,8 @@ export default function Home() {
     const run = async () => {
       const { frames } = state;
 
-      let vision: VisionScore;
+      let final: FinalScores;
+      let vision: VisionScore | undefined;
       let tokensSnapshot: TokenAccum = EMPTY_TOKENS;
 
       try {
@@ -338,6 +365,16 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ images: frames.map((f) => f.image) }),
         });
+
+        // Race-condition guard: limit was OK at mount but the user blew past
+        // it before /api/score fired (concurrent tabs, etc). Refetch the
+        // public limit state and abort the scan flow.
+        if (res.status === 429) {
+          void refetchScanLimit();
+          dispatch({ type: 'ERROR', message: 'scan_limit_exceeded' });
+          return;
+        }
+
         if (res.ok) {
           const inTok = Number(res.headers.get('X-Tokens-Input') ?? 0);
           const outTok = Number(res.headers.get('X-Tokens-Output') ?? 0);
@@ -350,15 +387,23 @@ export default function Home() {
             };
             return tokensSnapshot;
           });
-          vision = (await res.json()) as VisionScore;
+          const data = (await res.json()) as {
+            scores: FinalScores;
+            vision: VisionScore | null;
+          };
+          final = data.scores;
+          vision = data.vision ?? undefined;
         } else {
-          vision = mockVisionScore();
+          // Non-429 server error: fall back to mock so the UI still resolves.
+          const mock = mockVisionScore();
+          final = combineScores(mock);
+          vision = undefined;
         }
       } catch {
-        vision = mockVisionScore();
+        const mock = mockVisionScore();
+        final = combineScores(mock);
+        vision = undefined;
       }
-
-      const final = combineScores(vision);
 
       // Local debug log, appended to /tmp/holymog-debug.log on the server.
       void fetch('/api/debug-log', {
@@ -375,7 +420,7 @@ export default function Home() {
       const elapsed = performance.now() - startedAt;
       const wait = Math.max(0, MAPPING_MIN_MS - elapsed);
       window.setTimeout(() => {
-        if (!cancelled) dispatch({ type: 'MAPPING_DONE', scores: final });
+        if (!cancelled) dispatch({ type: 'MAPPING_DONE', scores: final, vision });
       }, wait);
     };
 
@@ -414,16 +459,52 @@ export default function Home() {
     dispatch({ type: 'REVEAL_DONE' });
   }, [dispatch]);
 
+  const refetchScanLimit = useCallback(async () => {
+    try {
+      const res = await fetch('/api/scan/check', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as ScanLimit;
+      setScanLimit(data);
+    } catch {
+      // best-effort; the server-side gate is still the source of truth
+    }
+  }, []);
+
   const handleRetake = useCallback(() => {
+    if (scanLimit && !scanLimit.allowed) {
+      // Limit exhausted — push the user toward auth instead of restarting
+      // the camera. Server-side gate would reject the heavy /api/score call
+      // anyway; we just save the round-trip and the wasted Gemini calls.
+      setAuthOpen(true);
+      return;
+    }
     clearSavedResult();
     dispatch({ type: 'RETAKE' });
-  }, [dispatch]);
+  }, [dispatch, scanLimit]);
+
+  // Fetch scan-limit state on mount AND whenever auth changes (sign in/out
+  // flips the user between cookie-keyed and user-keyed counters).
+  useEffect(() => {
+    void refetchScanLimit();
+  }, [refetchScanLimit, signedInUser?.id]);
+
+  // Refetch right after a fresh scan completes so the displayed remaining
+  // count is up to date. `revealing` is the moment server-side counter
+  // got incremented.
+  useEffect(() => {
+    if (state.type === 'revealing') {
+      void refetchScanLimit();
+    }
+  }, [state.type, refetchScanLimit]);
 
   // On first mount, hydrate from localStorage if a previous result was saved.
-  // Otherwise let the camera kick in.
+  // Otherwise let the camera kick in — but only once we know the scan limit
+  // state. Without the gate, an out-of-quota anon user would see the camera
+  // turn on for a beat before the paywall paints.
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current) return;
+    if (scanLimit === null) return;
     hydratedRef.current = true;
     const saved = loadSavedResult();
     if (saved) {
@@ -431,18 +512,23 @@ export default function Home() {
         type: 'HYDRATE',
         scores: saved.scores,
         capturedImage: saved.capturedImage,
+        vision: saved.vision,
       });
-    } else if (state.type === 'idle') {
+    } else if (state.type === 'idle' && scanLimit.allowed) {
       dispatch({ type: 'CAMERA_READY' });
     }
-  }, [state.type, dispatch]);
+    // else: stay 'idle', the paywall view below renders
+  }, [state.type, dispatch, scanLimit]);
 
   // Persist when entering `complete` state; clear on retake (handled in handleRetake).
+  // The `vision` payload (when present) is what the post-sign-in
+  // migration watcher reads to lift the scan into profile.best_scan.
   useEffect(() => {
     if (state.type === 'complete') {
       saveResult({
         scores: state.scores,
         capturedImage: state.capturedImage,
+        vision: state.vision,
         ts: Date.now(),
       });
     }
@@ -458,9 +544,36 @@ export default function Home() {
   const showHint = state.type === 'streaming' && !multipleFaces && !isDetected;
   const showFaceCountWarning = state.type === 'streaming' && multipleFaces;
   const showResults = state.type === 'revealing' || state.type === 'complete';
+  const limitExhausted = scanLimit !== null && !scanLimit.allowed;
+  // Show the dedicated paywall view when there's no cached result to fall
+  // back to — once the user has cached output they see that instead, with
+  // the retake button gated.
+  const showPaywall = limitExhausted && state.type === 'idle';
 
   return (
-    <div className="relative min-h-dvh bg-black">
+    <div className="relative min-h-dvh overflow-hidden bg-black">
+      {/* Subtle emerald ambient — scan's brand colour. Sits below the
+          fixed-position camera/results layers so the wash is always
+          visible at the page edges (paywall view, the brief idle gap)
+          without competing with tier-tinted result colours which paint
+          their own backdrop on top. */}
+      <span
+        aria-hidden
+        className="pointer-events-none fixed -top-32 -left-32 h-[40rem] w-[40rem] rounded-full blur-3xl"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(16,185,129,0.14) 0%, rgba(34,197,94,0.05) 35%, transparent 70%)',
+        }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none fixed -bottom-40 -right-40 h-[32rem] w-[32rem] rounded-full blur-3xl"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(5,150,105,0.10) 0%, transparent 60%)',
+        }}
+      />
+
       <PrivacyModal
         open={privacyChecked && !privacyAcknowledged}
         onAcknowledge={acknowledgePrivacy}
@@ -480,6 +593,13 @@ export default function Home() {
           className="h-5 w-auto rounded-md drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
         />
       </header>
+
+      {showPaywall && (
+        <ScanPaywall
+          scanLimit={scanLimit}
+          onSignIn={() => setAuthOpen(true)}
+        />
+      )}
 
       {/* Full-screen camera, fixed inset-0 covers the entire viewport on every device */}
       {showCamera && (
@@ -590,11 +710,14 @@ export default function Home() {
             <ResultsContent
               state={state}
               tokens={tokens}
+              signedIn={isSignedIn}
+              retakeLocked={limitExhausted}
               onRetake={handleRetake}
               onShare={() => setShareOpen(true)}
               onAddToLeaderboard={() =>
                 signedInUser ? setLeaderboardOpen(true) : setAuthOpen(true)
               }
+              onSignIn={() => setAuthOpen(true)}
               onRevealDone={handleRevealDone}
             />
           </motion.main>
@@ -614,14 +737,17 @@ export default function Home() {
             capturedImage={state.capturedImage}
             onClose={() => setLeaderboardOpen(false)}
           />
-          <AuthModal
-            open={authOpen}
-            onClose={() => setAuthOpen(false)}
-            context="to submit"
-            next="/"
-          />
         </>
       )}
+
+      {/* AuthModal is mounted at all times so the paywall view, the
+          retake-locked button, and the locked breakdown can each pop it. */}
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        context="for unlimited"
+        next="/scan"
+      />
     </div>
   );
 }
@@ -633,16 +759,22 @@ type ResultsState =
 function ResultsContent({
   state,
   tokens,
+  signedIn,
+  retakeLocked,
   onRetake,
   onShare,
   onAddToLeaderboard,
+  onSignIn,
   onRevealDone,
 }: {
   state: ResultsState;
   tokens: TokenAccum;
+  signedIn: boolean;
+  retakeLocked: boolean;
   onRetake: () => void;
   onShare: () => void;
   onAddToLeaderboard: () => void;
+  onSignIn: () => void;
   onRevealDone: () => void;
 }) {
   const tier = getTier(state.scores.overall);
@@ -675,9 +807,12 @@ function ResultsContent({
             scores={state.scores}
             capturedImage={state.capturedImage}
             tokens={tokens}
+            signedIn={signedIn}
+            retakeLocked={retakeLocked}
             onRetake={onRetake}
             onShare={onShare}
             onAddToLeaderboard={onAddToLeaderboard}
+            onSignIn={onSignIn}
           />
         )}
       </div>
@@ -689,16 +824,22 @@ function CompleteView({
   scores,
   capturedImage,
   tokens,
+  signedIn,
+  retakeLocked,
   onRetake,
   onShare,
   onAddToLeaderboard,
+  onSignIn,
 }: {
   scores: FinalScores;
   capturedImage: string;
   tokens: TokenAccum;
+  signedIn: boolean;
+  retakeLocked: boolean;
   onRetake: () => void;
   onShare: () => void;
   onAddToLeaderboard: () => void;
+  onSignIn: () => void;
 }) {
   const tokensForDetail = tokens.liveCalls + tokens.proCalls > 0 ? tokens : undefined;
   const tier = getTier(scores.overall);
@@ -777,12 +918,21 @@ function CompleteView({
           <button
             type="button"
             onClick={onRetake}
-            aria-label="Retake photo"
+            aria-label={retakeLocked ? 'Sign in to scan again' : 'Retake photo'}
             style={{ touchAction: 'manipulation' }}
             className="flex h-11 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] text-xs font-medium text-white transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
           >
-            <RotateCcw size={14} aria-hidden />
-            retake
+            {retakeLocked ? (
+              <>
+                <Lock size={13} aria-hidden />
+                sign in
+              </>
+            ) : (
+              <>
+                <RotateCcw size={14} aria-hidden />
+                retake
+              </>
+            )}
           </button>
           <Link
             href="/"
@@ -816,15 +966,82 @@ function CompleteView({
         </Link>
       </div>
 
-      {scores.vision && typeof scores.presentation === 'number' && (
+      {typeof scores.presentation === 'number' && (
         <MoreDetail
           vision={scores.vision}
           presentation={scores.presentation}
           tokens={tokensForDetail}
+          signedIn={signedIn}
+          onSignIn={onSignIn}
         />
       )}
     </div>
   );
+}
+
+/**
+ * Full-page paywall shown when the scan limit is exhausted and the user has
+ * no cached previous result to fall back to. This is a fenced "you must sign
+ * in to continue" wall — not a modal, since the underlying state is `idle`
+ * with no UI of its own.
+ */
+function ScanPaywall({
+  scanLimit,
+  onSignIn,
+}: {
+  scanLimit: ScanLimit | null;
+  onSignIn: () => void;
+}) {
+  const reason = scanLimit?.reason ?? 'anon_lifetime';
+  const headline =
+    reason === 'auth_daily'
+      ? "you've hit today's scan limit"
+      : "you've used your free scan";
+  const sub =
+    reason === 'auth_daily'
+      ? formatReset(scanLimit?.resetInSeconds ?? null)
+      : 'sign in to keep scanning. accounts get 10 scans / day.';
+  const showSignIn = reason !== 'auth_daily';
+
+  return (
+    <main className="fixed inset-0 z-30 flex flex-col items-center justify-center bg-black px-6 text-center">
+      <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
+        <Lock size={18} className="text-zinc-200" aria-hidden />
+      </span>
+      <h1 className="text-lg font-semibold text-white">{headline}</h1>
+      <p className="mt-2 max-w-xs text-sm text-zinc-400">{sub}</p>
+      <div className="mt-6 flex flex-col gap-2">
+        {showSignIn && (
+          <button
+            type="button"
+            onClick={onSignIn}
+            style={{ touchAction: 'manipulation' }}
+            className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-zinc-100"
+          >
+            sign in / sign up
+          </button>
+        )}
+        <Link
+          href="/"
+          className="rounded-full border border-white/15 bg-white/[0.03] px-5 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.07] hover:text-white"
+        >
+          go home
+        </Link>
+      </div>
+    </main>
+  );
+}
+
+function formatReset(secs: number | null): string {
+  if (secs === null || secs <= 0) {
+    return "you've reached today's limit. come back soon.";
+  }
+  const hours = Math.floor(secs / 3600);
+  const minutes = Math.floor((secs % 3600) / 60);
+  if (hours > 0) {
+    return `your next scan unlocks in ${hours}h ${minutes}m.`;
+  }
+  return `your next scan unlocks in ${Math.max(1, minutes)}m.`;
 }
 
 function Avatar({

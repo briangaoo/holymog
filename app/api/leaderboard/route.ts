@@ -3,22 +3,36 @@ import { randomUUID } from 'crypto';
 import {
   FACES_BUCKET,
   getSupabase,
+  getSupabaseAdmin,
   type LeaderboardRow,
 } from '@/lib/supabase';
 import { auth } from '@/lib/auth';
+import { getPool } from '@/lib/db';
 import { getRatelimit } from '@/lib/ratelimit';
-import { getTier, PHOTO_REQUIRED_THRESHOLD } from '@/lib/tier';
+import { getTier } from '@/lib/tier';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+type PrivacyFlags = { hide_photo: boolean };
+
+type ProfileMergeRow = {
+  user_id: string;
+  hide_photo_from_leaderboard: boolean;
+  equipped_frame: string | null;
+  equipped_flair: string | null;
+  equipped_name_fx: string | null;
+  current_streak: number | null;
+  matches_won: number | null;
+  subscription_status: string | null;
+};
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const MAX_NAME_LEN = 24;
 const MAX_RESULTS = 100;
+const MAX_PAGE = 1000; // 100 results × 1000 pages = 100k rows; far past any real use
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 type PostBody = {
-  name?: unknown;
   scores?: unknown;
   imageBase64?: unknown;
 };
@@ -101,8 +115,10 @@ export async function GET(request: Request) {
   }
   const { searchParams } = new URL(request.url);
   const pageParam = parseInt(searchParams.get('page') ?? '1', 10);
-  const page =
-    Number.isFinite(pageParam) && pageParam >= 1 ? Math.floor(pageParam) : 1;
+  const page = Math.min(
+    MAX_PAGE,
+    Number.isFinite(pageParam) && pageParam >= 1 ? Math.floor(pageParam) : 1,
+  );
   const from = (page - 1) * MAX_RESULTS;
   const to = from + MAX_RESULTS - 1;
 
@@ -117,7 +133,52 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
-  const entries = data ?? [];
+  const rawEntries = (data ?? []) as LeaderboardRow[];
+
+  // Merge profile data (privacy flag + equipped cosmetics + subscriber +
+  // userStats fields for smart cosmetic rendering). Single JOIN query
+  // by user_id for the page's rows.
+  const userIds = rawEntries.map((r) => r.user_id).filter(Boolean);
+  const flagsByUserId = new Map<string, PrivacyFlags>();
+  const profileByUserId = new Map<string, ProfileMergeRow>();
+  if (userIds.length > 0) {
+    const pool = getPool();
+    const profileResult = await pool.query<ProfileMergeRow>(
+      `select user_id, hide_photo_from_leaderboard,
+              equipped_frame, equipped_flair, equipped_name_fx,
+              current_streak, matches_won, subscription_status
+         from profiles
+        where user_id = any($1::uuid[])`,
+      [userIds],
+    );
+    for (const row of profileResult.rows) {
+      flagsByUserId.set(row.user_id, {
+        hide_photo: row.hide_photo_from_leaderboard,
+      });
+      profileByUserId.set(row.user_id, row);
+    }
+  }
+
+  // Privacy: when the user has flipped `hide_photo_from_leaderboard`,
+  // null out their submitted leaderboard photo. Profile picture
+  // (avatar_url) is unaffected — that's identity, not the submission.
+  const entries: LeaderboardRow[] = rawEntries.map((row) => {
+    const flags = flagsByUserId.get(row.user_id);
+    const p = profileByUserId.get(row.user_id);
+    const is_subscriber =
+      p?.subscription_status === 'active' || p?.subscription_status === 'trialing';
+    return {
+      ...row,
+      image_url: flags?.hide_photo ? null : row.image_url,
+      equipped_frame: p?.equipped_frame ?? null,
+      equipped_flair: p?.equipped_flair ?? null,
+      equipped_name_fx: p?.equipped_name_fx ?? null,
+      current_streak: p?.current_streak ?? null,
+      matches_won: p?.matches_won ?? null,
+      is_subscriber,
+    };
+  });
+
   return NextResponse.json({
     entries,
     hasMore: entries.length === MAX_RESULTS,
@@ -141,7 +202,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   if (!supabase) {
     return NextResponse.json({ error: 'leaderboard_unconfigured' }, { status: 503 });
   }
@@ -153,11 +214,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
-  const rawName = typeof body.name === 'string' ? body.name.trim() : '';
-  if (rawName.length === 0 || rawName.length > MAX_NAME_LEN) {
-    return NextResponse.json({ error: 'invalid_name' }, { status: 400 });
+  // Name and avatar come from the user's profile, not from the request body.
+  const pool = getPool();
+  const profileInfo = await pool.query<{ display_name: string; image: string | null }>(
+    `select p.display_name, u.image
+       from profiles p
+       join users u on u.id = p.user_id
+      where p.user_id = $1
+      limit 1`,
+    [user.id],
+  );
+  if (!profileInfo.rows[0]) {
+    return NextResponse.json({ error: 'profile_not_found' }, { status: 422 });
   }
-  const name = rawName.replace(/\s+/g, ' ').toLowerCase();
+  const name = profileInfo.rows[0].display_name;
+  const avatarUrl = profileInfo.rows[0].image ?? null;
 
   const scores = validateScores(body.scores);
   if (!scores) {
@@ -168,16 +239,12 @@ export async function POST(request: Request) {
   const wantsPhoto =
     typeof body.imageBase64 === 'string' && body.imageBase64.length > 0;
 
-  // Anti-cheat gate: S-tier scores (≥87) MUST submit a photo so the
-  // leaderboard is reviewable. The modal disables the toggle in this
-  // case, but we enforce on the server too in case of stale clients
-  // or a hand-rolled request.
-  if (scores.overall >= PHOTO_REQUIRED_THRESHOLD && !wantsPhoto) {
-    return NextResponse.json(
-      { error: 'photo_required_for_high_scores' },
-      { status: 400 },
-    );
-  }
+  // Photo is fully optional at every tier. The S-tier anti-cheat path
+  // is handled separately: /api/score archives every scan image to the
+  // private holymog-scans bucket and flags scan_history.requires_review
+  // when overall ≥ PHOTO_REQUIRED_THRESHOLD, then emails admin for
+  // human review. Whether the user chooses to display their face on
+  // the public board here is unrelated — privacy first.
 
   // One row per user — look up existing.
   const { data: existing, error: lookupErr } = await supabase
@@ -213,6 +280,7 @@ export async function POST(request: Request) {
         cheekbones: scores.sub.cheekbones,
         image_url: imageUrl,
         image_path: imagePath,
+        avatar_url: avatarUrl,
       })
       .eq('user_id', user.id)
       .select('*')
@@ -238,6 +306,7 @@ export async function POST(request: Request) {
       cheekbones: scores.sub.cheekbones,
       image_url: imageUrl,
       image_path: imagePath,
+      avatar_url: avatarUrl,
     })
     .select('*')
     .single();

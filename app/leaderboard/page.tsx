@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Camera, Swords } from 'lucide-react';
 import { getTier } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
@@ -8,6 +9,10 @@ import type { LeaderboardRow } from '@/lib/supabase';
 import { writeLeaderboardCache } from '@/lib/leaderboardCache';
 import { AppHeader } from '@/components/AppHeader';
 import { FullPageSpinner } from '@/components/FullPageSpinner';
+import { Frame } from '@/components/customization/Frame';
+import { Badge } from '@/components/customization/Badge';
+import { NameFx } from '@/components/customization/NameFx';
+import type { UserStats } from '@/lib/customization';
 
 type Tab = 'scans' | 'battles';
 type Status = 'loading' | 'ready' | 'unconfigured' | 'error';
@@ -25,6 +30,12 @@ type BattleRow = {
   peak_elo: number;
   matches_played: number;
   matches_won: number;
+  avatar_url: string | null;
+  equipped_frame?: string | null;
+  equipped_flair?: string | null;
+  equipped_name_fx?: string | null;
+  current_streak?: number | null;
+  is_subscriber?: boolean;
 };
 
 type BattleApiResponse = {
@@ -411,72 +422,125 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
         color: 'transparent',
       }
     : { color: tier.color };
+  const photoSrc = row.image_url ?? row.avatar_url ?? null;
+  // Smart cosmetics on the scan-leaderboard row know the user's best
+  // overall (= row.overall) and their current_streak / matches_won
+  // (from the profile JOIN). Smart cosmetics with no available data
+  // (e.g., name.callout needs weakestSubScore — not fetched here)
+  // gracefully render their empty state.
+  const userStats: UserStats = {
+    bestScanOverall: row.overall,
+    currentStreak: row.current_streak ?? null,
+    currentWinStreak: row.current_streak ?? null,
+    matchesWon: row.matches_won ?? null,
+  };
   return (
-    <li className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
-        {rank}
-      </div>
-      {row.image_url ? (
-        <img
-          src={row.image_url}
-          alt=""
-          className="h-10 w-10 flex-shrink-0 rounded-full border border-white/10 object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <InitialAvatar name={row.name} />
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="truncate text-sm font-medium text-white">{row.name}</div>
-        <div className="text-[11px] text-zinc-500">
-          J {row.jawline} · E {row.eyes} · S {row.skin} · C {row.cheekbones}
+    <li>
+      <Link
+        href={`/@${row.name}`}
+        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]"
+      >
+        <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
+          {rank}
         </div>
-      </div>
-      <div className="text-right">
-        <div
-          className="font-num text-2xl font-extrabold leading-none normal-case"
-          style={tierStyle}
-          aria-label={`Tier ${row.tier}`}
-        >
-          {row.tier}
+        <Frame slug={row.equipped_frame ?? null} size={40} userStats={userStats}>
+          {photoSrc ? (
+            <img
+              src={photoSrc}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <InitialAvatar name={row.name} />
+          )}
+        </Frame>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 truncate text-sm font-medium text-white">
+            <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
+              {row.name}
+            </NameFx>
+            <Badge slug={row.equipped_flair ?? null} userStats={userStats} />
+          </div>
+          <div className="text-[11px] text-zinc-500">
+            J {row.jawline} · E {row.eyes} · S {row.skin} · C {row.cheekbones}
+          </div>
         </div>
-        <div
-          className="font-num text-xs font-semibold tabular-nums"
-          style={{ color: getScoreColor(row.overall) }}
-        >
-          {row.overall}
+        <div className="text-right">
+          <div
+            className="font-num text-2xl font-extrabold leading-none normal-case"
+            style={tierStyle}
+            aria-label={`Tier ${row.tier}`}
+          >
+            {row.tier}
+          </div>
+          <div
+            className="font-num text-xs font-semibold tabular-nums"
+            style={{ color: getScoreColor(row.overall) }}
+          >
+            {row.overall}
+          </div>
         </div>
-      </div>
+      </Link>
     </li>
   );
 }
 
 function BattleRow({ row, rank }: { row: BattleRow; rank: number }) {
   const losses = Math.max(0, row.matches_played - row.matches_won);
+  // Battle leaderboard knows elo + matches_won + current_streak.
+  // name.elo-king renders here. name.streak-flame renders here.
+  // bestScanOverall / weakestSubScore not available — smart fx that
+  // need those render empty state.
+  const userStats: UserStats = {
+    elo: row.elo,
+    matchesWon: row.matches_won,
+    currentStreak: row.current_streak ?? null,
+    currentWinStreak: row.current_streak ?? null,
+  };
   return (
-    <li className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
-        {rank}
-      </div>
-      <InitialAvatar name={row.display_name} />
-      <div className="flex-1 min-w-0">
-        <div className="truncate text-sm font-medium text-white">
-          {row.display_name}
+    <li>
+      <Link
+        href={`/@${row.display_name}`}
+        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]"
+      >
+        <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
+          {rank}
         </div>
-        <div className="text-[11px] text-zinc-500">
-          {row.matches_played === 0
-            ? 'unranked'
-            : `${row.matches_won}W / ${losses}L · peak ${row.peak_elo}`}
+        <Frame slug={row.equipped_frame ?? null} size={40} userStats={userStats}>
+          {row.avatar_url ? (
+            <img
+              src={row.avatar_url}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <InitialAvatar name={row.display_name} />
+          )}
+        </Frame>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 truncate text-sm font-medium text-white">
+            <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
+              {row.display_name}
+            </NameFx>
+            <Badge slug={row.equipped_flair ?? null} userStats={userStats} />
+          </div>
+          <div className="text-[11px] text-zinc-500">
+            {row.matches_played === 0
+              ? 'unranked'
+              : `${row.matches_won}W / ${losses}L · peak ${row.peak_elo}`}
+          </div>
         </div>
-      </div>
-      <div className="text-right">
-        <div className="font-num text-2xl font-extrabold leading-none tabular-nums text-white">
-          {row.elo}
+        <div className="text-right">
+          <div className="font-num text-2xl font-extrabold leading-none tabular-nums text-white">
+            {row.elo}
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+            ELO
+          </div>
         </div>
-        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-          ELO
-        </div>
-      </div>
+      </Link>
     </li>
   );
 }

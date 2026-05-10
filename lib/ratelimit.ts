@@ -1,18 +1,50 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
-let cachedLimiter: Ratelimit | null = null;
+type Window = '1 s' | '10 s' | '1 m' | '10 m' | '1 h' | '1 d';
 
-export function getRatelimit(): Ratelimit | null {
-  if (cachedLimiter) return cachedLimiter;
+type Preset = {
+  tokens: number;
+  window: Window;
+};
+
+/**
+ * Named rate-limit presets. Each gets its own Redis prefix so buckets are
+ * isolated even when keys collide across endpoints. All limits gracefully
+ * degrade to "no limit" when Upstash credentials aren't configured (local
+ * dev). Tune values here, not at the call site, so policy is one place.
+ */
+const PRESETS = {
+  default: { tokens: 10, window: '1 m' },
+  // Live-meter calls during a scan — fires ~5 per scan flow legitimately.
+  quickScore: { tokens: 60, window: '1 m' },
+  // Battle frame scoring — natural rate is ~10 / 11s active window per user.
+  battleScore: { tokens: 30, window: '1 m' },
+  // Code-guess + private join attempts.
+  battleJoin: { tokens: 20, window: '1 m' },
+  // Username changes — friction on enumeration / churn.
+  username: { tokens: 3, window: '1 h' },
+  // General account-mutation gate (avatar uploads, deletes, etc).
+  accountMutate: { tokens: 20, window: '1 m' },
+} as const satisfies Record<string, Preset>;
+
+export type RatelimitName = keyof typeof PRESETS;
+
+const cache = new Map<RatelimitName, Ratelimit>();
+
+export function getRatelimit(name: RatelimitName = 'default'): Ratelimit | null {
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
     return null;
   }
-  cachedLimiter = new Ratelimit({
+  const cached = cache.get(name);
+  if (cached) return cached;
+  const cfg = PRESETS[name];
+  const limiter = new Ratelimit({
     redis: Redis.fromEnv(),
-    limiter: Ratelimit.slidingWindow(10, '1 m'),
+    limiter: Ratelimit.slidingWindow(cfg.tokens, cfg.window),
     analytics: true,
-    prefix: 'holymog',
+    prefix: `holymog:${name}`,
   });
-  return cachedLimiter;
+  cache.set(name, limiter);
+  return limiter;
 }

@@ -1,126 +1,218 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useUser } from '@/hooks/useUser';
+import { ProfileSection } from './account/settings/ProfileSection';
+import { UsernameSection } from './account/settings/UsernameSection';
+import { PrivacySection } from './account/settings/PrivacySection';
+import { BattleSection } from './account/settings/BattleSection';
+import { NotificationsSection } from './account/settings/NotificationsSection';
+import { CustomizationSection } from './account/settings/CustomizationSection';
+import { AccountSection } from './account/settings/AccountSection';
+import { DataSection } from './account/settings/DataSection';
+import { HelpSection } from './account/settings/HelpSection';
+import type { FieldUpdate, SettingsProfile } from './account/settings/shared';
 
-const MAX_NAME_LEN = 24;
+/**
+ * Account settings tab — composes per-domain sections (profile, username,
+ * privacy, battle, notifications, data, help). Each section reads its
+ * slice of the profile and writes back through the shared `updateProfile`
+ * helper, which optimistically applies the patch then talks to
+ * /api/account/me PATCH. Fully self-contained — only the tab nav above
+ * is owned by the parent /account page.
+ */
 
-export function AccountSettingsTab() {
-  const { user, signOut } = useUser();
-  const [name, setName] = useState('');
-  const [originalName, setOriginalName] = useState('');
-  const [savingName, setSavingName] = useState(false);
-  const [nameStatus, setNameStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+type ServerProfile = SettingsProfile & {
+  display_name: string;
+};
 
-  // Pull the canonical display name + identity from /api/account/me on mount.
+type LeaderboardEntryShape = {
+  id: string;
+  image_url?: string | null;
+};
+
+type MeResponse = {
+  profile?: ServerProfile | null;
+  entry?: LeaderboardEntryShape | null;
+};
+
+export function AccountSettingsTab({ initial }: { initial?: MeResponse | null }) {
+  const { user } = useUser();
+  const [profile, setProfile] = useState<ServerProfile | null>(
+    initial?.profile ?? null,
+  );
+  const [hasLeaderboardEntry, setHasLeaderboardEntry] = useState<boolean>(
+    !!initial?.entry,
+  );
+  const [hasLeaderboardPhoto, setHasLeaderboardPhoto] = useState<boolean>(
+    !!initial?.entry?.image_url,
+  );
+  const [loaded, setLoaded] = useState(initial != null);
+
+  // Hydrate from server if the page didn't prefetch.
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch('/api/account/me', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as MeResponse;
+      if (data.profile) setProfile(data.profile);
+      setHasLeaderboardEntry(!!data.entry);
+      setHasLeaderboardPhoto(!!data.entry?.image_url);
+    } catch {
+      // best-effort
+    } finally {
+      setLoaded(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/account/me', { cache: 'no-store' });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          profile?: { display_name?: string };
+    if (initial != null) return;
+    void refresh();
+  }, [user?.id, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Patches go through here; we apply optimistically so toggles feel
+  // instant, then roll back on error.
+  const updateProfile = useCallback(
+    async (
+      patch: FieldUpdate,
+    ): Promise<{ ok: boolean; error?: string; message?: string }> => {
+      if (!profile) return { ok: false, error: 'no_profile' };
+      const previous = profile;
+      // Apply locally — translate the wire shape (FieldUpdate) into the
+      // SettingsProfile shape. socials in patches contains only the
+      // changed slots; merge into the existing socials object.
+      const optimistic: ServerProfile = { ...previous };
+      for (const key of [
+        'bio',
+        'location',
+        'hide_photo_from_leaderboard',
+        'hide_elo',
+        'mute_battle_sfx',
+        'weekly_digest',
+        'mog_email_alerts',
+      ] as const) {
+        if (key in patch) {
+          // @ts-expect-error — same shape on both sides.
+          optimistic[key] = patch[key];
+        }
+      }
+      if (patch.socials) {
+        const merged: Record<string, string | null> = {
+          ...((previous.socials as Record<string, string | null> | null) ?? {}),
         };
-        if (cancelled) return;
-        const dn = data.profile?.display_name ?? '';
-        setName(dn);
-        setOriginalName(dn);
+        for (const [k, v] of Object.entries(patch.socials)) {
+          if (v === '' || v === null) delete merged[k];
+          else merged[k] = v;
+        }
+        optimistic.socials = merged;
+      }
+      setProfile(optimistic);
+
+      try {
+        const res = await fetch('/api/account/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+            message?: string;
+          };
+          // Revert on failure.
+          setProfile(previous);
+          return { ok: false, error: data.error, message: data.message };
+        }
+        return { ok: true };
       } catch {
-        // best-effort
+        setProfile(previous);
+        return { ok: false, error: 'network_error' };
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+    },
+    [profile],
+  );
 
-  const saveName = async () => {
-    const trimmed = name.trim().toLowerCase().slice(0, MAX_NAME_LEN);
-    if (!trimmed || !user) return;
-    setSavingName(true);
-    setNameStatus('idle');
+  // Danger-zone callbacks for DataSection — wrap fetches in a stable shape.
+  const onResetStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/account/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: trimmed }),
-      });
-      setSavingName(false);
+      const res = await fetch('/api/account/reset-stats', { method: 'POST' });
       if (!res.ok) {
-        setNameStatus('error');
-        return;
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        return { ok: false, message: data.error ?? 'failed' };
       }
-      setNameStatus('saved');
-      setName(trimmed);
-      setOriginalName(trimmed);
-      window.setTimeout(() => setNameStatus('idle'), 1500);
+      void refresh();
+      return { ok: true };
     } catch {
-      setSavingName(false);
-      setNameStatus('error');
+      return { ok: false, message: 'network error' };
     }
-  };
+  }, [refresh]);
 
-  if (!user) {
-    return <p className="text-sm text-zinc-500">not signed in</p>;
+  const onRemoveLeaderboard = useCallback(async () => {
+    try {
+      const res = await fetch('/api/account/leaderboard', { method: 'DELETE' });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        return { ok: false, message: data.error ?? 'failed' };
+      }
+      setHasLeaderboardEntry(false);
+      return { ok: true };
+    } catch {
+      return { ok: false, message: 'network error' };
+    }
+  }, []);
+
+  const onDeleteAccount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/account/me', { method: 'DELETE' });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        return { ok: false, message: data.error ?? 'failed' };
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, message: 'network error' };
+    }
+  }, []);
+
+  if (!user || !loaded) return null;
+  if (!profile) {
+    return (
+      <div className="rounded-md border border-white/10 bg-white/[0.02] p-3 text-center text-xs text-zinc-400">
+        could not load profile
+      </div>
+    );
   }
-
-  const isDirty = name.trim() !== originalName.trim();
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-        <label
-          htmlFor="display-name"
-          className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400"
-        >
-          display name
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="display-name"
-            type="text"
-            value={name}
-            onChange={(e) =>
-              setName(e.target.value.toLowerCase().slice(0, MAX_NAME_LEN))
-            }
-            maxLength={MAX_NAME_LEN}
-            className="flex-1 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-white/30 focus:outline-none"
-            autoCapitalize="none"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="your name"
-          />
-          <button
-            type="button"
-            onClick={saveName}
-            disabled={savingName || !isDirty || name.trim().length === 0}
-            style={{ touchAction: 'manipulation' }}
-            className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-zinc-100 disabled:opacity-50"
-          >
-            {savingName ? 'saving…' : 'save'}
-          </button>
-        </div>
-        <p className="text-[11px] text-zinc-500">e.g. brian gao</p>
-        {nameStatus === 'saved' && (
-          <p className="text-[11px] text-emerald-400">saved</p>
-        )}
-        {nameStatus === 'error' && (
-          <p className="text-[11px] text-red-400">could not save</p>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-        <button
-          type="button"
-          onClick={signOut}
-          style={{ touchAction: 'manipulation' }}
-          className="rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm text-white transition-colors hover:bg-white/[0.07]"
-        >
-          sign out
-        </button>
-      </section>
+      <ProfileSection profile={profile} onUpdate={updateProfile} />
+      <UsernameSection profile={profile} />
+      <PrivacySection
+        profile={profile}
+        hasLeaderboardPhoto={hasLeaderboardPhoto}
+        onUpdate={updateProfile}
+      />
+      <BattleSection profile={profile} onUpdate={updateProfile} />
+      <NotificationsSection profile={profile} onUpdate={updateProfile} />
+      <CustomizationSection profile={profile} />
+      <AccountSection
+        twoFactorEnabled={profile.two_factor_enabled}
+        email={user.email}
+      />
+      <DataSection
+        hasLeaderboardEntry={hasLeaderboardEntry}
+        onResetStats={onResetStats}
+        onRemoveLeaderboard={onRemoveLeaderboard}
+        onDeleteAccount={onDeleteAccount}
+      />
+      <HelpSection />
     </div>
   );
 }

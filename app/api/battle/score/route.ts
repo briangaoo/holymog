@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { analyzeBattle } from '@/lib/vision';
 import { broadcastBattleEvent } from '@/lib/realtime';
+import { getRatelimit } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,6 +65,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'missing_fields' }, { status: 400 });
   }
   const battleId = body.battle_id;
+
+  // Cap each user's score-call rate per battle. The active phase
+  // legitimately fires ~10 calls over 11 seconds; 30/min is comfortable
+  // headroom and bounds the cost ceiling per battle if a client misbehaves.
+  const limiter = getRatelimit('battleScore');
+  if (limiter) {
+    const result = await limiter.limit(`${user.id}:${battleId}`);
+    if (!result.success) {
+      return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+    }
+  }
 
   const buffer = decodeBase64(body.imageBase64);
   if (!buffer) return NextResponse.json({ error: 'decode_failed' }, { status: 400 });
