@@ -168,7 +168,127 @@ export const NAME_FX: Record<string, NameFxDef> = {
 // === THEMES (Agent D — cosmetics-themes branch) ==================================
 // Populate this block with 15 entries.
 export const THEMES: Record<string, ThemeDef> = {
-  // (agent D populates 15 entries here)
+  'theme.rain': {
+    slug: 'theme.rain',
+    kind: 'theme',
+    name: 'rain',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/rain'),
+    ) as ThemeComponent,
+  },
+  'theme.dust': {
+    slug: 'theme.dust',
+    kind: 'theme',
+    name: 'dust',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/dust'),
+    ) as ThemeComponent,
+  },
+  'theme.spotlight': {
+    slug: 'theme.spotlight',
+    kind: 'theme',
+    name: 'spotlight',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/spotlight'),
+    ) as ThemeComponent,
+  },
+  'theme.corridor': {
+    slug: 'theme.corridor',
+    kind: 'theme',
+    name: 'corridor',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/corridor'),
+    ) as ThemeComponent,
+  },
+  'theme.aurora': {
+    slug: 'theme.aurora',
+    kind: 'theme',
+    name: 'aurora',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/aurora'),
+    ) as ThemeComponent,
+  },
+  'theme.tidewave': {
+    slug: 'theme.tidewave',
+    kind: 'theme',
+    name: 'tidewave',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/tidewave'),
+    ) as ThemeComponent,
+  },
+  'theme.granite': {
+    slug: 'theme.granite',
+    kind: 'theme',
+    name: 'granite',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/granite'),
+    ) as ThemeComponent,
+  },
+  'theme.match-found': {
+    slug: 'theme.match-found',
+    kind: 'theme',
+    name: 'match found',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/match-found'),
+    ) as ThemeComponent,
+  },
+  'theme.tier-grid': {
+    slug: 'theme.tier-grid',
+    kind: 'theme',
+    name: 'tier grid',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/tier-grid'),
+    ) as ThemeComponent,
+  },
+  'theme.win-stack': {
+    slug: 'theme.win-stack',
+    kind: 'theme',
+    name: 'win stack',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/win-stack'),
+    ) as ThemeComponent,
+    smart: true,
+  },
+  'theme.embers': {
+    slug: 'theme.embers',
+    kind: 'theme',
+    name: 'embers',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/embers'),
+    ) as ThemeComponent,
+  },
+  'theme.god-beam': {
+    slug: 'theme.god-beam',
+    kind: 'theme',
+    name: 'god beam',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/god-beam'),
+    ) as ThemeComponent,
+  },
+  'theme.divine-rays': {
+    slug: 'theme.divine-rays',
+    kind: 'theme',
+    name: 'divine rays',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/divine-rays'),
+    ) as ThemeComponent,
+  },
+  'theme.throne': {
+    slug: 'theme.throne',
+    kind: 'theme',
+    name: 'throne',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/throne'),
+    ) as ThemeComponent,
+  },
+  'theme.shockwave': {
+    slug: 'theme.shockwave',
+    kind: 'theme',
+    name: 'shockwave',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/shockwave'),
+    ) as ThemeComponent,
+  },
 };
 // === END THEMES ===================================================================
 
