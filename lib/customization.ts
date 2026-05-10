@@ -161,7 +161,123 @@ export const BADGES: Record<string, BadgeDef> = {
 // === NAME_FX (Agent C — cosmetics-name-fx branch) ================================
 // Populate this block with 14 entries.
 export const NAME_FX: Record<string, NameFxDef> = {
-  // (agent C populates 14 entries here)
+  'name.embossed-gold': {
+    slug: 'name.embossed-gold',
+    kind: 'name_fx',
+    name: 'embossed gold',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/embossed-gold'),
+    ) as NameFxComponent,
+  },
+  'name.carved-obsidian': {
+    slug: 'name.carved-obsidian',
+    kind: 'name_fx',
+    name: 'carved obsidian',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/carved-obsidian'),
+    ) as NameFxComponent,
+  },
+  'name.smoke-trail': {
+    slug: 'name.smoke-trail',
+    kind: 'name_fx',
+    name: 'smoke trail',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/smoke-trail'),
+    ) as NameFxComponent,
+  },
+  'name.frosted-glass': {
+    slug: 'name.frosted-glass',
+    kind: 'name_fx',
+    name: 'frosted glass',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/frosted-glass'),
+    ) as NameFxComponent,
+  },
+  'name.ink-bleed': {
+    slug: 'name.ink-bleed',
+    kind: 'name_fx',
+    name: 'ink bleed',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/ink-bleed'),
+    ) as NameFxComponent,
+  },
+  'name.pixelsort': {
+    slug: 'name.pixelsort',
+    kind: 'name_fx',
+    name: 'pixelsort',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/pixelsort'),
+    ) as NameFxComponent,
+  },
+  'name.aurora': {
+    slug: 'name.aurora',
+    kind: 'name_fx',
+    name: 'aurora',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/aurora'),
+    ) as NameFxComponent,
+  },
+  'name.signed': {
+    slug: 'name.signed',
+    kind: 'name_fx',
+    name: 'signed',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/signed'),
+    ) as NameFxComponent,
+  },
+  'name.tier-prefix': {
+    slug: 'name.tier-prefix',
+    kind: 'name_fx',
+    name: 'tier prefix',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/tier-prefix'),
+    ) as NameFxComponent,
+    smart: true,
+  },
+  'name.callout': {
+    slug: 'name.callout',
+    kind: 'name_fx',
+    name: 'callout',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/callout'),
+    ) as NameFxComponent,
+    smart: true,
+  },
+  'name.streak-flame': {
+    slug: 'name.streak-flame',
+    kind: 'name_fx',
+    name: 'streak flame',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/streak-flame'),
+    ) as NameFxComponent,
+    smart: true,
+  },
+  'name.elo-king': {
+    slug: 'name.elo-king',
+    kind: 'name_fx',
+    name: 'elo king',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/elo-king'),
+    ) as NameFxComponent,
+    smart: true,
+  },
+  'name.divine-judgment': {
+    slug: 'name.divine-judgment',
+    kind: 'name_fx',
+    name: 'divine judgment',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/divine-judgment'),
+    ) as NameFxComponent,
+  },
+  'name.score-overlay': {
+    slug: 'name.score-overlay',
+    kind: 'name_fx',
+    name: 'score overlay',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/score-overlay'),
+    ) as NameFxComponent,
+    smart: true,
+  },
 };
 // === END NAME_FX ==================================================================
 
