@@ -80,3 +80,186 @@ body {
   font-feature-settings: "tnum" on, "lnum" on;
   letter-spacing: -0.02em;
 }
+
+/* === NAME_FX CLASSES (agent C — cosmetics-name-fx branch) ===
+ * Single fenced block. Foundation agent uses these comment markers as
+ * the merge anchor. Do not split. Each class is applied by exactly one
+ * component under components/cosmetics/name-fx/.
+ *
+ * All animations are wrapped in @media (prefers-reduced-motion: no-preference)
+ * so the gradient/colour treatment still renders but the motion stops
+ * for users who request reduced motion.
+ */
+
+/* 1. embossed gold — 3D-stamped gold leaf with inner shadow + sheen */
+.name-fx-embossed-gold {
+  background: linear-gradient(
+    135deg,
+    #fef3c7 0%,
+    #fde68a 18%,
+    #d4af37 50%,
+    #a16207 78%,
+    #92400e 100%
+  );
+  background-size: 200% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(255, 240, 200, 0.55))
+    drop-shadow(0 2px 3px rgba(0, 0, 0, 0.65));
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .name-fx-embossed-gold {
+    animation: name-fx-gold-sheen 6.5s ease-in-out infinite;
+  }
+}
+@keyframes name-fx-gold-sheen {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* 2. carved obsidian — letters as polished volcanic glass with a
+ *    full-spectrum prismatic rim. The body is a subtle dark gradient
+ *    (slightly lighter than the site bg so the glyph silhouette reads)
+ *    and the visual identity comes from the iridescent edge highlights:
+ *    cyan on top, violet on bottom, pink/cyan on the sides. */
+.name-fx-carved-obsidian {
+  background: linear-gradient(
+    165deg,
+    #34303a 0%,
+    #211e2a 45%,
+    #161320 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow:
+    0 -1px 0 rgba(34, 211, 238, 0.85),
+    0 1px 0 rgba(168, 85, 247, 0.75),
+    1px 0 0 rgba(244, 114, 182, 0.45),
+    -1px 0 0 rgba(34, 211, 238, 0.45),
+    0 0 10px rgba(80, 50, 110, 0.5);
+  font-weight: 700;
+}
+
+/* 3. smoke trail — handled in component (shader overlay). no class. */
+
+/* 4. frosted glass — etched glass letterforms with cyan/violet
+ *    chromatic-aberration edges and a slow refraction shimmer */
+.name-fx-frosted-glass {
+  background: linear-gradient(
+    135deg,
+    rgba(245, 250, 255, 0.95) 0%,
+    rgba(220, 240, 255, 0.85) 35%,
+    rgba(235, 230, 255, 0.95) 70%,
+    rgba(245, 250, 255, 0.95) 100%
+  );
+  background-size: 220% 220%;
+  background-position: 0% 0%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow:
+    -1px 0 0 rgba(34, 211, 238, 0.32),
+    1px 0 0 rgba(168, 85, 247, 0.32),
+    0 0 6px rgba(255, 255, 255, 0.4);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .name-fx-frosted-glass {
+    animation: name-fx-frosted-shimmer 9s ease-in-out infinite;
+  }
+}
+@keyframes name-fx-frosted-shimmer {
+  0%,
+  100% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+}
+
+/* 5. ink bleed — handled in component (shader overlay). no class. */
+
+/* 6. pixelsort — horizontal RGB-displaced streaks that drift through
+ *    the letterforms. Uses only text-shadow so layout never shifts. */
+.name-fx-pixelsort {
+  color: #f5f5f5;
+  position: relative;
+  text-shadow:
+    -7px 0 0.5px rgba(34, 211, 238, 0.38),
+    7px 0 0.5px rgba(255, 113, 113, 0.38),
+    -14px 0 0.5px rgba(34, 211, 238, 0.18),
+    14px 0 0.5px rgba(255, 113, 113, 0.18);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .name-fx-pixelsort {
+    animation: name-fx-pixelsort-shift 3.6s ease-in-out infinite;
+  }
+}
+@keyframes name-fx-pixelsort-shift {
+  0%,
+  100% {
+    text-shadow:
+      -7px 0 0.5px rgba(34, 211, 238, 0.38),
+      7px 0 0.5px rgba(255, 113, 113, 0.38),
+      -14px 0 0.5px rgba(34, 211, 238, 0.18),
+      14px 0 0.5px rgba(255, 113, 113, 0.18);
+  }
+  50% {
+    text-shadow:
+      -12px 0 0.5px rgba(34, 211, 238, 0.5),
+      12px 0 0.5px rgba(255, 113, 113, 0.5),
+      -22px 0 0.5px rgba(34, 211, 238, 0.22),
+      22px 0 0.5px rgba(255, 113, 113, 0.22);
+  }
+}
+
+/* 7. aurora — cyan→violet→lime→orange→cyan gradient cycling through
+ *    the letterforms on a slow drift */
+.name-fx-aurora {
+  background: linear-gradient(
+    90deg,
+    #22d3ee,
+    #a855f7,
+    #84cc16,
+    #f97316,
+    #22d3ee
+  );
+  background-size: 400% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .name-fx-aurora {
+    animation: name-fx-aurora-cycle 8s linear infinite;
+  }
+}
+@keyframes name-fx-aurora-cycle {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 400% 50%;
+  }
+}
+
+/* 8. signed — handled in component (inline SVG). no class. */
+/* 9–14: data-binding + shader overlays — handled in component. no class. */
+/* === END NAME_FX CLASSES === */
