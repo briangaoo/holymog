@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { FACES_BUCKET, getSupabaseAdmin } from '@/lib/supabase';
+import { requireSameOrigin } from '@/lib/originGuard';
+import { publicError } from '@/lib/errors';
+import { parseJsonBody } from '@/lib/parseRequest';
+import { AvatarPostBody } from '@/lib/schemas/account';
+import { decodeDataUrl, safeImageUpload } from '@/lib/imageUpload';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const MAX_BYTES = 1.5 * 1024 * 1024; // 1.5 MB
-
-type Body = { imageBase64?: unknown };
 
 /**
  * POST /api/account/avatar
@@ -23,52 +24,56 @@ type Body = { imageBase64?: unknown };
  * default image where available, or the initial-letter fallback).
  */
 export async function POST(request: Request) {
+  const origin = requireSameOrigin(request);
+  if (!origin.ok) return NextResponse.json(origin.body, { status: origin.status });
+
   const session = await auth();
   const user = session?.user;
   if (!user) {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    return NextResponse.json(publicError('unauthenticated'), { status: 401 });
   }
 
-  let body: Body;
+  const parsed = await parseJsonBody(request, AvatarPostBody);
+  if ('error' in parsed) return parsed.error;
+
+  const decoded = decodeDataUrl(parsed.data.imageBase64);
+  if (!decoded) {
+    return NextResponse.json(publicError('invalid_image_format'), { status: 400 });
+  }
+
+  // sharp re-encode strips EXIF/GPS/camera metadata and normalises
+  // the raster — protects against polyglot files and accidental
+  // location leaks from phone selfies.
+  let safe;
   try {
-    body = (await request.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
-  }
-  if (typeof body.imageBase64 !== 'string') {
-    return NextResponse.json({ error: 'missing_image' }, { status: 400 });
-  }
-
-  const match = body.imageBase64.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
-  if (!match) {
-    return NextResponse.json({ error: 'invalid_image_format' }, { status: 400 });
-  }
-  const mime = match[1] === 'jpg' ? 'image/jpeg' : `image/${match[1]}`;
-  const buffer = Buffer.from(match[2], 'base64');
-  if (buffer.byteLength > MAX_BYTES) {
-    return NextResponse.json({ error: 'image_too_large' }, { status: 413 });
+    safe = await safeImageUpload(decoded.buffer, 'avatar');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'invalid_image';
+    if (msg === 'image_too_large') {
+      return NextResponse.json(publicError(msg), { status: 413 });
+    }
+    return NextResponse.json(publicError('invalid_image', err), { status: 400 });
   }
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    return NextResponse.json({ error: 'storage_unconfigured' }, { status: 503 });
+    return NextResponse.json(publicError('storage_unconfigured'), { status: 503 });
   }
 
   // Stable per-user path so each upload overwrites the previous avatar.
-  // We append a cache-buster query param to the public URL (below) so
-  // browsers / Next/Image fetch the new bytes immediately.
-  const ext = mime === 'image/jpeg' ? 'jpg' : 'png';
-  const path = `avatars/${user.id}.${ext}`;
+  // Cache-buster query param on the public URL forces immediate refresh
+  // in browsers / Next/Image.
+  const path = `avatars/${user.id}.${safe.ext}`;
 
   const { error: uploadErr } = await supabase.storage
     .from(FACES_BUCKET)
-    .upload(path, buffer, {
-      contentType: mime,
+    .upload(path, safe.buffer, {
+      contentType: safe.mime,
       cacheControl: 'no-cache',
       upsert: true,
     });
   if (uploadErr) {
-    return NextResponse.json({ error: uploadErr.message }, { status: 500 });
+    return NextResponse.json(publicError('upload_failed', uploadErr.message), { status: 500 });
   }
 
   const { data: pub } = supabase.storage.from(FACES_BUCKET).getPublicUrl(path);
@@ -89,11 +94,14 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, image: cacheBustedUrl });
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  const origin = requireSameOrigin(request);
+  if (!origin.ok) return NextResponse.json(origin.body, { status: origin.status });
+
   const session = await auth();
   const user = session?.user;
   if (!user) {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    return NextResponse.json(publicError('unauthenticated'), { status: 401 });
   }
 
   const supabase = getSupabaseAdmin();

@@ -13,6 +13,7 @@ import { getTier } from '@/lib/tier';
 import { requireSameOrigin } from '@/lib/originGuard';
 import { isLeaderboardKilled } from '@/lib/featureFlags';
 import { publicError } from '@/lib/errors';
+import { decodeDataUrl, safeImageUpload } from '@/lib/imageUpload';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type PrivacyFlags = { hide_photo: boolean };
@@ -33,7 +34,8 @@ export const dynamic = 'force-dynamic';
 
 const MAX_RESULTS = 100;
 const MAX_PAGE = 1000; // 100 results × 1000 pages = 100k rows; far past any real use
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+// Image-byte cap is now enforced inside safeImageUpload (lib/imageUpload.ts).
+// Leaderboard kind caps at 4 MB after base64 decode.
 
 type PostBody = {
   scores?: unknown;
@@ -80,18 +82,26 @@ async function uploadPhoto(
   supabase: SupabaseClient,
   imageBase64: string,
 ): Promise<UploadedPhoto | { error: string; status: number }> {
-  const match = imageBase64.match(/^data:(image\/(?:jpeg|jpg|png));base64,(.+)$/);
-  if (!match) return { error: 'invalid_image', status: 400 };
-  const mime = match[1];
-  const buf = Buffer.from(match[2], 'base64');
-  if (buf.byteLength > MAX_IMAGE_BYTES) {
-    return { error: 'image_too_large', status: 413 };
+  const decoded = decodeDataUrl(imageBase64);
+  if (!decoded) return { error: 'invalid_image', status: 400 };
+  // Re-encode through sharp: strips EXIF (incl. GPS — phone selfies
+  // embed location), caps dimensions, normalises any polyglot payload
+  // into a clean JPEG.
+  let safe;
+  try {
+    safe = await safeImageUpload(decoded.buffer, 'leaderboard');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'invalid_image';
+    if (msg === 'image_too_large') return { error: msg, status: 413 };
+    return { error: 'invalid_image', status: 400 };
   }
-  const ext = mime === 'image/png' ? 'png' : 'jpg';
-  const path = `${randomUUID()}.${ext}`;
+  const path = `${randomUUID()}.${safe.ext}`;
   const { error: uploadErr } = await supabase.storage
     .from(FACES_BUCKET)
-    .upload(path, buf, { contentType: mime, cacheControl: '3600' });
+    .upload(path, safe.buffer, {
+      contentType: safe.mime,
+      cacheControl: '3600',
+    });
   if (uploadErr) return { error: uploadErr.message, status: 500 };
   const { data: pub } = supabase.storage.from(FACES_BUCKET).getPublicUrl(path);
   return { path, url: pub.publicUrl };
