@@ -2,17 +2,16 @@
 
 import { useState } from 'react';
 import type { UserStats } from '@/lib/customization';
-import { ThemesSection } from './sections/ThemesSection';
 import { NameFxSection } from './sections/NameFxSection';
 
 /**
- * /dev/cosmetic-preview — dev-only verification surface for the 21
- * Launch 1 cosmetic components (11 tier themes + 10 name fx). Mock
- * userStats toggle drives smart cosmetics through low/mid/high values.
+ * /dev/cosmetic-preview — dev-only verification surface for the 10
+ * Launch 1 cosmetic components (all name fx). Mock userStats toggle
+ * drives smart cosmetics through low/mid/high values.
  *
  * Dev-only: returns a placeholder in production so we don't ship the
- * verification surface publicly. Frames + themes are deferred to Launch
- * 2 — no preview sections for them yet.
+ * verification surface publicly. Frames, badges, and themes deferred
+ * to Launch 2 — no preview sections for them yet.
  */
 
 const MOCK_STATS: Record<'low' | 'mid' | 'high', UserStats> = {
@@ -60,7 +59,7 @@ export default function CosmeticPreviewPage() {
         <div className="flex flex-col gap-0.5">
           <h1 className="text-xl font-bold tracking-tight">cosmetic preview</h1>
           <span className="text-[11px] text-zinc-500">
-            21 components · 11 tier themes · 10 name fx · frames + badges deferred to launch 2
+            10 components · 10 name fx · frames + badges + themes deferred to launch 2
           </span>
         </div>
         <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.02] p-1">
@@ -82,7 +81,6 @@ export default function CosmeticPreviewPage() {
       </header>
 
       <div className="flex flex-col gap-16">
-        <ThemesSection userStats={userStats} />
         <NameFxSection userStats={userStats} />
       </div>
     </main>

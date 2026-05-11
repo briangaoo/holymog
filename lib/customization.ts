@@ -1,9 +1,8 @@
 /**
  * Cosmetic registry — coded-component architecture.
  *
- * LAUNCH 1: ships 11 tier badges + 10 name fx, all achievement-gated,
- * no monetization. Frames + themes deferred to Launch 2 (with real
- * designers).
+ * LAUNCH 1: ships 10 name fx, all achievement-gated, no monetization.
+ * Frames, badges, and themes deferred to Launch 2 (with real designers).
  *
  * Each registered cosmetic is a React component under
  * `components/cosmetics/{kind}/{slug}.tsx`. Renderers (Frame / Badge /
@@ -196,100 +195,10 @@ export const NAME_FX: Record<string, NameFxDef> = {
   },
 };
 
-// 11 tier themes — full-bleed profile backgrounds. Replace badges as
-// the per-tier visual flex. Earned cumulatively on scan tier: scanning
-// at tier X unlocks themes for X and below (so a single S+ scan
-// unlocks all 11 themes for ironic equips).
-export const THEMES: Record<string, ThemeDef> = {
-  'theme.ugly-af': {
-    slug: 'theme.ugly-af',
-    kind: 'theme',
-    name: 'ugly af',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/ugly-af'),
-    ) as ThemeComponent,
-  },
-  'theme.subhuman': {
-    slug: 'theme.subhuman',
-    kind: 'theme',
-    name: 'subhuman',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/subhuman'),
-    ) as ThemeComponent,
-  },
-  'theme.chopped': {
-    slug: 'theme.chopped',
-    kind: 'theme',
-    name: 'chopped',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/chopped'),
-    ) as ThemeComponent,
-  },
-  'theme.low-normie': {
-    slug: 'theme.low-normie',
-    kind: 'theme',
-    name: 'low-tier normie',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/low-normie'),
-    ) as ThemeComponent,
-  },
-  'theme.normie': {
-    slug: 'theme.normie',
-    kind: 'theme',
-    name: 'normie',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/normie'),
-    ) as ThemeComponent,
-  },
-  'theme.high-normie': {
-    slug: 'theme.high-normie',
-    kind: 'theme',
-    name: 'high-tier normie',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/high-normie'),
-    ) as ThemeComponent,
-  },
-  'theme.chadlite': {
-    slug: 'theme.chadlite',
-    kind: 'theme',
-    name: 'chadlite',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/chadlite'),
-    ) as ThemeComponent,
-  },
-  'theme.mogger': {
-    slug: 'theme.mogger',
-    kind: 'theme',
-    name: 'mogger',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/mogger'),
-    ) as ThemeComponent,
-  },
-  'theme.chad': {
-    slug: 'theme.chad',
-    kind: 'theme',
-    name: 'chad',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/chad'),
-    ) as ThemeComponent,
-  },
-  'theme.heartbreaker': {
-    slug: 'theme.heartbreaker',
-    kind: 'theme',
-    name: 'heartbreaker',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/heartbreaker'),
-    ) as ThemeComponent,
-  },
-  'theme.true-adam': {
-    slug: 'theme.true-adam',
-    kind: 'theme',
-    name: 'true adam',
-    component: dynamic(
-      () => import('@/components/cosmetics/themes/true-adam'),
-    ) as ThemeComponent,
-  },
-};
+// Themes deferred to Launch 2 — the tier-theme set was scrapped.
+// Slot stays wired (DB column, ThemeAmbient renderer, equip API)
+// so Launch 2 designer themes plug in without a schema change.
+export const THEMES: Record<string, ThemeDef> = {};
 
 /**
  * Slugs that read userStats. Render sites that lack the relevant

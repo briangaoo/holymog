@@ -3,14 +3,9 @@ import { getPool } from '@/lib/db';
 /**
  * Achievement engine — Launch 1.
  *
- * Grants 21 cosmetic items (11 tier badges + 10 name fx). No monetization;
- * everything is earned via gameplay. Frames + themes are deferred to
+ * Grants 10 cosmetic items (all name fx). No monetization; everything
+ * is earned via gameplay. Frames, badges, and themes are deferred to
  * Launch 2 with real designers.
- *
- * Tier badges follow a cumulative rule: when you scan at tier X, every
- * badge for tiers X and below unlocks. Scanning S+ on your first scan
- * unlocks all 11 at once. The user picks which one to display from
- * settings — including a lower one for irony.
  *
  * `checkAchievements(userId, stats)` is idempotent — re-firing for the
  * same threshold is a no-op (ON CONFLICT DO NOTHING in user_inventory).
@@ -26,74 +21,6 @@ export type AchievementCheck = {
 };
 
 export const ACHIEVEMENTS: Record<string, AchievementCheck> = {
-  // ---- Tier badges (11) — cumulative on scan score ----------------------
-  scan_tier_ugly_af: {
-    key: 'scan_tier_ugly_af',
-    slug: 'theme.ugly-af',
-    name: 'ugly af',
-    description: 'F- scan',
-  },
-  scan_tier_subhuman: {
-    key: 'scan_tier_subhuman',
-    slug: 'theme.subhuman',
-    name: 'subhuman',
-    description: 'F scan',
-  },
-  scan_tier_chopped: {
-    key: 'scan_tier_chopped',
-    slug: 'theme.chopped',
-    name: 'chopped',
-    description: 'F+ scan',
-  },
-  scan_tier_low_normie: {
-    key: 'scan_tier_low_normie',
-    slug: 'theme.low-normie',
-    name: 'low-tier normie',
-    description: 'D-tier scan',
-  },
-  scan_tier_normie: {
-    key: 'scan_tier_normie',
-    slug: 'theme.normie',
-    name: 'normie',
-    description: 'C-tier scan',
-  },
-  scan_tier_high_normie: {
-    key: 'scan_tier_high_normie',
-    slug: 'theme.high-normie',
-    name: 'high-tier normie',
-    description: 'B-tier scan',
-  },
-  scan_tier_chadlite: {
-    key: 'scan_tier_chadlite',
-    slug: 'theme.chadlite',
-    name: 'chadlite',
-    description: 'A-tier scan',
-  },
-  scan_tier_mogger: {
-    key: 'scan_tier_mogger',
-    slug: 'theme.mogger',
-    name: 'mogger',
-    description: 'A+ scan',
-  },
-  scan_tier_chad: {
-    key: 'scan_tier_chad',
-    slug: 'theme.chad',
-    name: 'chad',
-    description: 'S- scan',
-  },
-  scan_tier_heartbreaker: {
-    key: 'scan_tier_heartbreaker',
-    slug: 'theme.heartbreaker',
-    name: 'heartbreaker',
-    description: 'S scan',
-  },
-  scan_tier_true_adam_badge: {
-    key: 'scan_tier_true_adam_badge',
-    slug: 'theme.true-adam',
-    name: 'true adam',
-    description: 'S+ scan',
-  },
-
   // ---- Name fx (10) -----------------------------------------------------
   scan_1: {
     key: 'scan_1',
@@ -157,25 +84,6 @@ export const ACHIEVEMENTS: Record<string, AchievementCheck> = {
   },
 };
 
-/**
- * Cumulative tier-badge thresholds. Index = lowest overall score that
- * unlocks this key. Walked in ascending order; every key whose threshold
- * is ≤ score gets granted (idempotently). Matches lib/tier.ts bands.
- */
-const TIER_BADGE_THRESHOLDS: ReadonlyArray<readonly [number, string]> = [
-  [0, 'scan_tier_ugly_af'],
-  [10, 'scan_tier_subhuman'],
-  [18, 'scan_tier_chopped'],
-  [26, 'scan_tier_low_normie'],
-  [41, 'scan_tier_normie'],
-  [56, 'scan_tier_high_normie'],
-  [71, 'scan_tier_chadlite'],
-  [82, 'scan_tier_mogger'],
-  [87, 'scan_tier_chad'],
-  [90, 'scan_tier_heartbreaker'],
-  [94, 'scan_tier_true_adam_badge'],
-];
-
 export type AchievementGrant = {
   achievement_key: string;
   slug: string;
@@ -226,16 +134,6 @@ export async function checkAchievements(
       name: def.name,
     });
   };
-
-  // ---- Tier-badge cascade (cumulative on bestScanOverall) ----
-  if (stats.bestScanOverall != null) {
-    const score = stats.bestScanOverall;
-    for (const [threshold, key] of TIER_BADGE_THRESHOLDS) {
-      if (score >= threshold) {
-        await tryGrant(key, true);
-      }
-    }
-  }
 
   // ---- Scan-count name fx ----
   if (stats.totalScans != null) {
