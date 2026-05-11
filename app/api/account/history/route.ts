@@ -13,7 +13,10 @@ type HistoryRow = {
   finished_at: string | null;
   is_winner: boolean;
   peak_score: number;
-  opponents: Array<{ user_id: string; display_name: string; peak_score: number }>;
+  // Opponent rows expose display_name + peak only. user_id is
+  // intentionally NOT included in the public response — clients link
+  // to /@display_name and don't need the UUID.
+  opponents: Array<{ display_name: string; peak_score: number }>;
 };
 
 /**
@@ -143,14 +146,15 @@ export async function GET(request: Request) {
   }
 
   // 3) Opponent snapshots for the page's battles, batched.
+  // user_id is selected for the WHERE filter (exclude self) but NOT
+  // surfaced in the response — clients link via display_name.
   const battleIds = myRows.rows.map((r) => r.battle_id);
   const opponents = await pool.query<{
     battle_id: string;
-    user_id: string;
     display_name: string;
     peak_score: number;
   }>(
-    `select battle_id, user_id, display_name, peak_score
+    `select battle_id, display_name, peak_score
        from battle_participants
       where battle_id = any($1::uuid[]) and user_id <> $2`,
     [battleIds, user.id],
@@ -158,12 +162,11 @@ export async function GET(request: Request) {
 
   const oppByBattle = new Map<
     string,
-    Array<{ user_id: string; display_name: string; peak_score: number }>
+    Array<{ display_name: string; peak_score: number }>
   >();
   for (const row of opponents.rows) {
     const list = oppByBattle.get(row.battle_id) ?? [];
     list.push({
-      user_id: row.user_id,
       display_name: row.display_name,
       peak_score: row.peak_score,
     });

@@ -18,6 +18,9 @@ import {
   checkAchievements,
   type AchievementGrant,
 } from '@/lib/achievements';
+import { requireSameOrigin } from '@/lib/originGuard';
+import { isScoreKilled } from '@/lib/featureFlags';
+import { publicError } from '@/lib/errors';
 import type { VisionScore } from '@/types';
 
 const SCANS_BUCKET = 'holymog-scans';
@@ -109,6 +112,18 @@ function validateAndBlob(
 }
 
 export async function POST(request: Request) {
+  // Kill switch first — short-circuits before any auth or DB work.
+  if (isScoreKilled()) {
+    return NextResponse.json(publicError('system_unavailable'), { status: 503 });
+  }
+  // Origin guard: blocks other sites from using us as a free
+  // Gemini-face-scoring proxy. Daily Gemini budget cap is the hard
+  // ceiling; this is the cheap first line.
+  const origin = requireSameOrigin(request);
+  if (!origin.ok) {
+    return NextResponse.json(origin.body, { status: origin.status });
+  }
+
   // Auth + scan-limit gate run BEFORE the IP rate limit, so an attacker can't
   // burn through Gemini budget by hammering the endpoint past their limit.
   const session = await auth();

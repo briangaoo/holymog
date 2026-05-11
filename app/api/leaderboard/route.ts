@@ -10,6 +10,9 @@ import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { getRatelimit } from '@/lib/ratelimit';
 import { getTier } from '@/lib/tier';
+import { requireSameOrigin } from '@/lib/originGuard';
+import { isLeaderboardKilled } from '@/lib/featureFlags';
+import { publicError } from '@/lib/errors';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type PrivacyFlags = { hide_photo: boolean };
@@ -187,6 +190,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (isLeaderboardKilled()) {
+    return NextResponse.json(publicError('system_unavailable'), { status: 503 });
+  }
+  const origin = requireSameOrigin(request);
+  if (!origin.ok) {
+    return NextResponse.json(origin.body, { status: origin.status });
+  }
+
   const session = await auth();
   const user = session?.user;
   if (!user) {

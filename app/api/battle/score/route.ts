@@ -4,6 +4,9 @@ import { getPool } from '@/lib/db';
 import { analyzeBattle } from '@/lib/vision';
 import { broadcastBattleEvent } from '@/lib/realtime';
 import { getRatelimit } from '@/lib/ratelimit';
+import { requireSameOrigin } from '@/lib/originGuard';
+import { isBattlesKilled } from '@/lib/featureFlags';
+import { publicError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,6 +51,14 @@ function detectMime(buf: Buffer): string {
  * by Phase 3's "most-called weakness" stat).
  */
 export async function POST(request: Request) {
+  if (isBattlesKilled()) {
+    return NextResponse.json(publicError('system_unavailable'), { status: 503 });
+  }
+  const origin = requireSameOrigin(request);
+  if (!origin.ok) {
+    return NextResponse.json(origin.body, { status: origin.status });
+  }
+
   const session = await auth();
   const user = session?.user;
   if (!user) {

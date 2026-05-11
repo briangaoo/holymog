@@ -8,7 +8,6 @@ import { getTier } from '@/lib/tier';
 import { Section } from './account/settings/shared';
 
 type Opponent = {
-  user_id: string;
   display_name: string;
   peak_score: number;
 };

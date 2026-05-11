@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { analyzeQuick } from '@/lib/vision';
 import { getRatelimit } from '@/lib/ratelimit';
 import { readClientIp } from '@/lib/scanLimit';
+import { requireSameOrigin } from '@/lib/originGuard';
+import { isScoreKilled } from '@/lib/featureFlags';
+import { publicError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,6 +45,13 @@ function detectMime(buf: Buffer): string {
  * accommodates real users while capping a runaway bot at $0.01-ish/min.
  */
 export async function POST(request: Request) {
+  if (isScoreKilled()) {
+    return NextResponse.json(publicError('system_unavailable'), { status: 503 });
+  }
+  const origin = requireSameOrigin(request);
+  if (!origin.ok) {
+    return NextResponse.json(origin.body, { status: origin.status });
+  }
   const ip = readClientIp(request);
   const limiter = getRatelimit('quickScore');
   if (limiter) {

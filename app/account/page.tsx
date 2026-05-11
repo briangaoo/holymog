@@ -80,7 +80,7 @@ export type HistoryEntry = {
   finished_at: string | null;
   is_winner: boolean;
   peak_score: number;
-  opponents: Array<{ user_id: string; display_name: string; peak_score: number }>;
+  opponents: Array<{ display_name: string; peak_score: number }>;
 };
 
 export type HistoryData = {
