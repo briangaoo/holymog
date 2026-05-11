@@ -119,4 +119,17 @@ export const FollowParam = z
   })
   .strict();
 
+/**
+ * /api/leaderboard POST body. After the anti-cheat rewrite, the
+ * client no longer sends scores or imageBase64 — only whether they
+ * want their face on the public board. Scores come from the server-
+ * validated pending_leaderboard_submissions row that /api/score
+ * populated during the most recent scan.
+ */
+export const LeaderboardPostBody = z
+  .object({
+    include_photo: z.boolean(),
+  })
+  .strict();
+
 export type AvatarUrl = z.infer<typeof Url>;

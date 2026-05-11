@@ -7,6 +7,7 @@ import Resend from 'next-auth/providers/resend';
 import PostgresAdapter from '@auth/pg-adapter';
 import { getPool } from './db';
 import { magicLinkEmail } from './auth-email';
+import { recordAudit } from './audit';
 
 const MAX_NAME_LEN = 24;
 
@@ -201,6 +202,27 @@ const config: NextAuthConfig = {
          on conflict (user_id) do nothing`,
         [user.id, displayName],
       );
+      void recordAudit({
+        userId: user.id,
+        action: 'account_create',
+        metadata: { display_name: displayName },
+      });
+    },
+    async signIn({ user, account }) {
+      if (!user?.id) return;
+      void recordAudit({
+        userId: user.id,
+        action: 'signin',
+        metadata: { provider: account?.provider ?? 'unknown' },
+      });
+    },
+    async signOut(message) {
+      // Auth.js calls this with either { session } or { token } depending
+      // on strategy. We use database sessions, so it's { session }.
+      const userId =
+        'session' in message ? message.session?.userId ?? null : null;
+      if (!userId) return;
+      void recordAudit({ userId, action: 'signout' });
     },
   },
   callbacks: {

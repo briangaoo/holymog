@@ -10,6 +10,7 @@ import {
 import { getRatelimit } from '@/lib/ratelimit';
 import { isReservedUsername } from '@/lib/reservedUsernames';
 import { weakestSubScore } from '@/lib/scoreEngine';
+import { recordAudit } from '@/lib/audit';
 import type { SubScores } from '@/types';
 
 export const runtime = 'nodejs';
@@ -585,6 +586,12 @@ export async function PATCH(request: Request) {
       ])
       .catch(() => {});
 
+    void recordAudit({
+      userId: user.id,
+      action: 'username_change',
+      metadata: { new_display_name: display },
+    });
+
     return NextResponse.json({ ok: true, display_name: display });
   }
 
@@ -716,6 +723,16 @@ export async function DELETE() {
   }
 
   const pool = getPool();
+  // Audit BEFORE the delete so the row points at the user that
+  // existed at delete time. ON DELETE SET NULL on audit_log's
+  // user_id FK preserves the row through cascade.
+  await recordAudit({
+    userId: user.id,
+    action: 'account_delete',
+    metadata: {
+      had_leaderboard_entry: leaderboardImagePath !== null,
+    },
+  });
   await pool.query(`delete from users where id = $1`, [user.id]);
 
   if (supabase) {

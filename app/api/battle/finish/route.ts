@@ -7,6 +7,7 @@ import {
   checkAchievements,
   type AchievementGrant,
 } from '@/lib/achievements';
+import { recordAudit } from '@/lib/audit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -278,6 +279,26 @@ export async function POST(request: Request) {
       elo_changes: eloChanges,
     };
     void broadcastBattleEvent(battleId, 'battle.finished', payload);
+
+    // Audit one row per participant — gives us a forensic trail for
+    // ELO swings + winner attribution per battle. Caller-only would
+    // miss the loser's perspective, which matters for cheat triage.
+    for (const p of resultParticipants) {
+      const elo = eloChanges.find((e) => e.user_id === p.user_id);
+      void recordAudit({
+        userId: p.user_id,
+        action: 'battle_finish',
+        resource: battleId,
+        metadata: {
+          kind: battle.kind,
+          is_winner: p.is_winner,
+          peak_score: p.final_score,
+          elo_before: elo?.before,
+          elo_after: elo?.after,
+          elo_delta: elo?.delta,
+        },
+      });
+    }
 
     // Achievement firing — only for the caller (we'll toast them
     // client-side). Other participants pick up grants on their next

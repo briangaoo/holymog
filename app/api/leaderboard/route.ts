@@ -13,7 +13,10 @@ import { getTier } from '@/lib/tier';
 import { requireSameOrigin } from '@/lib/originGuard';
 import { isLeaderboardKilled } from '@/lib/featureFlags';
 import { publicError } from '@/lib/errors';
-import { decodeDataUrl, safeImageUpload } from '@/lib/imageUpload';
+import { safeImageUpload } from '@/lib/imageUpload';
+import { parseJsonBody } from '@/lib/parseRequest';
+import { LeaderboardPostBody } from '@/lib/schemas/account';
+import { recordAudit } from '@/lib/audit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type PrivacyFlags = { hide_photo: boolean };
@@ -78,34 +81,10 @@ function validateScores(s: unknown): Scores | null {
   };
 }
 
-async function uploadPhoto(
-  supabase: SupabaseClient,
-  imageBase64: string,
-): Promise<UploadedPhoto | { error: string; status: number }> {
-  const decoded = decodeDataUrl(imageBase64);
-  if (!decoded) return { error: 'invalid_image', status: 400 };
-  // Re-encode through sharp: strips EXIF (incl. GPS — phone selfies
-  // embed location), caps dimensions, normalises any polyglot payload
-  // into a clean JPEG.
-  let safe;
-  try {
-    safe = await safeImageUpload(decoded.buffer, 'leaderboard');
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'invalid_image';
-    if (msg === 'image_too_large') return { error: msg, status: 413 };
-    return { error: 'invalid_image', status: 400 };
-  }
-  const path = `${randomUUID()}.${safe.ext}`;
-  const { error: uploadErr } = await supabase.storage
-    .from(FACES_BUCKET)
-    .upload(path, safe.buffer, {
-      contentType: safe.mime,
-      cacheControl: '3600',
-    });
-  if (uploadErr) return { error: uploadErr.message, status: 500 };
-  const { data: pub } = supabase.storage.from(FACES_BUCKET).getPublicUrl(path);
-  return { path, url: pub.publicUrl };
-}
+// uploadPhoto + decodeDataUrl removed in the anti-cheat rewrite —
+// the new POST handler downloads the user's most recent private
+// scan image from holymog-scans and copies it through sharp
+// inline, so the from-data-URL path is dead.
 
 async function deletePhoto(supabase: SupabaseClient, path: string | null) {
   if (!path) return;
@@ -199,6 +178,20 @@ export async function GET(request: Request) {
   });
 }
 
+/**
+ * Anti-cheat leaderboard promote.
+ *
+ * The client no longer sends scores. The only path onto the board
+ * is via `pending_leaderboard_submissions`, populated server-side
+ * by `/api/score` after Gemini scoring completes. Forging a score
+ * is now mathematically impossible — every leaderboard row is a
+ * direct copy of a server-validated scan from the last hour.
+ *
+ * Body: `{ include_photo: boolean }`. If true, we look up the user's
+ * most recent scan_history row, download the private archive image,
+ * re-encode through sharp (strip EXIF), and upload to the public
+ * faces bucket. Photo is opt-in at every tier (privacy-first).
+ */
 export async function POST(request: Request) {
   if (isLeaderboardKilled()) {
     return NextResponse.json(publicError('system_unavailable'), { status: 503 });
@@ -214,10 +207,6 @@ export async function POST(request: Request) {
     return NextResponse.json(publicError('unauthenticated'), { status: 401 });
   }
 
-  // Per-user limiter bounds the cost ceiling: each submission lives
-  // alongside a server-validated /api/score round, which already
-  // burned ~$0.01 of Gemini budget. 5/h means an attacker maxes out
-  // at $0.05/h per account.
   const limiter = getRatelimit('leaderboardSubmit');
   if (limiter) {
     const result = await limiter.limit(user.id);
@@ -226,20 +215,49 @@ export async function POST(request: Request) {
     }
   }
 
+  const parsed = await parseJsonBody(request, LeaderboardPostBody);
+  if ('error' in parsed) return parsed.error;
+  const { include_photo } = parsed.data;
+
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    return NextResponse.json({ error: 'leaderboard_unconfigured' }, { status: 503 });
+    return NextResponse.json(publicError('leaderboard_unconfigured'), { status: 503 });
   }
 
-  let body: PostBody;
-  try {
-    body = (await request.json()) as PostBody;
-  } catch {
-    return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
-  }
-
-  // Name and avatar come from the user's profile, not from the request body.
   const pool = getPool();
+
+  // Look up the user's most recent pending submission. TTL 1 hour at
+  // read time enforced via the WHERE clause; the prune cron sweeps
+  // older rows physically.
+  const pending = await pool.query<{ scores: Scores }>(
+    `select scores
+       from pending_leaderboard_submissions
+      where user_id = $1
+        and created_at > now() - interval '1 hour'
+      limit 1`,
+    [user.id],
+  );
+  if (pending.rows.length === 0) {
+    return NextResponse.json(
+      publicError(
+        'no_pending_scan',
+        undefined,
+        'scan again — leaderboard submissions must come from a fresh scan within the last hour',
+      ),
+      { status: 404 },
+    );
+  }
+  const scores = pending.rows[0].scores;
+
+  // Defensive: even though /api/score's combineScores produces valid
+  // shape, double-check before going to Supabase. The JSONB column
+  // could theoretically contain anything if hand-edited.
+  if (!validateScores(scores)) {
+    return NextResponse.json(publicError('invalid_pending_scores'), { status: 500 });
+  }
+
+  // Name + avatar from profile (NOT request body — client can't set
+  // these either).
   const profileInfo = await pool.query<{ display_name: string; image: string | null }>(
     `select p.display_name, u.image
        from profiles p
@@ -249,94 +267,127 @@ export async function POST(request: Request) {
     [user.id],
   );
   if (!profileInfo.rows[0]) {
-    return NextResponse.json({ error: 'profile_not_found' }, { status: 422 });
+    return NextResponse.json(publicError('profile_not_found'), { status: 422 });
   }
   const name = profileInfo.rows[0].display_name;
   const avatarUrl = profileInfo.rows[0].image ?? null;
 
-  const scores = validateScores(body.scores);
-  if (!scores) {
-    return NextResponse.json({ error: 'invalid_scores' }, { status: 400 });
+  const tier = getTier(scores.overall).letter;
+
+  // Photo: if user opted in, copy the most-recent private scan image
+  // → public faces bucket. The scan_history row stores image_path
+  // pointing at holymog-scans.
+  let imageUrl: string | null = null;
+  let imagePath: string | null = null;
+  if (include_photo) {
+    const scanRow = await pool.query<{ image_path: string | null }>(
+      `select image_path
+         from scan_history
+        where user_id = $1 and image_path is not null
+        order by created_at desc
+        limit 1`,
+      [user.id],
+    );
+    const srcPath = scanRow.rows[0]?.image_path ?? null;
+    if (srcPath) {
+      const { data: blob, error: dlErr } = await supabase.storage
+        .from('holymog-scans')
+        .download(srcPath);
+      if (!dlErr && blob) {
+        try {
+          const buffer = Buffer.from(await blob.arrayBuffer());
+          const safe = await safeImageUpload(buffer, 'leaderboard');
+          const dstPath = `${randomUUID()}.${safe.ext}`;
+          const { error: upErr } = await supabase.storage
+            .from(FACES_BUCKET)
+            .upload(dstPath, safe.buffer, {
+              contentType: safe.mime,
+              cacheControl: '3600',
+            });
+          if (!upErr) {
+            const { data: pub } = supabase.storage
+              .from(FACES_BUCKET)
+              .getPublicUrl(dstPath);
+            imageUrl = pub.publicUrl;
+            imagePath = dstPath;
+          }
+        } catch {
+          // best-effort photo — leaderboard entry still goes through
+          // with imageUrl=null if any step fails.
+        }
+      }
+    }
   }
 
-  const tier = getTier(scores.overall).letter;
-  const wantsPhoto =
-    typeof body.imageBase64 === 'string' && body.imageBase64.length > 0;
-
-  // Photo is fully optional at every tier. The S-tier anti-cheat path
-  // is handled separately: /api/score archives every scan image to the
-  // private holymog-scans bucket and flags scan_history.requires_review
-  // when overall ≥ PHOTO_REQUIRED_THRESHOLD, then emails admin for
-  // human review. Whether the user chooses to display their face on
-  // the public board here is unrelated — privacy first.
-
-  // One row per user — look up existing.
+  // Look up existing leaderboard row.
   const { data: existing, error: lookupErr } = await supabase
     .from('leaderboard')
     .select('id, image_path')
     .eq('user_id', user.id)
     .maybeSingle();
   if (lookupErr) {
-    return NextResponse.json({ error: lookupErr.message }, { status: 500 });
+    return NextResponse.json(publicError('lookup_failed', lookupErr.message), {
+      status: 500,
+    });
   }
 
-  let imageUrl: string | null = null;
-  let imagePath: string | null = null;
-  if (wantsPhoto) {
-    const upload = await uploadPhoto(supabase, body.imageBase64 as string);
-    if ('error' in upload) {
-      return NextResponse.json({ error: upload.error }, { status: upload.status });
-    }
-    imageUrl = upload.url;
-    imagePath = upload.path;
-  }
+  const row = {
+    name,
+    overall: scores.overall,
+    tier,
+    jawline: scores.sub.jawline,
+    eyes: scores.sub.eyes,
+    skin: scores.sub.skin,
+    cheekbones: scores.sub.cheekbones,
+    image_url: imageUrl,
+    image_path: imagePath,
+    avatar_url: avatarUrl,
+  };
 
   if (existing) {
     const { data, error } = await supabase
       .from('leaderboard')
-      .update({
-        name,
-        overall: scores.overall,
-        tier,
-        jawline: scores.sub.jawline,
-        eyes: scores.sub.eyes,
-        skin: scores.sub.skin,
-        cheekbones: scores.sub.cheekbones,
-        image_url: imageUrl,
-        image_path: imagePath,
-        avatar_url: avatarUrl,
-      })
+      .update(row)
       .eq('user_id', user.id)
       .select('*')
       .single();
     if (error) {
       if (imagePath) void deletePhoto(supabase, imagePath);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(publicError('update_failed', error.message), { status: 500 });
     }
     void deletePhoto(supabase, existing.image_path);
+    // Consume the pending row + audit.
+    void pool.query(
+      `delete from pending_leaderboard_submissions where user_id = $1`,
+      [user.id],
+    );
+    void recordAudit({
+      userId: user.id,
+      action: 'leaderboard_submit',
+      resource: data.id,
+      metadata: { overall: scores.overall, isNew: false, include_photo },
+    });
     return NextResponse.json({ entry: data, isNew: false });
   }
 
   const { data, error } = await supabase
     .from('leaderboard')
-    .insert({
-      user_id: user.id,
-      name,
-      overall: scores.overall,
-      tier,
-      jawline: scores.sub.jawline,
-      eyes: scores.sub.eyes,
-      skin: scores.sub.skin,
-      cheekbones: scores.sub.cheekbones,
-      image_url: imageUrl,
-      image_path: imagePath,
-      avatar_url: avatarUrl,
-    })
+    .insert({ user_id: user.id, ...row })
     .select('*')
     .single();
   if (error) {
     if (imagePath) void deletePhoto(supabase, imagePath);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(publicError('insert_failed', error.message), { status: 500 });
   }
+  void pool.query(
+    `delete from pending_leaderboard_submissions where user_id = $1`,
+    [user.id],
+  );
+  void recordAudit({
+    userId: user.id,
+    action: 'leaderboard_submit',
+    resource: data.id,
+    metadata: { overall: scores.overall, isNew: true, include_photo },
+  });
   return NextResponse.json({ entry: data, isNew: true });
 }

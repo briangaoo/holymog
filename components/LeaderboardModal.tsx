@@ -118,16 +118,20 @@ export function LeaderboardModal({
   const submit = useCallback(async () => {
     setStatus({ kind: 'submitting' });
     try {
-      const body: Record<string, unknown> = { scores };
-      if (includePhoto) body.imageBase64 = capturedImage;
-
+      // Anti-cheat: server pulls scores from the user's most recent
+      // pending_leaderboard_submissions row (populated by /api/score
+      // immediately after Gemini scoring completes). Client only
+      // sends include_photo. Forging a leaderboard score is now
+      // mathematically impossible — every leaderboard row is a
+      // direct copy of a server-validated scan from the last hour.
       const res = await fetch('/api/leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ include_photo: includePhoto }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
+        message?: string;
         isNew?: boolean;
       };
 
@@ -139,11 +143,11 @@ export function LeaderboardModal({
               ? 'session expired, sign in again'
               : data.error === 'leaderboard_unconfigured'
                 ? 'leaderboard not yet available'
-                : data.error === 'photo_required_for_high_scores'
-                  ? 'S-tier scores require a photo for review'
+                : data.error === 'no_pending_scan'
+                  ? 'scan again — submissions must come from a scan within the last hour'
                   : data.error === 'profile_not_found'
                     ? 'profile not found, try again'
-                    : 'could not save, try again';
+                    : data.message ?? 'could not save, try again';
         setStatus({ kind: 'error', message: msg });
         return;
       }
@@ -155,7 +159,7 @@ export function LeaderboardModal({
     } catch {
       setStatus({ kind: 'error', message: 'network error' });
     }
-  }, [scores, includePhoto, capturedImage, onSubmitted, onClose]);
+  }, [includePhoto, onSubmitted, onClose]);
 
   const newScore = scores.overall;
   const newTier = getTier(newScore);

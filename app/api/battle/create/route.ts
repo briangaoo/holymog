@@ -7,6 +7,7 @@ import { requireSameOrigin } from '@/lib/originGuard';
 import { isBattlesKilled } from '@/lib/featureFlags';
 import { publicError } from '@/lib/errors';
 import { getRatelimit } from '@/lib/ratelimit';
+import { recordAudit } from '@/lib/audit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -113,6 +114,13 @@ export async function POST(request: Request) {
         { status: 500 },
       );
     }
+
+    void recordAudit({
+      userId: user.id,
+      action: 'battle_create',
+      resource: battleId,
+      metadata: { code, max_participants: maxParticipants },
+    });
 
     return NextResponse.json({ battle_id: battleId, code, livekit_room: livekitRoom });
   } catch (err) {

@@ -227,6 +227,13 @@ export async function POST(request: Request) {
     // admin gets an email.
     const lastImage = rawImages[rawImages.length - 1];
     void persistScanHistory(userId, scores, vision, lastImage);
+    // Anti-cheat leaderboard model: stash this server-validated scan
+    // into pending_leaderboard_submissions so a future POST to
+    // /api/leaderboard (with no body but include_photo) can promote
+    // it. Client never sends scores to leaderboard — the only path
+    // onto the board is via this stash, which only /api/score writes.
+    // Forging is now mathematically impossible.
+    void stashPendingLeaderboardSubmission(userId, scores, vision);
   }
 
   // Achievement firing: only for signed-in users.
@@ -410,6 +417,46 @@ async function notifyAdminOfHighScoreScan(args: {
     });
   } catch {
     // best-effort
+  }
+}
+
+/**
+ * Stash the just-computed score into pending_leaderboard_submissions.
+ *
+ * Anti-cheat anchor: this is the ONLY place that writes scores into
+ * the pending queue. /api/leaderboard reads from here at promote
+ * time and trusts only this row. A user can't forge a score because
+ * client-supplied scores never reach the leaderboard table.
+ *
+ * Idempotent via PRIMARY KEY (user_id): re-scanning overwrites the
+ * pending row (we always promote the most recent scan). 1h TTL is
+ * enforced at promote time + by the prune cron.
+ *
+ * Best-effort: failures (table-missing pre-consolidated-migration,
+ * Postgres outage) don't block the /api/score response — they just
+ * mean the user can't promote to leaderboard until their next scan.
+ */
+async function stashPendingLeaderboardSubmission(
+  userId: string,
+  scores: ReturnType<typeof combineScores>,
+  vision: VisionScore,
+): Promise<void> {
+  try {
+    const pool = getPool();
+    await pool.query(
+      `insert into pending_leaderboard_submissions
+         (user_id, scores, vision)
+         values ($1, $2::jsonb, $3::jsonb)
+         on conflict (user_id) do update
+           set scores = excluded.scores,
+               vision = excluded.vision,
+               created_at = now()`,
+      [userId, JSON.stringify(scores), JSON.stringify(vision)],
+    );
+  } catch {
+    // best-effort — table may not exist yet (pre-consolidated-migration).
+    // The next leaderboard POST will just return no_pending_scan; the
+    // user re-scans + this insert eventually succeeds.
   }
 }
 
