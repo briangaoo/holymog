@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * S+ tier badge — "true adam". The marquee badge. Gradient pill with
- * a halo glow + a sparkle char prefix. Slow shimmer cycles through
- * cyan → purple → pink → gold.
+ * S+ tier badge — "true adam". The marquee. Deep iridescent pill
+ * with sparkle prefix + animated gradient text cycling through
+ * cyan → purple → pink → gold. Strongest halo glow of any badge.
  */
 export default function BadgeTrueAdam({ size }: { size: number }) {
   return (
@@ -17,9 +17,9 @@ export default function BadgeTrueAdam({ size }: { size: number }) {
           position: relative;
           display: inline-flex;
           align-items: center;
-          gap: 0.35em;
+          gap: 0.32em;
           height: 100%;
-          padding: 0 0.85em;
+          padding: 0 0.9em;
           font-size: ${size * 0.5}px;
           font-weight: 900;
           letter-spacing: 0.09em;
@@ -27,18 +27,20 @@ export default function BadgeTrueAdam({ size }: { size: number }) {
           white-space: nowrap;
           line-height: 1;
           border-radius: 999px;
-          border: 1px solid rgba(253, 224, 71, 0.55);
+          border: 1px solid rgba(253, 224, 71, 0.6);
           background:
-            radial-gradient(
-              ellipse at top left,
-              rgba(34, 211, 238, 0.28) 0%,
-              rgba(168, 85, 247, 0.25) 45%,
-              rgba(253, 224, 71, 0.18) 100%
+            linear-gradient(
+              115deg,
+              rgba(8, 47, 73, 0.92) 0%,
+              rgba(76, 29, 149, 0.92) 45%,
+              rgba(120, 53, 15, 0.92) 100%
             );
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.18),
-            0 0 14px rgba(168, 85, 247, 0.45),
-            0 0 28px rgba(253, 224, 71, 0.25);
+            inset 0 1px 0 rgba(255, 255, 255, 0.22),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+            0 1px 2px rgba(0,0,0,0.55),
+            0 0 18px rgba(168, 85, 247, 0.50),
+            0 0 32px rgba(253, 224, 71, 0.28);
         }
         .badge-true-adam-spark {
           color: #fde047;
@@ -51,8 +53,8 @@ export default function BadgeTrueAdam({ size }: { size: number }) {
           background-image: linear-gradient(
             115deg,
             #67e8f9 0%,
-            #a855f7 38%,
-            #ec4899 70%,
+            #c084fc 38%,
+            #f0abfc 70%,
             #fde047 100%
           );
           background-size: 250% 100%;
@@ -61,7 +63,7 @@ export default function BadgeTrueAdam({ size }: { size: number }) {
           color: transparent;
           filter:
             drop-shadow(0 0 5px rgba(168, 85, 247, 0.55))
-            drop-shadow(0 0 10px rgba(34, 211, 238, 0.30));
+            drop-shadow(0 0 10px rgba(253, 224, 71, 0.30));
         }
         @media (prefers-reduced-motion: no-preference) {
           .badge-true-adam-text {

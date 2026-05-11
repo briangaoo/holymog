@@ -1,29 +1,19 @@
 'use client';
 
+import { pillStyle } from './_pill';
+
 /**
- * F- tier badge — "ugly af". Red text pill. Lowest of the low. Self-
- * deprecating energy; equipped for the meme.
+ * F- tier badge — "ugly af". Deep red pill, the most muted of the F band.
  */
 export default function BadgeUglyAf({ size }: { size: number }) {
   return (
     <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        height: '100%',
-        padding: '0 0.65em',
-        fontSize: `${size * 0.5}px`,
-        fontWeight: 800,
-        letterSpacing: '0.06em',
-        textTransform: 'lowercase',
-        color: '#fecaca',
-        backgroundColor: 'rgba(239,68,68,0.18)',
-        border: '1px solid rgba(239,68,68,0.55)',
-        borderRadius: 999,
-        whiteSpace: 'nowrap',
-        textShadow: '0 1px 0 rgba(0,0,0,0.5)',
-        lineHeight: 1,
-      }}
+      style={pillStyle({
+        size,
+        fg: '#fee2e2',
+        bg: '#7f1d1d',
+        border: 'rgba(239,68,68,0.55)',
+      })}
     >
       ugly af
     </span>
