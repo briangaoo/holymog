@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const LAST_UPDATED = 'May 8, 2026';
+const LAST_UPDATED = 'May 10, 2026';
 
 /**
  * Terms of Service. Includes BIPA-aligned biometric consent, DMCA
@@ -488,13 +488,29 @@ export default function TermsPage() {
 
           <Section index={10} title="Leaderboard Submissions">
             <p>
-              When you submit a scan to the public leaderboard you
-              understand that your display name, score, sub-scores, and
-              (if you opt in or if your score is at or above the S-tier
-              threshold) your photo will be publicly visible to all users
-              of the Service. For S-tier scores (overall ≥ 87) photo
-              submission is required so that we can review the integrity
-              of high-ranking entries.
+              When you submit a scan to the public leaderboard, your
+              display name, score, sub-scores, and (only if you opt
+              in) your scan photo become publicly visible to all
+              users of the Service. Whether to publish your face on
+              the public leaderboard is{' '}
+              <span className="font-semibold">
+                always optional, at every tier
+              </span>
+              ; the toggle lives in your account settings under
+              privacy and you can flip it off at any time, after
+              which the public copy is deleted within minutes.
+            </p>
+            <p>
+              Separately, and at every tier, every authenticated
+              scan is archived to a private storage bucket as
+              described in Section 3 and in our Privacy Policy. For
+              scans whose overall score reaches the S-tier threshold
+              (≥ 87), a holymog operator may inspect that archived
+              image to verify the scan plausibly belongs to the
+              account-holder &mdash; purely for integrity review of
+              top-of-board entries. This review uses the private
+              archive, not your public leaderboard photo, which
+              remains your independent opt-in choice.
             </p>
             <p>
               We reserve the right to remove leaderboard entries that we
@@ -820,7 +836,60 @@ export default function TermsPage() {
             </p>
           </Section>
 
-          <Section index={22} title="Contact">
+          <Section
+            index={22}
+            title="Cosmetics, Achievements & Future Purchases"
+          >
+            <p>
+              The Service includes an in-app system of decorative
+              cosmetic items that change how your display name and
+              avatar appear to other users on profile pages,
+              leaderboards, battle tiles, and follower lists. The
+              system is permission-gated by gameplay: cosmetic items
+              unlock by hitting specific milestones (for example,
+              completing your first scan, scanning at a given tier,
+              winning a number of battles, or reaching an ELO
+              threshold).
+            </p>
+            <p>
+              At the current release of the Service (&ldquo;Launch
+              1&rdquo;), the cosmetic catalog is limited to{' '}
+              <span className="font-semibold">name effects</span>{' '}
+              (subtle text-decoration treatments applied to your
+              display name) and is{' '}
+              <span className="font-semibold">entirely free</span>:
+              every cosmetic is earned through gameplay, none can be
+              purchased, and no payments are processed through the
+              Service. Cosmetics are purely decorative &mdash;
+              equipping or unequipping a cosmetic does not affect
+              your scores, your matchmaking, your ELO, or any other
+              functional aspect of the Service.
+            </p>
+            <p>
+              We may, in our sole discretion, add, modify, retire,
+              replace, rebalance, or remove cosmetic items,
+              achievement thresholds, or the slots in which
+              cosmetics render, with or without notice. Retiring or
+              renaming a specific cosmetic does not entitle you to
+              any refund (no payments are involved at Launch 1) or
+              to an equivalent replacement item.
+            </p>
+            <p>
+              A future update may add a paid layer to this system,
+              including one-time cosmetic purchases, a subscription
+              tier (&ldquo;holymog+&rdquo;), or both. If and when
+              that layer ships, additional terms governing
+              purchases, subscriptions, refunds, taxes, and the
+              legal relationship of paid items to your account will
+              be added to these Terms and prominently disclosed
+              before any payment is collected through the Service.
+              Until that update ships, no payment-related terms in
+              these Terms apply to you because no payments are
+              being processed.
+            </p>
+          </Section>
+
+          <Section index={23} title="Contact">
             <p>
               For questions about these Terms, email{' '}
               <a

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const LAST_UPDATED = 'May 8, 2026';
+const LAST_UPDATED = 'May 10, 2026';
 
 /**
  * Privacy Policy. Includes explicit BIPA-style biometric classification,
@@ -117,6 +117,47 @@ export default function PrivacyPage() {
             </p>
 
             <p className="mt-2 font-semibold text-white/85">
+              Profile content
+            </p>
+            <p>
+              Signed-in users can optionally add information that
+              becomes part of their public profile at{' '}
+              <code className="font-mono text-[12px]">/@your-username</code>:
+              a bio (up to 240 characters), a location string, an
+              uploaded avatar image (which replaces the OAuth
+              provider&rsquo;s photo if you set one), an uploaded
+              banner image, and handles for your accounts on
+              third-party platforms (Instagram, X, Snapchat, TikTok,
+              Discord). All of these fields are optional and editable
+              from{' '}
+              <Link
+                href="/account"
+                className="font-medium text-white/85 underline-offset-4 hover:underline"
+              >
+                /account
+              </Link>
+              . Avatars and banners are stored in our public{' '}
+              <code className="font-mono text-[12px]">holymog-faces</code>{' '}
+              bucket so other viewers&rsquo; browsers can fetch them;
+              you can clear either upload at any time, after which
+              the file is deleted within minutes.
+            </p>
+
+            <p className="mt-2 font-semibold text-white/85">
+              Social graph
+            </p>
+            <p>
+              You can follow other signed-in users from their public
+              profile pages. The follow graph itself is public: both
+              the follower and following lists for any given account
+              are visible to any visitor of that profile. Following
+              someone does not grant either party access to anything
+              private &mdash; it only updates the public counts and
+              lists, and surfaces the followed user as a quick link
+              elsewhere in the Service.
+            </p>
+
+            <p className="mt-2 font-semibold text-white/85">
               Biometric information (face scans)
             </p>
             <p>
@@ -216,6 +257,25 @@ export default function PrivacyPage() {
               stored in our Postgres database and surfaced on the
               leaderboard, your account history, and the global ELO
               standings.
+            </p>
+
+            <p className="mt-2 font-semibold text-white/85">
+              Cosmetic inventory
+            </p>
+            <p>
+              When you earn an in-app cosmetic by hitting a gameplay
+              milestone &mdash; for example, a name-effect treatment
+              unlocked by completing your first scan, scanning at
+              S-tier or higher, or reaching 1500 ELO &mdash; we store
+              the list of cosmetics you own, the slug of whichever
+              cosmetic you have equipped in each slot, and the
+              timestamp when each item was granted. Cosmetics are
+              purely decorative: they change how your display name
+              and avatar render to other users on profile pages,
+              leaderboards, battle tiles, and follower lists, and
+              they do not affect scores, matchmaking, ELO, or any
+              other functional behavior. Cosmetic-inventory data is
+              never sold, rented, or shared.
             </p>
 
             <p className="mt-2 font-semibold text-white/85">
@@ -860,10 +920,37 @@ export default function PrivacyPage() {
             </p>
             <ul className="ml-1 mt-2 flex flex-col gap-1.5 text-sm leading-relaxed text-white/65">
               <li>
-                Delete a leaderboard entry from the leaderboard modal in
-                the Service.
+                Download a complete JSON export of every record we
+                hold about you from{' '}
+                <Link
+                  href="/account"
+                  className="font-medium text-white/85 underline-offset-4 hover:underline"
+                >
+                  /account
+                </Link>{' '}
+                &rarr; your data &rarr; download my data.
               </li>
-              <li>Sign out from the account page.</li>
+              <li>
+                Remove your leaderboard entry, reset your stats, or
+                permanently delete your account from{' '}
+                <Link
+                  href="/account"
+                  className="font-medium text-white/85 underline-offset-4 hover:underline"
+                >
+                  /account
+                </Link>{' '}
+                &rarr; danger zone.
+              </li>
+              <li>
+                Sign out from{' '}
+                <Link
+                  href="/account"
+                  className="font-medium text-white/85 underline-offset-4 hover:underline"
+                >
+                  /account
+                </Link>
+                .
+              </li>
               <li>
                 Email{' '}
                 <a
@@ -873,8 +960,9 @@ export default function PrivacyPage() {
                   hello@holymog.com
                 </a>{' '}
                 from the address linked to your account to request
-                access, deletion, correction, portability, or
-                restriction of your data.
+                access, correction, portability, or restriction of
+                your data, or to follow up on a deletion request
+                that can&rsquo;t be self-served.
               </li>
             </ul>
             <p className="mt-3">
