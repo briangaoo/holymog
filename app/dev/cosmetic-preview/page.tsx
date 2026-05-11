@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import type { UserStats } from '@/lib/customization';
-import { BadgesSection } from './sections/BadgesSection';
+import { ThemesSection } from './sections/ThemesSection';
 import { NameFxSection } from './sections/NameFxSection';
 
 /**
  * /dev/cosmetic-preview — dev-only verification surface for the 21
- * Launch 1 cosmetic components (11 tier badges + 10 name fx). Mock
+ * Launch 1 cosmetic components (11 tier themes + 10 name fx). Mock
  * userStats toggle drives smart cosmetics through low/mid/high values.
  *
  * Dev-only: returns a placeholder in production so we don't ship the
@@ -60,7 +60,7 @@ export default function CosmeticPreviewPage() {
         <div className="flex flex-col gap-0.5">
           <h1 className="text-xl font-bold tracking-tight">cosmetic preview</h1>
           <span className="text-[11px] text-zinc-500">
-            21 components · 11 tier badges · 10 name fx · frames + themes deferred to launch 2
+            21 components · 11 tier themes · 10 name fx · frames + badges deferred to launch 2
           </span>
         </div>
         <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.02] p-1">
@@ -82,7 +82,7 @@ export default function CosmeticPreviewPage() {
       </header>
 
       <div className="flex flex-col gap-16">
-        <BadgesSection userStats={userStats} />
+        <ThemesSection userStats={userStats} />
         <NameFxSection userStats={userStats} />
       </div>
     </main>

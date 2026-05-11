@@ -103,110 +103,10 @@ export type CosmeticKind = Cosmetic['kind'];
 // Frames deferred to Launch 2 (real-designer pass).
 export const FRAMES: Record<string, FrameDef> = {};
 
-// 11 tier badges — one per tier descriptor band. Earned by scanning at
-// that tier or higher (cumulative — scanning A+ also unlocks every
-// band below for irony equips).
-export const BADGES: Record<string, BadgeDef> = {
-  'badge.ugly-af': {
-    slug: 'badge.ugly-af',
-    kind: 'badge',
-    name: 'ugly af',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/ugly-af'),
-    ) as BadgeComponent,
-    description: 'scanned F- · cope',
-  },
-  'badge.subhuman': {
-    slug: 'badge.subhuman',
-    kind: 'badge',
-    name: 'subhuman',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/subhuman'),
-    ) as BadgeComponent,
-    description: 'scanned F · embrace it',
-  },
-  'badge.chopped': {
-    slug: 'badge.chopped',
-    kind: 'badge',
-    name: 'chopped',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/chopped'),
-    ) as BadgeComponent,
-    description: 'scanned F+ · the chopping block',
-  },
-  'badge.low-normie': {
-    slug: 'badge.low-normie',
-    kind: 'badge',
-    name: 'low-tier normie',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/low-normie'),
-    ) as BadgeComponent,
-    description: 'scanned D · room to grow',
-  },
-  'badge.normie': {
-    slug: 'badge.normie',
-    kind: 'badge',
-    name: 'normie',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/normie'),
-    ) as BadgeComponent,
-    description: 'scanned C · perfectly average',
-  },
-  'badge.high-normie': {
-    slug: 'badge.high-normie',
-    kind: 'badge',
-    name: 'high-tier normie',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/high-normie'),
-    ) as BadgeComponent,
-    description: 'scanned B · above the curve',
-  },
-  'badge.chadlite': {
-    slug: 'badge.chadlite',
-    kind: 'badge',
-    name: 'chadlite',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/chadlite'),
-    ) as BadgeComponent,
-    description: 'scanned A · mogging starts here',
-  },
-  'badge.mogger': {
-    slug: 'badge.mogger',
-    kind: 'badge',
-    name: 'mogger',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/mogger'),
-    ) as BadgeComponent,
-    description: 'scanned A+ · the moggening',
-  },
-  'badge.chad': {
-    slug: 'badge.chad',
-    kind: 'badge',
-    name: 'chad',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/chad'),
-    ) as BadgeComponent,
-    description: 'scanned S- · genetically gifted',
-  },
-  'badge.heartbreaker': {
-    slug: 'badge.heartbreaker',
-    kind: 'badge',
-    name: 'heartbreaker',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/heartbreaker'),
-    ) as BadgeComponent,
-    description: 'scanned S · the heartbreak business',
-  },
-  'badge.true-adam': {
-    slug: 'badge.true-adam',
-    kind: 'badge',
-    name: 'true adam',
-    component: dynamic(
-      () => import('@/components/cosmetics/badges/true-adam'),
-    ) as BadgeComponent,
-    description: 'scanned S+ · the peak',
-  },
-};
+// Badges deferred — collided visually with name fx. Slot stays in the
+// data model for Launch 2 designer redesigns; registry is empty so no
+// badge renders.
+export const BADGES: Record<string, BadgeDef> = {};
 
 // 10 name fx — varying difficulty curve, all achievement-gated.
 export const NAME_FX: Record<string, NameFxDef> = {
@@ -296,8 +196,100 @@ export const NAME_FX: Record<string, NameFxDef> = {
   },
 };
 
-// Themes deferred to Launch 2.
-export const THEMES: Record<string, ThemeDef> = {};
+// 11 tier themes — full-bleed profile backgrounds. Replace badges as
+// the per-tier visual flex. Earned cumulatively on scan tier: scanning
+// at tier X unlocks themes for X and below (so a single S+ scan
+// unlocks all 11 themes for ironic equips).
+export const THEMES: Record<string, ThemeDef> = {
+  'theme.ugly-af': {
+    slug: 'theme.ugly-af',
+    kind: 'theme',
+    name: 'ugly af',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/ugly-af'),
+    ) as ThemeComponent,
+  },
+  'theme.subhuman': {
+    slug: 'theme.subhuman',
+    kind: 'theme',
+    name: 'subhuman',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/subhuman'),
+    ) as ThemeComponent,
+  },
+  'theme.chopped': {
+    slug: 'theme.chopped',
+    kind: 'theme',
+    name: 'chopped',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/chopped'),
+    ) as ThemeComponent,
+  },
+  'theme.low-normie': {
+    slug: 'theme.low-normie',
+    kind: 'theme',
+    name: 'low-tier normie',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/low-normie'),
+    ) as ThemeComponent,
+  },
+  'theme.normie': {
+    slug: 'theme.normie',
+    kind: 'theme',
+    name: 'normie',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/normie'),
+    ) as ThemeComponent,
+  },
+  'theme.high-normie': {
+    slug: 'theme.high-normie',
+    kind: 'theme',
+    name: 'high-tier normie',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/high-normie'),
+    ) as ThemeComponent,
+  },
+  'theme.chadlite': {
+    slug: 'theme.chadlite',
+    kind: 'theme',
+    name: 'chadlite',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/chadlite'),
+    ) as ThemeComponent,
+  },
+  'theme.mogger': {
+    slug: 'theme.mogger',
+    kind: 'theme',
+    name: 'mogger',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/mogger'),
+    ) as ThemeComponent,
+  },
+  'theme.chad': {
+    slug: 'theme.chad',
+    kind: 'theme',
+    name: 'chad',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/chad'),
+    ) as ThemeComponent,
+  },
+  'theme.heartbreaker': {
+    slug: 'theme.heartbreaker',
+    kind: 'theme',
+    name: 'heartbreaker',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/heartbreaker'),
+    ) as ThemeComponent,
+  },
+  'theme.true-adam': {
+    slug: 'theme.true-adam',
+    kind: 'theme',
+    name: 'true adam',
+    component: dynamic(
+      () => import('@/components/cosmetics/themes/true-adam'),
+    ) as ThemeComponent,
+  },
+};
 
 /**
  * Slugs that read userStats. Render sites that lack the relevant
