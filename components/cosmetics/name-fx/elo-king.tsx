@@ -1,9 +1,12 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import type { UserStats } from '@/lib/customization';
 
 /**
- * Smart: reads `elo` from userStats and appends a small cyan superscript
- * with the current rating after the name.
+ * `name.elo-king` — appends the user's current ELO as a small gold
+ * superscript: briangao¹⁵²⁰. Falls back to just the name when ELO
+ * isn't supplied at the render site.
  */
 export default function NameEloKing({
   children,
@@ -12,23 +15,25 @@ export default function NameEloKing({
   children: ReactNode;
   userStats?: UserStats;
 }) {
-  const elo = userStats?.elo;
-  if (elo == null) return <>{children}</>;
-
+  const elo = userStats?.elo ?? null;
+  if (elo === null || elo === undefined) {
+    return <>{children}</>;
+  }
   return (
-    <>
+    <span style={{ display: 'inline-block' }}>
       {children}
       <sup
         style={{
-          fontSize: '0.6em',
-          color: '#38bdf8',
-          marginLeft: '0.15em',
-          fontWeight: 600,
-          letterSpacing: '-0.02em',
+          marginLeft: '0.12em',
+          fontSize: '0.55em',
+          fontWeight: 800,
+          color: '#fbbf24',
+          letterSpacing: '0.04em',
+          textShadow: '0 0 6px rgba(251,191,36,0.55)',
         }}
       >
         {elo}
       </sup>
-    </>
+    </span>
   );
 }

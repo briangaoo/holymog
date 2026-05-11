@@ -1,26 +1,19 @@
 'use client';
 
-import { useId, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 /**
- * Clean handwritten signature underline that draws itself once on mount
- * via stroke-dashoffset animation. A quick swash loops back from the
- * end like a real handwritten signature flourish.
+ * `name.signed` — handwritten signature underline draws under the
+ * name once on mount via SVG stroke-dashoffset. Subtle gold ink.
+ * Static after the draw completes.
  */
-export default function NameSigned({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  const uid = useId().replace(/:/g, '');
-  const dashName = `name-fx-signed-draw-${uid}`;
-  const pathClass = `name-fx-signed-path-${uid}`;
+export default function NameSigned({ children }: { children: ReactNode }) {
   return (
     <span
       style={{
         position: 'relative',
         display: 'inline-block',
-        paddingBottom: '0.35em',
+        paddingBottom: '0.3em',
       }}
     >
       {children}
@@ -30,42 +23,54 @@ export default function NameSigned({
         preserveAspectRatio="none"
         style={{
           position: 'absolute',
-          left: '-2%',
-          right: '-2%',
+          left: 0,
+          right: 0,
           bottom: 0,
-          width: '104%',
-          height: '0.35em',
-          pointerEvents: 'none',
+          width: '100%',
+          height: '0.55em',
           overflow: 'visible',
+          pointerEvents: 'none',
         }}
       >
+        <defs>
+          <linearGradient id="signed-ink" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#d4af37" />
+            <stop offset="50%" stopColor="#fbbf24" />
+            <stop offset="100%" stopColor="#a16207" />
+          </linearGradient>
+        </defs>
         <path
-          className={pathClass}
-          d="M2 8 C 18 2, 38 11, 60 6 S 92 2, 98 9 Q 80 11, 70 4"
+          d="M 1 7 Q 18 2, 35 6 T 70 5 T 95 7"
           fill="none"
-          stroke="currentColor"
-          strokeWidth={1.3}
+          stroke="url(#signed-ink)"
+          strokeWidth="1.6"
           strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={0.85}
+          strokeDasharray="160"
+          strokeDashoffset="160"
+          style={{ animation: 'sig-draw 1.4s 0.15s ease-out forwards' }}
         />
-        <style>{`
-          .${pathClass} {
-            stroke-dasharray: 200;
-            stroke-dashoffset: 200;
-            animation: ${dashName} 1.6s cubic-bezier(0.65, 0, 0.35, 1) 0.15s forwards;
-          }
-          @keyframes ${dashName} {
-            to { stroke-dashoffset: 0; }
-          }
-          @media (prefers-reduced-motion: reduce) {
-            .${pathClass} {
-              animation: none;
-              stroke-dashoffset: 0;
-            }
-          }
-        `}</style>
+        {/* Flourish dot */}
+        <circle
+          cx="97"
+          cy="7"
+          r="1.4"
+          fill="#fbbf24"
+          style={{ animation: 'sig-dot 0.3s 1.5s ease-out forwards', opacity: 0 }}
+        />
       </svg>
+      <style>{`
+        @keyframes sig-draw {
+          to { stroke-dashoffset: 0; }
+        }
+        @keyframes sig-dot {
+          from { opacity: 0; transform: scale(0); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          path[style*="sig-draw"] { animation: none !important; stroke-dashoffset: 0 !important; }
+          circle[style*="sig-dot"] { animation: none !important; opacity: 1 !important; }
+        }
+      `}</style>
     </span>
   );
 }

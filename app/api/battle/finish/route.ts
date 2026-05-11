@@ -294,12 +294,9 @@ export async function POST(request: Request) {
       );
       const s = callerStats.rows[0];
       if (s) {
-        // currentWinStreak = current_streak (same field; consecutive wins).
-        // eloGainedFromBase computed against the 1000 starting ELO.
         grants = await checkAchievements(user.id, {
           matchesWon: s.matches_won,
           elo: s.elo,
-          eloGainedFromBase: s.elo - 1000,
           currentStreak: s.current_streak,
           currentWinStreak: s.current_streak,
         });

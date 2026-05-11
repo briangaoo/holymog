@@ -8,10 +8,6 @@
     {
       "path": "/api/cron/leaderboard-displaced",
       "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/expire-subscriptions",
-      "schedule": "0 3 * * *"
     }
   ]
 }

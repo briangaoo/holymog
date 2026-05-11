@@ -10,10 +10,6 @@ import {
 import { getRatelimit } from '@/lib/ratelimit';
 import { isReservedUsername } from '@/lib/reservedUsernames';
 import { weakestSubScore } from '@/lib/scoreEngine';
-import {
-  checkAchievements,
-  type AchievementGrant,
-} from '@/lib/achievements';
 import type { SubScores } from '@/types';
 
 export const runtime = 'nodejs';
@@ -684,19 +680,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  // Achievement firing on bio set — grants 2 items (badge.identity +
-  // name.signed). Only fires when bio transitions from empty/null to a
-  // non-empty string in this patch.
-  let grants: AchievementGrant[] = [];
-  if ('bio' in fields && typeof fields.bio === 'string' && fields.bio.length > 0) {
-    try {
-      grants = await checkAchievements(user.id, { bioSet: true });
-    } catch {
-      // Best-effort.
-    }
-  }
-
-  return NextResponse.json({ ok: true, achievements: grants });
+  return NextResponse.json({ ok: true });
 }
 
 /**

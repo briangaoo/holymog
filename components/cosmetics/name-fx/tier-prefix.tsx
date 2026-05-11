@@ -1,14 +1,13 @@
-import type { CSSProperties, ReactNode } from 'react';
+'use client';
+
+import type { ReactNode } from 'react';
 import type { UserStats } from '@/lib/customization';
 import { getTier } from '@/lib/tier';
 
 /**
- * Smart: reads `bestScanOverall` from userStats and renders the tier
- * letter (F-, F, F+, D-, … S, S+) immediately before the name.
- *
- * S-tier letters use the brand cyan→violet gradient via background-clip;
- * other tiers use a solid colour. Falls back to plain name if the score
- * is missing.
+ * `name.tier-prefix` — current best-scan tier letter precedes the
+ * name, colored to its tier band. "S+ briangao", "A briangao", etc.
+ * Falls back to just the name when no scan is on record.
  */
 export default function NameTierPrefix({
   children,
@@ -17,28 +16,34 @@ export default function NameTierPrefix({
   children: ReactNode;
   userStats?: UserStats;
 }) {
-  const score = userStats?.bestScanOverall;
-  if (score == null) return <>{children}</>;
-
+  const score = userStats?.bestScanOverall ?? null;
+  if (score === null || score === undefined) {
+    return <>{children}</>;
+  }
   const tier = getTier(score);
-  const prefixStyle: CSSProperties = tier.isGradient
+  const letterStyle: React.CSSProperties = tier.isGradient
     ? {
-        background: tier.color,
+        backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
         WebkitBackgroundClip: 'text',
         backgroundClip: 'text',
         color: 'transparent',
-        fontWeight: 700,
+        textShadow: tier.glow ? '0 0 12px rgba(168,85,247,0.45)' : undefined,
       }
-    : {
-        color: tier.color,
-        fontWeight: 700,
-      };
+    : { color: tier.color };
 
   return (
-    <>
-      <span style={prefixStyle}>{tier.letter}</span>
-      <span style={{ display: 'inline-block', width: '0.4em' }} />
+    <span style={{ display: 'inline-block' }}>
+      <span
+        style={{
+          marginRight: '0.45em',
+          fontWeight: 900,
+          letterSpacing: '-0.02em',
+          ...letterStyle,
+        }}
+      >
+        {tier.letter}
+      </span>
       {children}
-    </>
+    </span>
   );
 }

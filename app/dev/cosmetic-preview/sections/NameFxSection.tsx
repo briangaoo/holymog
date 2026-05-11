@@ -1,102 +1,50 @@
 'use client';
 
 import { NameFx } from '@/components/customization/NameFx';
-import type { UserStats } from '@/lib/customization';
+import { NAME_FX, type UserStats } from '@/lib/customization';
 
 /**
- * Name FX preview row for the /dev/cosmetic-preview page. Each of the
- * 14 effects wraps the same display text ("briangao") at the typical
- * profile name size so visual differences are directly comparable.
- *
- * Smart effects (tier-prefix, callout, streak-flame, elo-king,
- * score-overlay) re-render whenever the parent flips the userStats
- * toggle on the preview page.
+ * Name FX preview grid. Each registered name fx wraps the same display
+ * text ("briangao") at profile name size so visual differences are
+ * directly comparable. Smart effects re-render whenever the parent
+ * flips the userStats toggle on the preview page.
  */
-
-const NAME_FX_SLUGS = [
-  'name.embossed-gold',
-  'name.carved-obsidian',
-  'name.smoke-trail',
-  'name.frosted-glass',
-  'name.ink-bleed',
-  'name.pixelsort',
-  'name.aurora',
-  'name.signed',
-  'name.tier-prefix',
-  'name.callout',
-  'name.streak-flame',
-  'name.elo-king',
-  'name.divine-judgment',
-  'name.score-overlay',
-] as const;
 
 const DISPLAY_NAME = 'briangao';
 
 export function NameFxSection({ userStats }: { userStats: UserStats }) {
+  const entries = Object.values(NAME_FX);
   return (
-    <section style={{ padding: '24px 0' }}>
-      <h2
-        style={{
-          fontSize: 14,
-          letterSpacing: '0.08em',
-          color: 'rgba(245,245,245,0.55)',
-          marginBottom: 18,
-          textTransform: 'uppercase',
-        }}
-      >
-        name fx · 14
-      </h2>
-      <ul
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: 28,
-          rowGap: 36,
-          listStyle: 'none',
-          margin: 0,
-          padding: 0,
-        }}
-      >
-        {NAME_FX_SLUGS.map((slug) => (
+    <section className="space-y-6">
+      <header className="space-y-1">
+        <h2 className="text-xl font-semibold text-[#f5f5f5] lowercase">
+          name fx ({entries.length})
+        </h2>
+        <p className="text-sm text-neutral-400 lowercase">
+          all wrap the same name "{DISPLAY_NAME}" so differences are
+          directly comparable. smart items track the toggle above.
+        </p>
+      </header>
+
+      <ul className="grid list-none grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 p-0">
+        {entries.map((def) => (
           <li
-            key={slug}
-            style={{
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              borderRadius: 10,
-              padding: '32px 16px 18px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 12,
-              minHeight: 110,
-            }}
+            key={def.slug}
+            className="flex min-h-[140px] flex-col items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 pt-8 pb-4 backdrop-blur"
           >
-            <div
-              style={{
-                fontSize: 24,
-                lineHeight: 1.2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: 32,
-              }}
-            >
-              <NameFx slug={slug} userStats={userStats}>
+            <div className="flex min-h-[40px] items-center justify-center text-[24px] font-bold">
+              <NameFx slug={def.slug} userStats={userStats}>
                 {DISPLAY_NAME}
               </NameFx>
             </div>
-            <code
-              style={{
-                fontSize: 11,
-                color: 'rgba(245,245,245,0.4)',
-                fontFamily:
-                  'var(--font-mono-numeric), ui-monospace, monospace',
-              }}
-            >
-              {slug}
-            </code>
+            <div className="mt-auto flex items-center gap-2">
+              <code className="text-[11px] text-neutral-500">{def.slug}</code>
+              {def.smart && (
+                <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-cyan-300">
+                  smart
+                </span>
+              )}
+            </div>
           </li>
         ))}
       </ul>

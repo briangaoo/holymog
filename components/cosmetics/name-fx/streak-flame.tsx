@@ -1,11 +1,11 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import type { UserStats } from '@/lib/customization';
 
 /**
- * Smart: reads `currentWinStreak` from userStats. When ≥ 1, appends the
- * streak count followed by 🔥 after the name. The digit picks up a
- * subtle warm tint so the flame reads as part of the count, not detached
- * emoji garnish.
+ * `name.streak-flame` — appends "N🔥" after the name when the user
+ * has an active streak. Hidden when streak is 0 or unavailable.
  */
 export default function NameStreakFlame({
   children,
@@ -14,25 +14,26 @@ export default function NameStreakFlame({
   children: ReactNode;
   userStats?: UserStats;
 }) {
-  const streak = userStats?.currentWinStreak ?? 0;
-  if (streak < 1) return <>{children}</>;
-
+  const streak =
+    userStats?.currentWinStreak ?? userStats?.currentStreak ?? 0;
+  if (!streak || streak < 1) {
+    return <>{children}</>;
+  }
   return (
-    <>
+    <span style={{ display: 'inline-block' }}>
       {children}
-      <span style={{ display: 'inline-block', width: '0.35em' }} />
       <span
         style={{
-          color: '#fb923c',
+          marginLeft: '0.4em',
           fontWeight: 700,
-          fontSize: '0.95em',
+          fontSize: '0.82em',
+          color: '#fb923c',
+          textShadow: '0 0 8px rgba(251,146,60,0.5)',
+          letterSpacing: '-0.01em',
         }}
       >
-        {streak}
-        <span style={{ marginLeft: '0.05em' }} aria-hidden>
-          🔥
-        </span>
+        {streak}🔥
       </span>
-    </>
+    </span>
   );
 }
