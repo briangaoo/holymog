@@ -13,7 +13,7 @@ import { getBadge, type UserStats } from '@/lib/customization';
  */
 export function Badge({
   slug,
-  size = 28,
+  size = 36,
   userStats,
 }: {
   slug: string | null | undefined;
