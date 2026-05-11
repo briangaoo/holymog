@@ -85,7 +85,12 @@ const EMPTY_TOKENS: TokenAccum = {
 };
 
 const STORAGE_KEY = 'holymog-last-result';
-const PRIVACY_KEY = 'holymog-privacy-acknowledged';
+// Bumped from 'holymog-privacy-acknowledged' when the modal expanded
+// to require an explicit checkbox accepting Terms + Privacy + the
+// every-scan archive disclosure. Old key is dead; users who clicked
+// the prior informational dialog get re-prompted with the new
+// affirmative-consent surface.
+const PRIVACY_KEY = 'holymog-consent-accepted';
 
 type SavedResult = {
   scores: FinalScores;
