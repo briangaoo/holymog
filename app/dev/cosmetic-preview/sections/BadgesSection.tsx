@@ -54,7 +54,7 @@ export function BadgesSection({ userStats }: { userStats: UserStats }) {
                 <span className="text-[15px] font-bold text-white">
                   {SAMPLE_NAME}
                 </span>
-                <Component size={22} userStats={userStats} />
+                <Component size={28} userStats={userStats} />
               </div>
               <p className="mt-3 text-xs text-neutral-400 lowercase">
                 {def.description}
