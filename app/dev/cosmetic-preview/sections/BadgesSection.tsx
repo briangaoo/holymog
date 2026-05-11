@@ -22,8 +22,8 @@ export function BadgesSection({ userStats }: { userStats: UserStats }) {
           badges ({entries.length})
         </h2>
         <p className="text-sm text-neutral-400 lowercase">
-          inline pills next to your name. 44px tall — sample name shown
-          for realistic context.
+          inline pills next to your name. 32px tall, gradient-bg + gradient-text
+          per tier — sample name shown for realistic context.
         </p>
       </header>
 
@@ -54,7 +54,7 @@ export function BadgesSection({ userStats }: { userStats: UserStats }) {
                 <span className="text-[15px] font-bold text-white">
                   {SAMPLE_NAME}
                 </span>
-                <Component size={44} userStats={userStats} />
+                <Component size={32} userStats={userStats} />
               </div>
               <p className="mt-3 text-xs text-neutral-400 lowercase">
                 {def.description}

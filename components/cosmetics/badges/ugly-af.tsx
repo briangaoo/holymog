@@ -1,21 +1,29 @@
 'use client';
 
-import { pillStyle } from './_pill';
+import { pillStyle, textGradient } from './_pill';
 
 /**
- * F- tier badge — "ugly af". Deep red pill, the most muted of the F band.
+ * F- tier badge — "ugly af". Crimson → near-black bg, blood-red text
+ * gradient. The "rock-bottom" badge.
  */
 export default function BadgeUglyAf({ size }: { size: number }) {
   return (
     <span
       style={pillStyle({
         size,
-        fg: '#fee2e2',
-        bg: '#7f1d1d',
-        border: 'rgba(239,68,68,0.55)',
+        background:
+          'linear-gradient(135deg, #991b1b 0%, #450a0a 60%, #1c0606 100%)',
+        border: 'rgba(239,68,68,0.65)',
+        glow: 'rgba(239,68,68,0.30)',
       })}
     >
-      ugly af
+      <span
+        style={textGradient(
+          'linear-gradient(180deg, #fee2e2 0%, #fca5a5 70%, #ef4444 100%)',
+        )}
+      >
+        ugly af
+      </span>
     </span>
   );
 }

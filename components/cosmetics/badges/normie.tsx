@@ -1,22 +1,29 @@
 'use client';
 
-import { pillStyle } from './_pill';
+import { pillStyle, textGradient } from './_pill';
 
 /**
- * C tier badge — "normie". Amber/yellow.
+ * C tier badge — "normie". Amber → yellow → gold gradient. Sits at
+ * the brand median tier.
  */
 export default function BadgeNormie({ size }: { size: number }) {
   return (
     <span
       style={pillStyle({
         size,
-        fg: '#fef3c7',
-        bg: '#854d0e',
-        border: 'rgba(234,179,8,0.7)',
-        glow: 'rgba(234,179,8,0.28)',
+        background:
+          'linear-gradient(135deg, #854d0e 0%, #a16207 50%, #ca8a04 100%)',
+        border: 'rgba(234,179,8,0.80)',
+        glow: 'rgba(234,179,8,0.42)',
       })}
     >
-      normie
+      <span
+        style={textGradient(
+          'linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%)',
+        )}
+      >
+        normie
+      </span>
     </span>
   );
 }

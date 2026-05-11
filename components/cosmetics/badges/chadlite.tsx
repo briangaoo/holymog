@@ -1,22 +1,29 @@
 'use client';
 
-import { pillStyle } from './_pill';
+import { pillStyle, textGradient } from './_pill';
 
 /**
- * A tier badge — "chadlite". Green. First aspirational tier.
+ * A tier badge — "chadlite". Forest green → emerald gradient. First
+ * aspirational tier — the mogging begins.
  */
 export default function BadgeChadlite({ size }: { size: number }) {
   return (
     <span
       style={pillStyle({
         size,
-        fg: '#bbf7d0',
-        bg: '#14532d',
-        border: 'rgba(34,197,94,0.75)',
-        glow: 'rgba(34,197,94,0.40)',
+        background:
+          'linear-gradient(135deg, #14532d 0%, #166534 50%, #15803d 100%)',
+        border: 'rgba(34,197,94,0.85)',
+        glow: 'rgba(34,197,94,0.55)',
       })}
     >
-      chadlite
+      <span
+        style={textGradient(
+          'linear-gradient(180deg, #f0fdf4 0%, #bbf7d0 100%)',
+        )}
+      >
+        chadlite
+      </span>
     </span>
   );
 }
