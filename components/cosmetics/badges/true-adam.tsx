@@ -19,10 +19,10 @@ export default function BadgeTrueAdam({ size }: { size: number }) {
           align-items: center;
           gap: 0.32em;
           height: 100%;
-          padding: 0 0.9em;
-          font-size: ${size * 0.5}px;
+          padding: 0 0.75em;
+          font-size: ${size * 0.58}px;
           font-weight: 900;
-          letter-spacing: 0.09em;
+          letter-spacing: 0.07em;
           text-transform: lowercase;
           white-space: nowrap;
           line-height: 1;
