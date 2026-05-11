@@ -15,8 +15,8 @@ export default function BadgeHeartbreaker({ size }: { size: number }) {
           display: inline-flex;
           align-items: center;
           height: 100%;
-          padding: 0 0.85em;
-          font-size: ${size * 0.5}px;
+          padding: 0 0.75em;
+          font-size: ${size * 0.42}px;
           font-weight: 900;
           letter-spacing: 0.06em;
           text-transform: lowercase;
