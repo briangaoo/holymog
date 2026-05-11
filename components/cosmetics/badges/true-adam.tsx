@@ -1,121 +1,85 @@
 'use client';
 
 /**
- * S+ tier badge — "true adam". Tall cyan→purple gradient crown with
- * a halo above + animated sparkle. The peak flex. The crown stays
- * static; the sparkle rotates very slowly so the badge has life at
- * 22px without distracting.
+ * S+ tier badge — "true adam". The marquee badge. Gradient pill with
+ * a halo glow + a sparkle char prefix. Slow shimmer cycles through
+ * cyan → purple → pink → gold.
  */
 export default function BadgeTrueAdam({ size }: { size: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      role="img"
-      aria-label="true adam"
-      style={{ display: 'block' }}
-    >
-      <defs>
-        <radialGradient id="ta-bg" cx="50%" cy="35%">
-          <stop offset="0%" stopColor="#312e81" />
-          <stop offset="100%" stopColor="#020617" />
-        </radialGradient>
-        <linearGradient id="ta-crown" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#67e8f9" />
-          <stop offset="50%" stopColor="#a855f7" />
-          <stop offset="100%" stopColor="#ec4899" />
-        </linearGradient>
-        <radialGradient id="ta-halo" cx="50%" cy="50%">
-          <stop offset="0%" stopColor="rgba(253,224,71,0.95)" />
-          <stop offset="60%" stopColor="rgba(253,224,71,0.30)" />
-          <stop offset="100%" stopColor="rgba(253,224,71,0)" />
-        </radialGradient>
-      </defs>
-      <circle cx="32" cy="32" r="30" fill="url(#ta-bg)" />
-      <circle
-        cx="32"
-        cy="32"
-        r="30"
-        fill="none"
-        stroke="url(#ta-crown)"
-        strokeWidth="2"
-      />
-      <circle
-        cx="32"
-        cy="32"
-        r="27"
-        fill="none"
-        stroke="rgba(168,85,247,0.30)"
-        strokeWidth="1"
-      />
-
-      {/* Halo above the crown */}
-      <ellipse
-        cx="32"
-        cy="14"
-        rx="14"
-        ry="3.5"
-        fill="url(#ta-halo)"
-      />
-      <ellipse
-        cx="32"
-        cy="14"
-        rx="11"
-        ry="2"
-        fill="none"
-        stroke="rgba(253,224,71,0.9)"
-        strokeWidth="0.8"
-      />
-
-      {/* Tall crown */}
-      <g>
-        <path
-          d="M12 46 L18 24 L25 36 L32 18 L39 36 L46 24 L52 46 Z"
-          fill="url(#ta-crown)"
-          stroke="#0f172a"
-          strokeWidth="1.4"
-          strokeLinejoin="round"
-        />
-        <rect
-          x="12"
-          y="46"
-          width="40"
-          height="6"
-          fill="url(#ta-crown)"
-          stroke="#0f172a"
-          strokeWidth="1.4"
-        />
-        {/* Highlight band */}
-        <rect
-          x="12"
-          y="46"
-          width="40"
-          height="2"
-          fill="rgba(255,255,255,0.40)"
-        />
-        {/* Center gem */}
-        <circle cx="32" cy="49" r="2" fill="#fde047" stroke="#7c2d12" strokeWidth="0.5" />
-      </g>
-
-      {/* Rotating sparkle group — slow 8s rotation */}
-      <g style={{ transformOrigin: '32px 32px', animation: 'ta-spark-rot 8s linear infinite' }}>
-        <path
-          d="M32 6 L33 12 L39 13 L33 14 L32 20 L31 14 L25 13 L31 12 Z"
-          fill="#fef3c7"
-          opacity="0.85"
-        />
-      </g>
-
+    <span className="badge-true-adam">
+      <span className="badge-true-adam-spark" aria-hidden>
+        ✦
+      </span>
+      <span className="badge-true-adam-text">true adam</span>
       <style>{`
-        @keyframes ta-spark-rot {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        .badge-true-adam {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35em;
+          height: 100%;
+          padding: 0 0.85em;
+          font-size: ${size * 0.5}px;
+          font-weight: 900;
+          letter-spacing: 0.09em;
+          text-transform: lowercase;
+          white-space: nowrap;
+          line-height: 1;
+          border-radius: 999px;
+          border: 1px solid rgba(253, 224, 71, 0.55);
+          background:
+            radial-gradient(
+              ellipse at top left,
+              rgba(34, 211, 238, 0.28) 0%,
+              rgba(168, 85, 247, 0.25) 45%,
+              rgba(253, 224, 71, 0.18) 100%
+            );
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.18),
+            0 0 14px rgba(168, 85, 247, 0.45),
+            0 0 28px rgba(253, 224, 71, 0.25);
         }
-        @media (prefers-reduced-motion: reduce) {
-          [style*="ta-spark-rot"] { animation: none !important; }
+        .badge-true-adam-spark {
+          color: #fde047;
+          text-shadow:
+            0 0 6px rgba(253, 224, 71, 0.95),
+            0 0 12px rgba(253, 224, 71, 0.55);
+          font-size: 0.95em;
+        }
+        .badge-true-adam-text {
+          background-image: linear-gradient(
+            115deg,
+            #67e8f9 0%,
+            #a855f7 38%,
+            #ec4899 70%,
+            #fde047 100%
+          );
+          background-size: 250% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          filter:
+            drop-shadow(0 0 5px rgba(168, 85, 247, 0.55))
+            drop-shadow(0 0 10px rgba(34, 211, 238, 0.30));
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .badge-true-adam-text {
+            animation: ta-shimmer 6s linear infinite;
+          }
+          .badge-true-adam-spark {
+            animation: ta-spark 2.4s ease-in-out infinite;
+          }
+        }
+        @keyframes ta-shimmer {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 250% 50%; }
+        }
+        @keyframes ta-spark {
+          0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.85; }
+          50% { transform: scale(1.2) rotate(20deg); opacity: 1; }
         }
       `}</style>
-    </svg>
+    </span>
   );
 }

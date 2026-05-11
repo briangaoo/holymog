@@ -1,51 +1,30 @@
 'use client';
 
 /**
- * B tier badge — "high-tier normie". Lime check mark with a small
- * smile face nestled in the V of the check.
+ * B tier badge — "high normie". Lime pill.
  */
 export default function BadgeHighNormie({ size }: { size: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      role="img"
-      aria-label="high-tier normie"
-      style={{ display: 'block' }}
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: '100%',
+        padding: '0 0.65em',
+        fontSize: `${size * 0.5}px`,
+        fontWeight: 800,
+        letterSpacing: '0.06em',
+        textTransform: 'lowercase',
+        color: '#ecfccb',
+        backgroundColor: 'rgba(132,204,22,0.20)',
+        border: '1px solid rgba(132,204,22,0.65)',
+        borderRadius: 999,
+        whiteSpace: 'nowrap',
+        textShadow: '0 1px 0 rgba(0,0,0,0.5), 0 0 6px rgba(132,204,22,0.45)',
+        lineHeight: 1,
+      }}
     >
-      <defs>
-        <radialGradient id="hn-bg" cx="50%" cy="35%">
-          <stop offset="0%" stopColor="#bef264" />
-          <stop offset="100%" stopColor="#3f6212" />
-        </radialGradient>
-      </defs>
-      <circle cx="32" cy="32" r="30" fill="url(#hn-bg)" />
-      <circle
-        cx="32"
-        cy="32"
-        r="30"
-        fill="none"
-        stroke="rgba(0,0,0,0.55)"
-        strokeWidth="1.5"
-      />
-      {/* Large check */}
-      <path
-        d="M16 34 L26 46 L50 18"
-        stroke="#1a2e05"
-        strokeWidth="6.5"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M16 34 L26 46 L50 18"
-        stroke="#ecfccb"
-        strokeWidth="3.5"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      high normie
+    </span>
   );
 }

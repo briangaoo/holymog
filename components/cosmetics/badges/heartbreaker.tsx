@@ -1,68 +1,62 @@
 'use client';
 
 /**
- * S tier badge — "heartbreaker". Cyan→purple gradient heart with
- * a hairline crack down the middle and a small sparkle catching
- * light off the upper-left curve.
+ * S tier badge — "heartbreaker". Gradient pill with a slow shimmer
+ * cycle. Stronger than chad, quieter than true-adam.
  */
 export default function BadgeHeartbreaker({ size }: { size: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      role="img"
-      aria-label="heartbreaker"
-      style={{ display: 'block' }}
-    >
-      <defs>
-        <radialGradient id="hb-bg" cx="50%" cy="35%">
-          <stop offset="0%" stopColor="#1e1b4b" />
-          <stop offset="100%" stopColor="#020617" />
-        </radialGradient>
-        <linearGradient id="hb-heart" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#22d3ee" />
-          <stop offset="50%" stopColor="#7c3aed" />
-          <stop offset="100%" stopColor="#a855f7" />
-        </linearGradient>
-      </defs>
-      <circle cx="32" cy="32" r="30" fill="url(#hb-bg)" />
-      <circle
-        cx="32"
-        cy="32"
-        r="30"
-        fill="none"
-        stroke="url(#hb-heart)"
-        strokeWidth="1.8"
-      />
-      {/* Heart */}
-      <path
-        d="M32 50 C 14 38 14 22 24 22 C 28 22 31 25 32 27 C 33 25 36 22 40 22 C 50 22 50 38 32 50 Z"
-        fill="url(#hb-heart)"
-        stroke="#0f172a"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      {/* Crack down the middle — jagged */}
-      <polyline
-        points="32,22 30,28 34,32 30,38 33,44 32,49"
-        fill="none"
-        stroke="#0f172a"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <polyline
-        points="32,22 30,28 34,32 30,38 33,44 32,49"
-        fill="none"
-        stroke="rgba(255,255,255,0.45)"
-        strokeWidth="0.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Sparkle highlight */}
-      <circle cx="26" cy="26" r="1.2" fill="rgba(255,255,255,0.75)" />
-      <circle cx="26" cy="26" r="2.4" fill="rgba(255,255,255,0.18)" />
-    </svg>
+    <span className="badge-heartbreaker">
+      <span className="badge-heartbreaker-text">heartbreaker</span>
+      <style>{`
+        .badge-heartbreaker {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          height: 100%;
+          padding: 0 0.75em;
+          font-size: ${size * 0.5}px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: lowercase;
+          white-space: nowrap;
+          line-height: 1;
+          border-radius: 999px;
+          border: 1px solid rgba(168, 85, 247, 0.85);
+          background:
+            radial-gradient(
+              ellipse at top left,
+              rgba(34, 211, 238, 0.25) 0%,
+              rgba(168, 85, 247, 0.20) 50%,
+              rgba(236, 72, 153, 0.18) 100%
+            );
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.10),
+            0 0 12px rgba(168, 85, 247, 0.30);
+        }
+        .badge-heartbreaker-text {
+          background-image: linear-gradient(
+            115deg,
+            #22d3ee 0%,
+            #a855f7 50%,
+            #ec4899 100%
+          );
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          filter: drop-shadow(0 0 5px rgba(168, 85, 247, 0.65));
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .badge-heartbreaker-text {
+            animation: hb-shimmer 4.5s linear infinite;
+          }
+        }
+        @keyframes hb-shimmer {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+      `}</style>
+    </span>
   );
 }
