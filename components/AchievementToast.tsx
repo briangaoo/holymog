@@ -54,7 +54,7 @@ export function AchievementToastContainer() {
                 {grant.name}
               </span>
               <span className="text-[11px] text-zinc-400">
-                check your store to equip
+                equip from account → customization
               </span>
             </div>
             <button

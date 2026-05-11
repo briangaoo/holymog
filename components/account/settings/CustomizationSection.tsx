@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Check, Lock, Sparkles } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 import { NameFx } from '../../customization/NameFx';
-import { NAME_FX, type NameFxDef } from '@/lib/customization';
+import {
+  NAME_FX,
+  type NameFxDef,
+  type UserStats,
+} from '@/lib/customization';
 import { Section, type SettingsProfile } from './shared';
 
 /**
@@ -12,11 +16,18 @@ import { Section, type SettingsProfile } from './shared';
  *
  * Only name effects — no store, no monetization. Items are earned via
  * gameplay (achievement engine grants on scans / battles / streaks /
- * ELO milestones). User picks which earned effect to equip; can
- * unequip back to default.
+ * ELO milestones). The picker shows:
+ *   - the user's owned name fx (live preview of the effect on their
+ *     display name, using their real stats so smart effects render
+ *     accurately — tier-prefix shows their actual tier letter etc.)
+ *   - locked name fx with a faded preview of what they'd unlock,
+ *     rendered against representative mock stats so smart effects
+ *     visibly demonstrate the look even though the user hasn't
+ *     crossed the threshold yet.
+ *   - the catalog description per item so the user knows exactly
+ *     what to do to earn each one.
  *
- * Locked items show greyed with their unlock condition so users see
- * what to chase. Frames, badges, and themes deferred to Launch 2.
+ * Frames, badges, and themes deferred to Launch 2.
  */
 
 type CatalogItem = {
@@ -38,9 +49,34 @@ type CatalogResponse = {
   };
 };
 
+/**
+ * Mock stats used to render locked name fx previews. Picked so every
+ * smart effect has data to display (tier letter S-, 7-win streak,
+ * 1500 ELO, weakest sub-score, etc) — gives the user a real preview
+ * of what they'd unlock, not an empty wrapper.
+ */
+const LOCKED_PREVIEW_STATS: UserStats = {
+  elo: 1500,
+  bestScanOverall: 88,
+  currentStreak: 7,
+  currentWinStreak: 7,
+  matchesWon: 25,
+  weakestSubScore: 'jawline',
+};
+
+const EMPTY_STATS: UserStats = {
+  elo: null,
+  bestScanOverall: null,
+  currentStreak: null,
+  currentWinStreak: null,
+  matchesWon: null,
+  weakestSubScore: null,
+};
+
 export function CustomizationSection({ profile }: { profile: SettingsProfile }) {
   const { user } = useUser();
   const [data, setData] = useState<CatalogResponse | null>(null);
+  const [userStats, setUserStats] = useState<UserStats>(EMPTY_STATS);
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,9 +91,42 @@ export function CustomizationSection({ profile }: { profile: SettingsProfile }) 
     }
   }, []);
 
+  // Pull live userStats from /api/account/me so owned smart effects
+  // preview accurately (tier-prefix shows their real tier, elo-king
+  // shows their real ELO, etc). Separate from /api/catalog because
+  // the catalog endpoint is shared with logged-out browsing.
+  const refreshUserStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/account/me', { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = (await res.json()) as {
+        profile?: {
+          elo?: number | null;
+          best_scan_overall?: number | null;
+          current_streak?: number | null;
+          matches_won?: number | null;
+        } | null;
+        weakest_sub_score?: UserStats['weakestSubScore'];
+      };
+      const p = json.profile;
+      if (!p) return;
+      setUserStats({
+        elo: p.elo ?? null,
+        bestScanOverall: p.best_scan_overall ?? null,
+        currentStreak: p.current_streak ?? null,
+        currentWinStreak: p.current_streak ?? null,
+        matchesWon: p.matches_won ?? null,
+        weakestSubScore: json.weakest_sub_score ?? null,
+      });
+    } catch {
+      // best-effort
+    }
+  }, []);
+
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshUserStats();
+  }, [refresh, refreshUserStats]);
 
   const equip = useCallback(
     async (slug: string) => {
@@ -122,6 +191,12 @@ export function CustomizationSection({ profile }: { profile: SettingsProfile }) 
   const ownedNameFx = nameFxInRegistry.filter((n) => ownedSet.has(n.slug));
   const lockedNameFx = nameFxInRegistry.filter((n) => !ownedSet.has(n.slug));
 
+  // catalog descriptions are the "how to earn it" copy (e.g. "unlocked
+  // by completing your first scan"). Look up by slug.
+  const descBySlug = new Map<string, string | null>(
+    data.items.map((i) => [i.slug, i.description]),
+  );
+
   return (
     <Section
       id="customization"
@@ -166,6 +241,7 @@ export function CustomizationSection({ profile }: { profile: SettingsProfile }) 
                 key={n.slug}
                 def={n}
                 displayName={profile.display_name}
+                userStats={userStats}
                 equipped={data.equipped.name_fx === n.slug}
                 pending={pending === n.slug}
                 onClick={() => void equip(n.slug)}
@@ -175,16 +251,21 @@ export function CustomizationSection({ profile }: { profile: SettingsProfile }) 
         )}
 
         {lockedNameFx.length > 0 && (
-          <details className="text-[12px] text-zinc-500">
-            <summary className="cursor-pointer text-zinc-400 transition-colors hover:text-white">
-              {lockedNameFx.length} locked
-            </summary>
-            <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-1 flex flex-col gap-2">
+            <span className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">
+              locked · {lockedNameFx.length}
+            </span>
+            <div className="flex flex-col gap-2">
               {lockedNameFx.map((n) => (
-                <LockedNameFxOption key={n.slug} def={n} />
+                <LockedNameFxOption
+                  key={n.slug}
+                  def={n}
+                  displayName={profile.display_name}
+                  description={descBySlug.get(n.slug) ?? null}
+                />
               ))}
             </div>
-          </details>
+          </div>
         )}
       </div>
 
@@ -200,12 +281,14 @@ export function CustomizationSection({ profile }: { profile: SettingsProfile }) 
 function NameFxOption({
   def,
   displayName,
+  userStats,
   equipped,
   pending,
   onClick,
 }: {
   def: NameFxDef;
   displayName: string;
+  userStats: UserStats;
   equipped: boolean;
   pending: boolean;
   onClick: () => void;
@@ -226,7 +309,9 @@ function NameFxOption({
           {def.name}
         </span>
         <span className="text-[18px] font-bold text-white">
-          <NameFx slug={def.slug}>{displayName}</NameFx>
+          <NameFx slug={def.slug} userStats={userStats}>
+            {displayName}
+          </NameFx>
         </span>
       </span>
       {equipped && (
@@ -236,14 +321,38 @@ function NameFxOption({
   );
 }
 
-function LockedNameFxOption({ def }: { def: NameFxDef }) {
+function LockedNameFxOption({
+  def,
+  displayName,
+  description,
+}: {
+  def: NameFxDef;
+  displayName: string;
+  description: string | null;
+}) {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.015] px-3.5 py-2.5 opacity-50">
-      <Lock size={11} aria-hidden className="text-zinc-600" />
-      <span className="text-[12px] text-zinc-400">{def.name}</span>
-      <span className="ml-auto text-[10px] uppercase tracking-[0.14em] text-zinc-600">
-        locked
-      </span>
+    <div className="flex flex-col gap-1.5 rounded-xl border border-white/5 bg-white/[0.015] px-3.5 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex flex-col gap-1.5 opacity-60">
+          <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+            <Lock size={10} aria-hidden />
+            {def.name}
+          </span>
+          <span className="text-[18px] font-bold text-white">
+            <NameFx slug={def.slug} userStats={LOCKED_PREVIEW_STATS}>
+              {displayName}
+            </NameFx>
+          </span>
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+          locked
+        </span>
+      </div>
+      {description && (
+        <span className="text-[11px] leading-relaxed text-zinc-400">
+          {description}
+        </span>
+      )}
     </div>
   );
 }

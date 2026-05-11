@@ -10,6 +10,8 @@ import { FullPageSpinner } from '@/components/FullPageSpinner';
 import { AccountStatsTab } from '@/components/AccountStatsTab';
 import { AccountHistoryTab } from '@/components/AccountHistoryTab';
 import { AccountSettingsTab } from '@/components/AccountSettingsTab';
+import { NameFx } from '@/components/customization/NameFx';
+import type { UserStats } from '@/lib/customization';
 import type { VisionScore, FinalScores } from '@/types';
 
 type Tab = 'stats' | 'history' | 'settings';
@@ -198,7 +200,24 @@ export default function AccountPage() {
           )}
           <div className="flex flex-col gap-0.5 min-w-0">
             <h1 className="truncate text-base font-semibold text-white">
-              {prefetched.me?.profile?.display_name ?? user.email ?? user.id}
+              <NameFx
+                slug={prefetched.me?.profile?.equipped_name_fx ?? null}
+                userStats={
+                  {
+                    elo: prefetched.me?.profile?.elo ?? null,
+                    bestScanOverall:
+                      prefetched.me?.profile?.best_scan_overall ?? null,
+                    currentStreak:
+                      prefetched.me?.profile?.current_streak ?? null,
+                    currentWinStreak:
+                      prefetched.me?.profile?.current_streak ?? null,
+                    matchesWon: prefetched.me?.profile?.matches_won ?? null,
+                    weakestSubScore: prefetched.me?.weakest_sub_score ?? null,
+                  } satisfies UserStats
+                }
+              >
+                {prefetched.me?.profile?.display_name ?? user.email ?? user.id}
+              </NameFx>
             </h1>
             {user.email && prefetched.me?.profile?.display_name && (
               <span className="truncate text-[11px] text-zinc-500">

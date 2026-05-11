@@ -32,6 +32,10 @@ import { useFlowMachine } from '@/hooks/useFlowMachine';
 import { combineScores, mockVisionScore } from '@/lib/scoreEngine';
 import { prefetchLeaderboard } from '@/lib/leaderboardCache';
 import { getTier, getTierDescriptor } from '@/lib/tier';
+import {
+  pushAchievements,
+  type AchievementGrant,
+} from '@/hooks/useAchievementToast';
 import type { FinalScores, Frame, Landmark, VisionScore } from '@/types';
 
 // 3-second countdown → 5-second live scan phase = 8 second total scan window.
@@ -390,9 +394,14 @@ export default function Home() {
           const data = (await res.json()) as {
             scores: FinalScores;
             vision: VisionScore | null;
+            achievements?: AchievementGrant[];
           };
           final = data.scores;
           vision = data.vision ?? undefined;
+          // Toast any cosmetics this scan just unlocked (first scan, 10th
+          // scan, B-tier, S-tier, S+). Queue persists across the
+          // mapping → revealing → complete state transitions.
+          pushAchievements(data.achievements);
         } else {
           // Non-429 server error: fall back to mock so the UI still resolves.
           const mock = mockVisionScore();

@@ -21,6 +21,10 @@ import { NameFx } from '@/components/customization/NameFx';
 import type { UserStats } from '@/lib/customization';
 import type { SubScores } from '@/types';
 import { battleSfx } from '@/lib/battleSfx';
+import {
+  pushAchievements,
+  type AchievementGrant,
+} from '@/hooks/useAchievementToast';
 
 // ---- Types -----------------------------------------------------------------
 
@@ -378,12 +382,22 @@ function BattleInterior({
         body: JSON.stringify({ battle_id: battleId }),
       })
         .then((r) => r.json())
-        .then((data: { result?: FinishPayload }) => {
-          if (data.result) {
-            playFinishSfx(data.result);
-            onFinished(data.result);
-          }
-        })
+        .then(
+          (data: {
+            result?: FinishPayload;
+            achievements?: AchievementGrant[];
+          }) => {
+            if (data.result) {
+              playFinishSfx(data.result);
+              onFinished(data.result);
+            }
+            // Toast any cosmetics this battle just unlocked (25 wins,
+            // 1500/1700 ELO, 7/30 win-streak). Server only fires the
+            // check for the caller's user_id; opponent grants land on
+            // their next checkAchievements call.
+            pushAchievements(data.achievements);
+          },
+        )
         .catch(() => {
           // Realtime may still deliver the finish event from the other
           // participant's call; soft-fail.

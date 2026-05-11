@@ -205,10 +205,14 @@ export async function POST(request: Request) {
     void persistScanHistory(userId, scores, vision, lastImage);
   }
 
-  // Achievement firing: only for signed-in users. Counts scan_history
-  // post-persistScanHistory so the just-completed scan is included.
-  // Wrapped in try/catch so achievement DB hiccups never block the
-  // score response.
+  // Achievement firing: only for signed-in users.
+  //
+  // persistScanHistory above is fire-and-forget so its row may not be
+  // committed before this count query runs. We add +1 to represent the
+  // scan that just completed — the user already saw their score, so
+  // the achievement should fire regardless of whether persistScanHistory
+  // wins or loses the race. tryGrant is idempotent on
+  // (user_id, achievement_key) so duplicate calls are no-ops.
   let grants: AchievementGrant[] = [];
   if (userId) {
     try {
@@ -218,9 +222,7 @@ export async function POST(request: Request) {
            from scan_history where user_id = $1`,
         [userId],
       );
-      const total = counts.rows[0]?.total ?? 0;
-      // Compare against the freshly computed scores.overall as well, since
-      // persistScanHistory is fire-and-forget and may not have committed yet.
+      const total = (counts.rows[0]?.total ?? 0) + 1;
       const best = Math.max(counts.rows[0]?.best ?? 0, scores.overall);
       grants = await checkAchievements(userId, {
         totalScans: total,
