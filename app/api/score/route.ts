@@ -21,6 +21,7 @@ import {
 import { requireSameOrigin } from '@/lib/originGuard';
 import { isScoreKilled } from '@/lib/featureFlags';
 import { publicError } from '@/lib/errors';
+import { checkBudget } from '@/lib/costCap';
 import type { VisionScore } from '@/types';
 
 const SCANS_BUCKET = 'holymog-scans';
@@ -114,6 +115,14 @@ function validateAndBlob(
 export async function POST(request: Request) {
   // Kill switch first — short-circuits before any auth or DB work.
   if (isScoreKilled()) {
+    return NextResponse.json(publicError('system_unavailable'), { status: 503 });
+  }
+  // Daily Gemini budget cap — the hard ceiling on cost abuse. When
+  // today's spend has crossed DAILY_GEMINI_BUDGET_USD, all scoring
+  // halts until 00:00 UTC. Failure mode is intentional 503 (not 429)
+  // so retries don't make it worse.
+  const budget = await checkBudget();
+  if (!budget.ok) {
     return NextResponse.json(publicError('system_unavailable'), { status: 503 });
   }
   // Origin guard: blocks other sites from using us as a free

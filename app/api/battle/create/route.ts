@@ -3,6 +3,10 @@ import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { generateBattleCode } from '@/lib/battle-code';
 import { isSubscriber } from '@/lib/subscription';
+import { requireSameOrigin } from '@/lib/originGuard';
+import { isBattlesKilled } from '@/lib/featureFlags';
+import { publicError } from '@/lib/errors';
+import { getRatelimit } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,11 +27,25 @@ const MAX_PARTICIPANTS_SUB = 20;
  * as the first participant. Returns the battle_id + code so the host
  * can share it with friends.
  */
-export async function POST() {
+export async function POST(request: Request) {
+  if (isBattlesKilled()) {
+    return NextResponse.json(publicError('system_unavailable'), { status: 503 });
+  }
+  const origin = requireSameOrigin(request);
+  if (!origin.ok) return NextResponse.json(origin.body, { status: origin.status });
+
   const session = await auth();
   const user = session?.user;
   if (!user) {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    return NextResponse.json(publicError('unauthenticated'), { status: 401 });
+  }
+
+  const limiter = getRatelimit('battleCreate');
+  if (limiter) {
+    const result = await limiter.limit(user.id);
+    if (!result.success) {
+      return NextResponse.json(publicError('rate_limited'), { status: 429 });
+    }
   }
 
   const pool = getPool();

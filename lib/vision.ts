@@ -1,4 +1,5 @@
 import type { VisionScore } from '@/types';
+import { recordCost } from './costCap';
 
 // Google Generative AI REST endpoint. The model name is interpolated into
 // the URL at call time. Pricing for gemini-2.5-flash-lite is $0.10/M input,
@@ -393,6 +394,9 @@ async function callGemini(
     input: data.usageMetadata?.promptTokenCount ?? 0,
     output: data.usageMetadata?.candidatesTokenCount ?? 0,
   };
+  // Fire-and-forget — record the spend in the daily cost counter so
+  // checkBudget() can gate future requests. Failures don't block.
+  void recordCost(tokens.input, tokens.output);
   return { text, tokens };
 }
 

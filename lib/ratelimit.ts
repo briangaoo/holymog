@@ -26,6 +26,18 @@ const PRESETS = {
   username: { tokens: 3, window: '1 h' },
   // General account-mutation gate (avatar uploads, deletes, etc).
   accountMutate: { tokens: 20, window: '1 m' },
+  // Avatar / banner uploads — sharp re-encode is cheap but storage
+  // writes aren't, and we want abuse pressure low here so a single
+  // user can't fill the bucket churning new avatars.
+  accountAvatar: { tokens: 5, window: '1 h' },
+  // Leaderboard submission — server-validated scans take ~$0.01 of
+  // Gemini budget each; bounding submissions at 5/h per user caps
+  // the abuse cost ceiling.
+  leaderboardSubmit: { tokens: 5, window: '1 h' },
+  // Private battle creation — 10/h per host prevents code-spam abuse
+  // (each create burns a Crockford code from the keyspace and creates
+  // an idle LiveKit room).
+  battleCreate: { tokens: 10, window: '1 h' },
 } as const satisfies Record<string, Preset>;
 
 export type RatelimitName = keyof typeof PRESETS;

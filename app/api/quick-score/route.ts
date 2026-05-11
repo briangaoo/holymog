@@ -5,6 +5,7 @@ import { readClientIp } from '@/lib/scanLimit';
 import { requireSameOrigin } from '@/lib/originGuard';
 import { isScoreKilled } from '@/lib/featureFlags';
 import { publicError } from '@/lib/errors';
+import { checkBudget } from '@/lib/costCap';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,6 +47,10 @@ function detectMime(buf: Buffer): string {
  */
 export async function POST(request: Request) {
   if (isScoreKilled()) {
+    return NextResponse.json(publicError('system_unavailable'), { status: 503 });
+  }
+  const budget = await checkBudget();
+  if (!budget.ok) {
     return NextResponse.json(publicError('system_unavailable'), { status: 503 });
   }
   const origin = requireSameOrigin(request);

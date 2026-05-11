@@ -211,15 +211,18 @@ export async function POST(request: Request) {
   const session = await auth();
   const user = session?.user;
   if (!user) {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    return NextResponse.json(publicError('unauthenticated'), { status: 401 });
   }
 
-  const limiter = getRatelimit();
+  // Per-user limiter bounds the cost ceiling: each submission lives
+  // alongside a server-validated /api/score round, which already
+  // burned ~$0.01 of Gemini budget. 5/h means an attacker maxes out
+  // at $0.05/h per account.
+  const limiter = getRatelimit('leaderboardSubmit');
   if (limiter) {
-    const ip = request.headers.get('x-forwarded-for') ?? user.id;
-    const result = await limiter.limit(`lb:${ip}`);
+    const result = await limiter.limit(user.id);
     if (!result.success) {
-      return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+      return NextResponse.json(publicError('rate_limited'), { status: 429 });
     }
   }
 

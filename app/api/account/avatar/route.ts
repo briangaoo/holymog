@@ -7,6 +7,7 @@ import { publicError } from '@/lib/errors';
 import { parseJsonBody } from '@/lib/parseRequest';
 import { AvatarPostBody } from '@/lib/schemas/account';
 import { decodeDataUrl, safeImageUpload } from '@/lib/imageUpload';
+import { getRatelimit } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,14 @@ export async function POST(request: Request) {
   const user = session?.user;
   if (!user) {
     return NextResponse.json(publicError('unauthenticated'), { status: 401 });
+  }
+
+  const limiter = getRatelimit('accountAvatar');
+  if (limiter) {
+    const result = await limiter.limit(user.id);
+    if (!result.success) {
+      return NextResponse.json(publicError('rate_limited'), { status: 429 });
+    }
   }
 
   const parsed = await parseJsonBody(request, AvatarPostBody);
