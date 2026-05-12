@@ -50,8 +50,12 @@ const CSP_PRODUCTION = [
   "default-src 'self'",
   // 'unsafe-inline' for Next's hydration scripts; 'wasm-unsafe-eval'
   // for MediaPipe FaceLandmarker's WASM module on the scan page;
-  // accounts.google.com for Google OAuth popup script.
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://accounts.google.com",
+  // accounts.google.com for Google OAuth popup script;
+  // cdn.jsdelivr.net loads the MediaPipe vision_wasm_internal.js loader
+  // as a <script> tag (not fetch — that's connect-src);
+  // blob: covers MediaPipe's Web Worker which is spawned from a blob URL
+  // and imports its own scripts inside the worker context.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://accounts.google.com https://cdn.jsdelivr.net",
   // Tailwind injects style attributes everywhere; 'unsafe-inline'
   // necessary until we adopt CSS-in-JS with nonce support.
   "style-src 'self' 'unsafe-inline'",
