@@ -69,6 +69,42 @@ body {
   }
 }
 
+/* Registered custom properties so CSS animations can interpolate them
+   smoothly. Without @property, `var()` references are treated as opaque
+   strings and don't animate frame-by-frame. */
+@property --aura-band {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 30px;
+}
+@property --aura-alpha {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 85%;
+}
+
+/* Edge-hugging tier-colour rim that breathes. Four layered linear
+   gradients (top/bottom/left/right) where each starts at full tier
+   colour at the screen edge and fades linearly to transparent over
+   --aura-band pixels. Linear gradient — not gaussian — so the edge
+   pixel actually hits the configured alpha (100% at peak), unlike
+   box-shadow blur which always attenuates the boundary. The breath
+   pulses both the band width and the starting alpha so the rim
+   appears to inhale (tight, 100% at edge) and exhale (wider, 65% at
+   edge). Total fade distance never exceeds ~42px so it always reads
+   as a rim, never as atmospheric haze. */
+@keyframes live-aura-breathe {
+  0%,
+  100% {
+    --aura-band: 42px;
+    --aura-alpha: 65%;
+  }
+  50% {
+    --aura-band: 20px;
+    --aura-alpha: 100%;
+  }
+}
+
 .glow-S {
   animation: glow-soft 2.4s ease-in-out infinite;
 }

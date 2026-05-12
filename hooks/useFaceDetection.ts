@@ -39,7 +39,8 @@ export function useFaceDetection(
     (async () => {
       try {
         detector = await getFaceLandmarker();
-      } catch {
+      } catch (err) {
+        console.error('[useFaceDetection] face landmarker init failed', err);
         return;
       }
       if (cancelled) return;

@@ -616,7 +616,9 @@ export default function HelpPage() {
                       onClick={() => setOpenKey(open ? null : key)}
                       className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.02]"
                     >
-                      <span className="text-[14px] text-white">{entry.q}</span>
+                      <span className="text-[14px] normal-case text-white">
+                        {entry.q}
+                      </span>
                       <ChevronDown
                         size={14}
                         aria-hidden
@@ -626,7 +628,7 @@ export default function HelpPage() {
                       />
                     </button>
                     {open && (
-                      <div className="px-4 pb-4 text-[13px] leading-relaxed text-zinc-300">
+                      <div className="px-4 pb-4 text-[13px] leading-relaxed normal-case text-zinc-300">
                         {entry.a}
                       </div>
                     )}

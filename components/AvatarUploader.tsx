@@ -65,7 +65,7 @@ export function AvatarUploader({ open, onClose, onSaved }: Props) {
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        setErrorMsg('image must be under 10MB');
+        setErrorMsg('image must be under 10mb');
         return;
       }
       const reader = new FileReader();
@@ -185,7 +185,8 @@ export function AvatarUploader({ open, onClose, onSaved }: Props) {
               <ImagePlus size={24} aria-hidden />
               <span>Pick an image</span>
               <span className="text-[11px] text-white/45">
-                PNG / JPG, up to 10MB
+                <span className="uppercase">png / jpg</span>, up to 10
+                <span className="uppercase">mb</span>
               </span>
             </button>
             <input

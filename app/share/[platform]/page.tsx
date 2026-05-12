@@ -177,12 +177,12 @@ function SharePlatformPageInner() {
                   alt={label}
                   className="h-6 w-6 rounded-md object-contain"
                 />
-                <span className="text-sm font-semibold text-white">
+                <span className="text-sm font-semibold normal-case text-white">
                   {label}
                 </span>
               </span>
             ) : (
-              <span className="rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-sm font-semibold text-white">
+              <span className="rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-sm font-semibold normal-case text-white">
                 {label}
               </span>
             )}

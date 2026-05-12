@@ -63,7 +63,7 @@ export function BannerUploader({ open, onClose, onSaved }: Props) {
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        setErrorMsg('image must be under 10MB');
+        setErrorMsg('image must be under 10mb');
         return;
       }
       const reader = new FileReader();
@@ -179,7 +179,8 @@ export function BannerUploader({ open, onClose, onSaved }: Props) {
               <ImagePlus size={24} aria-hidden />
               <span>Pick an image</span>
               <span className="text-[11px] text-white/45">
-                PNG / JPG / WEBP, up to 10MB · 3:1 looks best
+                <span className="uppercase">png / jpg / webp</span>, up to 10
+                <span className="uppercase">mb</span> · 3:1 looks best
               </span>
             </button>
             <input

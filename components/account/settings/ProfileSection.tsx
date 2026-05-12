@@ -330,7 +330,8 @@ export function ProfileSection({
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="text-[12px] text-zinc-500">
-            PNG / JPG / WEBP · max 4 MB · 3:1 looks best
+            <span className="uppercase">png / jpg / webp</span> · max 4{' '}
+            <span className="uppercase">mb</span> · 3:1 looks best
           </span>
           {bannerError && (
             <span className="text-[12px] text-red-400">{bannerError}</span>

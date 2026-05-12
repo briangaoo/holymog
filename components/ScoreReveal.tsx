@@ -119,7 +119,7 @@ export function ScoreReveal({ scores, capturedImage, onRevealDone }: Props) {
 
       <div className="flex flex-col items-center gap-1">
         <div
-          className="font-num font-extrabold"
+          className="font-num font-extrabold uppercase"
           style={{
             fontSize: 'clamp(52px, 14vw, 80px)',
             lineHeight: 1,

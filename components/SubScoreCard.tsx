@@ -70,7 +70,7 @@ export function SubScoreCard({
         <div className="flex flex-col gap-1.5">
           <div className="text-sm font-medium text-zinc-300">{label}</div>
           <div
-            className="font-num font-extrabold text-zinc-500"
+            className="font-num font-extrabold uppercase text-zinc-500"
             style={NUMBER_FONT_STYLE}
           >
             N/A

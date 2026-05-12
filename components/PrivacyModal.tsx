@@ -80,7 +80,7 @@ export function PrivacyModal({ open, onAcknowledge }: Props) {
                 <span>
                   Every scan is sent to{' '}
                   <strong className="font-semibold text-white">
-                    Google&rsquo;s Gemini AI
+                    Google&rsquo;s Gemini <span className="uppercase">ai</span>
                   </strong>{' '}
                   for scoring. The image is processed there and
                   discarded by Google after the response.

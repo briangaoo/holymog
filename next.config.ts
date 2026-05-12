@@ -63,8 +63,12 @@ const CSP_PRODUCTION = [
   // Supabase REST + Realtime (wss), Vertex AI (any region), LiveKit
   // (wss + REST), Google's OAuth token endpoint (for service-account
   // access-token minting if any client-side path ever needs it —
-  // currently server-only, but defense-in-depth).
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.aiplatform.googleapis.com https://oauth2.googleapis.com wss://*.livekit.cloud https://*.livekit.cloud",
+  // currently server-only, but defense-in-depth). cdn.jsdelivr.net
+  // serves the MediaPipe FaceLandmarker WASM bundle; storage.googleapis.com
+  // serves the face_landmarker.task model file. Both are runtime-fetched
+  // from the /scan page — without them, face detection silently breaks
+  // in prod (dev skips CSP entirely so the bug doesn't surface locally).
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.aiplatform.googleapis.com https://oauth2.googleapis.com wss://*.livekit.cloud https://*.livekit.cloud https://cdn.jsdelivr.net https://storage.googleapis.com",
   // Next/font/google fetches woff2 from fonts.gstatic.com.
   "font-src 'self' data: https://fonts.gstatic.com",
   // No frames at all.

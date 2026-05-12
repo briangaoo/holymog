@@ -66,6 +66,9 @@ export default function NameFounder({ children }: { children: ReactNode }) {
           font-size: 0.62em;
           font-weight: 800;
           letter-spacing: 0.14em;
+          /* Body has text-transform: lowercase; force this chip to
+             stay uppercase regardless of inherited rules. */
+          text-transform: uppercase;
           padding: 2px 7px 2px 7px;
           border-radius: 9999px;
           color: #fef3c7;

@@ -403,7 +403,7 @@ function InitialAvatar({ name }: { name: string }) {
   return (
     <div
       aria-hidden
-      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white uppercase"
       style={{ backgroundColor: bg }}
     >
       {initial}
@@ -464,7 +464,10 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
             <Badge slug={row.equipped_flair ?? null} userStats={userStats} />
           </div>
           <div className="text-[11px] text-zinc-500">
-            J {row.jawline} · E {row.eyes} · S {row.skin} · C {row.cheekbones}
+            <span className="uppercase">J</span> {row.jawline} ·{' '}
+            <span className="uppercase">E</span> {row.eyes} ·{' '}
+            <span className="uppercase">S</span> {row.skin} ·{' '}
+            <span className="uppercase">C</span> {row.cheekbones}
           </div>
         </div>
         <div className="text-right">
@@ -528,9 +531,15 @@ function BattleRow({ row, rank }: { row: BattleRow; rank: number }) {
             <Badge slug={row.equipped_flair ?? null} userStats={userStats} />
           </div>
           <div className="text-[11px] text-zinc-500">
-            {row.matches_played === 0
-              ? 'unranked'
-              : `${row.matches_won}W / ${losses}L · peak ${row.peak_elo}`}
+            {row.matches_played === 0 ? (
+              'unranked'
+            ) : (
+              <>
+                {row.matches_won}
+                <span className="uppercase">w</span> / {losses}
+                <span className="uppercase">l</span> · peak {row.peak_elo}
+              </>
+            )}
           </div>
         </div>
         <div className="text-right">

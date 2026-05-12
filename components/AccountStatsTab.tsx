@@ -381,7 +381,7 @@ function MultiplayerSection(props: {
         label="record"
         value={
           <span className="flex items-center gap-2">
-            <span className="font-num text-[14px] font-semibold tabular-nums text-white">
+            <span className="font-num text-[14px] font-semibold tabular-nums uppercase text-white">
               {ties > 0
                 ? `${wins}W · ${ties}T · ${losses}L`
                 : `${wins}W · ${losses}L`}

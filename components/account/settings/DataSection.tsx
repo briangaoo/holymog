@@ -249,7 +249,7 @@ export function DataSection({
             Cascades through your profile, leaderboard entry, scan history,
             battles, sessions, and purchases.{' '}
             <strong className="text-white">This is irreversible.</strong> Type{' '}
-            <code className="rounded bg-white/10 px-1.5 py-0.5 text-[12px] text-white">
+            <code className="rounded bg-white/10 px-1.5 py-0.5 text-[12px] uppercase text-white">
               DELETE
             </code>{' '}
             below to confirm.

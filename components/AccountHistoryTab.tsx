@@ -474,7 +474,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   return (
     <li className="flex items-center gap-3 border-t border-white/5 px-4 py-3 text-[13px] transition-colors hover:bg-white/[0.015]">
       <span
-        className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-bold ${
+        className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-bold uppercase ${
           entry.is_winner
             ? 'bg-emerald-500/20 text-emerald-300'
             : 'bg-rose-500/15 text-rose-300'

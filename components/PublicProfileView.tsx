@@ -845,7 +845,7 @@ function BattleActivity({
                 className="flex items-center gap-3 rounded-lg border border-white/[0.04] bg-white/[0.01] px-3 py-2.5 text-[14px] transition-colors hover:bg-white/[0.025]"
               >
                 <span
-                  className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[12px] font-bold ${
+                  className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[12px] font-bold uppercase ${
                     b.is_winner
                       ? 'bg-emerald-500/20 text-emerald-300'
                       : 'bg-rose-500/15 text-rose-300'

@@ -818,7 +818,8 @@ function TwoFactorBlock({ initialEnabled }: { initialEnabled: boolean }) {
       {status === 'not-enabled' && (
         <div className="flex items-center justify-between gap-4 border-t border-white/5 px-4 py-4">
           <p className="text-[12px] leading-relaxed text-zinc-400">
-            adds a second factor on top of your email / oauth sign-in. uses any TOTP app.
+            adds a second factor on top of your email / oauth sign-in. uses any{' '}
+            <span className="uppercase">totp</span> app.
           </p>
           <button
             type="button"
@@ -834,8 +835,8 @@ function TwoFactorBlock({ initialEnabled }: { initialEnabled: boolean }) {
       {status === 'setting-up' && setupSecret && setupUri && (
         <div className="flex flex-col gap-4 border-t border-white/5 px-4 py-4">
           <p className="text-[12px] leading-relaxed text-zinc-400">
-            scan this QR with your authenticator app (1password, authy,
-            google authenticator, bitwarden…). then enter the 6-digit
+            scan this <span className="uppercase">qr</span> with your authenticator app
+            (1password, authy, google authenticator, bitwarden…). then enter the 6-digit
             code below to confirm.
           </p>
           <div className="flex flex-col items-center gap-3">
@@ -851,7 +852,7 @@ function TwoFactorBlock({ initialEnabled }: { initialEnabled: boolean }) {
                 can&apos;t scan? show secret to type manually
               </summary>
               <div className="mt-2 flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5">
-                <code className="flex-1 truncate font-num text-[13px] tabular-nums text-white">
+                <code className="flex-1 truncate font-num text-[13px] tabular-nums uppercase text-white">
                   {formatSecretGroups(setupSecret)}
                 </code>
                 <button
@@ -904,7 +905,7 @@ function TwoFactorBlock({ initialEnabled }: { initialEnabled: boolean }) {
                 {backupCodes.map((c) => (
                   <code
                     key={c}
-                    className="select-all rounded-lg border border-amber-500/20 bg-black/40 px-2 py-1.5 text-center"
+                    className="select-all rounded-lg border border-amber-500/20 bg-black/40 px-2 py-1.5 text-center uppercase"
                   >
                     {c}
                   </code>

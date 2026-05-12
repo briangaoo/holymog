@@ -744,18 +744,18 @@ function BattleStats() {
             ) : ties > 0 ? (
               <>
                 <span className="text-white">{profile.matches_won}</span>
-                <span className="text-zinc-500">W · </span>
+                <span className="uppercase text-zinc-500">W · </span>
                 <span className="text-white">{ties}</span>
-                <span className="text-zinc-500">T · </span>
+                <span className="uppercase text-zinc-500">T · </span>
                 <span className="text-white">{losses}</span>
-                <span className="text-zinc-500">L</span>
+                <span className="uppercase text-zinc-500">L</span>
               </>
             ) : (
               <>
                 <span className="text-white">{profile.matches_won}</span>
-                <span className="text-zinc-500">W · </span>
+                <span className="uppercase text-zinc-500">W · </span>
                 <span className="text-white">{losses}</span>
-                <span className="text-zinc-500">L</span>
+                <span className="uppercase text-zinc-500">L</span>
               </>
             )
           }

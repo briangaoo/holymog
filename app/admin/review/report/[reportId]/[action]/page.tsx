@@ -238,6 +238,9 @@ function Result({
         fontFamily:
           "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif",
         color: '#0a0a0a',
+        // Admin pages use sentence-case formal copy; opt out of the
+        // global body { text-transform: lowercase; } rule.
+        textTransform: 'none',
       }}
     >
       <div style={{ maxWidth: 520, width: '100%' }}>

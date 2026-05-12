@@ -186,7 +186,7 @@ export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }:
                     </h3>
                     {idx === 0 && (
                       <span
-                        className="font-num text-base font-extrabold tabular-nums"
+                        className="font-num text-base font-extrabold tabular-nums uppercase"
                         style={{
                           color: fallback ? ZINC_500 : getScoreColor(presentation),
                         }}
@@ -205,7 +205,7 @@ export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }:
                         >
                           <span className="text-zinc-300">{label}</span>
                           <span
-                            className="font-num font-semibold tabular-nums"
+                            className="font-num font-semibold tabular-nums uppercase"
                             style={{
                               color: fallback ? ZINC_500 : getScoreColor(value),
                             }}

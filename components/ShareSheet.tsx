@@ -89,7 +89,7 @@ function PlatformTile({ p }: { p: Platform }) {
     >
       <span
         aria-hidden
-        className="text-lg font-extrabold"
+        className="text-lg font-extrabold uppercase"
         style={{ color: p.initialColor ?? '#ffffff' }}
       >
         {p.initial}
@@ -250,7 +250,9 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
                   className="flex flex-col items-center gap-1.5 rounded-2xl pt-4 pb-2 transition-colors hover:bg-white/5 active:bg-white/10"
                 >
                   <PlatformTile p={p} />
-                  <span className="text-[11px] text-zinc-400">{p.label}</span>
+                  <span className="text-[11px] normal-case text-zinc-400">
+                    {p.label}
+                  </span>
                 </button>
               ))}
             </div>
