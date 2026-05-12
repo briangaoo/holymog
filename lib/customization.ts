@@ -99,8 +99,18 @@ export type CosmeticKind = Cosmetic['kind'];
 
 // ---- Registry maps -------------------------------------------------------
 
-// Frames deferred to Launch 2 (real-designer pass).
-export const FRAMES: Record<string, FrameDef> = {};
+// Frames mostly deferred to Launch 2, except for `frame.founder` —
+// exclusive to the founder, granted via SQL only.
+export const FRAMES: Record<string, FrameDef> = {
+  'frame.founder': {
+    slug: 'frame.founder',
+    kind: 'frame',
+    name: 'founder',
+    component: dynamic(
+      () => import('@/components/cosmetics/frames/founder'),
+    ) as FrameComponent,
+  },
+};
 
 // Badges deferred — collided visually with name fx. Slot stays in the
 // data model for Launch 2 designer redesigns; registry is empty so no
@@ -193,7 +203,34 @@ export const NAME_FX: Record<string, NameFxDef> = {
       () => import('@/components/cosmetics/name-fx/true-adam'),
     ) as NameFxComponent,
   },
+  // Founder-only. Granted via SQL inventory insert, gated by
+  // `founder_only` flag on catalog_items + the FOUNDER_ONLY_SLUGS
+  // check below in the equip route.
+  'name.founder': {
+    slug: 'name.founder',
+    kind: 'name_fx',
+    name: 'founder',
+    component: dynamic(
+      () => import('@/components/cosmetics/name-fx/founder'),
+    ) as NameFxComponent,
+  },
 };
+
+/**
+ * Slugs reserved for the founder. Two layers of defense:
+ *   1. `catalog_items.founder_only = true` for these rows
+ *   2. The equip route also rejects unless `user.id === FOUNDER_USER_ID`
+ * That means even if a `user_inventory` row leaks to someone else
+ * (manual SQL mistake, etc.), they still can't equip it.
+ */
+export const FOUNDER_ONLY_SLUGS: ReadonlySet<string> = new Set<string>([
+  'name.founder',
+  'frame.founder',
+]);
+
+export function isFounderOnlySlug(slug: string): boolean {
+  return FOUNDER_ONLY_SLUGS.has(slug);
+}
 
 // Themes deferred to Launch 2 — the tier-theme set was scrapped.
 // Slot stays wired (DB column, ThemeAmbient renderer, equip API)

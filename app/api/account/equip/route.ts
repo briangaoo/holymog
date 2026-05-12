@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { isSubscriber } from '@/lib/subscription';
+import { isFounderOnlySlug } from '@/lib/customization';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_slug' }, { status: 400 });
   }
   const slug = body.slug;
+
+  // Founder-only items: even if a stray user_inventory row exists for
+  // someone else (manual SQL mistake, etc.), they still can't equip
+  // these. The FOUNDER_USER_ID env var is the single source of truth.
+  if (isFounderOnlySlug(slug)) {
+    const founderUserId = process.env.FOUNDER_USER_ID;
+    if (!founderUserId || user.id !== founderUserId) {
+      return NextResponse.json({ error: 'not_owned' }, { status: 403 });
+    }
+  }
 
   const pool = getPool();
   const itemRow = await pool.query<{ kind: string; subscriber_only: boolean }>(
