@@ -57,7 +57,7 @@ export function NotificationsSection({
       label="notifications"
       description="when we email you, and when we don't."
       icon={Bell}
-      accent="cyan"
+      accent="orange"
       meta={<SaveIndicator state={state} />}
     >
       <ToggleRow

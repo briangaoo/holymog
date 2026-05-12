@@ -2,12 +2,14 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { broadcastBattleEvent } from '@/lib/realtime';
-import { computeElo } from '@/lib/elo';
+import { computeElo, computeEloTie } from '@/lib/elo';
 import {
   checkAchievements,
   type AchievementGrant,
 } from '@/lib/achievements';
 import { recordAudit } from '@/lib/audit';
+import { weakestSubScore } from '@/lib/scoreEngine';
+import type { SubScores } from '@/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,6 +21,17 @@ type ParticipantRow = {
   display_name: string;
   peak_score: number;
   joined_at: Date;
+  // Cosmetic + stats fields needed to render the result screen's
+  // headline + player cards through <NameFx /> so the opponent's
+  // equipped name effect shows in "you cooked @opponent." instead
+  // of plain text. Joined from profiles via the query below.
+  equipped_name_fx: string | null;
+  elo: number;
+  current_streak: number;
+  matches_won: number;
+  best_scan_overall: number | null;
+  best_scan: unknown | null;
+  subscription_status: string | null;
 };
 
 type BattleRow = {
@@ -50,6 +63,19 @@ type ResultParticipant = {
   display_name: string;
   final_score: number;
   is_winner: boolean;
+  is_tie: boolean;
+  /** Equipped name effect slug — drives <NameFx> on the result
+   *  screen so opponents render with their actual treatment. */
+  equipped_name_fx: string | null;
+  /** UserStats fields for smart name-fx (tier-prefix, callout,
+   *  streak-flame, elo-king, score-overlay). All optional so the
+   *  client falls back gracefully when missing. */
+  elo: number | null;
+  current_streak: number | null;
+  matches_won: number | null;
+  best_scan_overall: number | null;
+  weakest_sub_score: keyof SubScores | null;
+  is_subscriber: boolean;
 };
 
 /**
@@ -135,11 +161,17 @@ export async function POST(request: Request) {
     }
 
     // Pull participants ordered by peak desc, then earliest joiner.
+    // JOIN profiles so the result payload carries the equipped name
+    // fx + userStats fields the result-screen <NameFx /> needs.
     const participantsResult = await client.query<ParticipantRow>(
-      `select user_id, display_name, peak_score, joined_at
-         from battle_participants
-        where battle_id = $1
-        order by peak_score desc, joined_at asc`,
+      `select bp.user_id, bp.display_name, bp.peak_score, bp.joined_at,
+              pp.equipped_name_fx, pp.elo, pp.current_streak,
+              pp.matches_won, pp.best_scan_overall, pp.best_scan,
+              pp.subscription_status
+         from battle_participants bp
+         join profiles pp on pp.user_id = bp.user_id
+        where bp.battle_id = $1
+        order by bp.peak_score desc, bp.joined_at asc`,
       [battleId],
     );
     const participants = participantsResult.rows;
@@ -148,13 +180,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'no_participants' }, { status: 500 });
     }
 
-    const winnerId = participants[0].user_id;
+    // Tie detection: top two participants share the same peak score.
+    // When tied, nobody is the winner, both (in 1v1) get a small
+    // rating-disparity-driven ELO update, and `matches_tied`
+    // increments on each profile. Streaks survive a tie.
+    const topScore = participants[0].peak_score;
+    const isTie =
+      participants.length >= 2 && participants[1].peak_score === topScore;
+    const winnerId = isTie ? null : participants[0].user_id;
 
-    // Stamp final_score for everyone, is_winner for the top.
+    // Stamp final_score + is_winner. On tie, is_winner is false for
+    // everyone (winnerId is null).
     await client.query(
       `update battle_participants
           set final_score = peak_score,
-              is_winner = (user_id = $2)
+              is_winner = ($2::uuid is not null and user_id = $2)
         where battle_id = $1`,
       [battleId, winnerId],
     );
@@ -162,93 +202,149 @@ export async function POST(request: Request) {
     // ----- ELO updates (public 1v1 only) -----
     let eloChanges: EloChange[] = [];
     if (battle.kind === 'public' && participants.length === 2) {
-      const loserId = participants[1].user_id;
+      const otherId =
+        participants[1].user_id === winnerId
+          ? participants[0].user_id
+          : participants[1].user_id;
+      const loserId = isTie ? null : otherId;
 
       // Lock both profiles in stable order (lower user_id first) to avoid
       // deadlocks if two simultaneous public battles share users in
       // pathological cases.
-      const orderedIds = [winnerId, loserId].sort();
+      const pairIds = [participants[0].user_id, participants[1].user_id].sort();
       const profilesResult = await client.query<ProfileRow>(
         `select user_id, elo, peak_elo, matches_played, matches_won,
                 current_streak, longest_streak
            from profiles
           where user_id = any($1::uuid[])
           for update`,
-        [orderedIds],
+        [pairIds],
       );
 
       const byId = new Map<string, ProfileRow>();
       for (const row of profilesResult.rows) byId.set(row.user_id, row);
 
-      const winnerProfile = byId.get(winnerId);
-      const loserProfile = byId.get(loserId);
+      if (isTie) {
+        // ---- Tie path ----
+        // Both players' actual score = 0.5. ELO drifts based on
+        // rating disparity. Streaks stay intact (a draw doesn't
+        // break a hot streak in most rating systems).
+        const a = byId.get(participants[0].user_id);
+        const b = byId.get(participants[1].user_id);
+        if (a && b) {
+          const elo = computeEloTie({
+            aElo: a.elo,
+            aMatches: a.matches_played,
+            bElo: b.elo,
+            bMatches: b.matches_played,
+          });
 
-      if (winnerProfile && loserProfile) {
-        const elo = computeElo({
-          winnerElo: winnerProfile.elo,
-          winnerMatches: winnerProfile.matches_played,
-          winnerScore: participants[0].peak_score,
-          loserElo: loserProfile.elo,
-          loserMatches: loserProfile.matches_played,
-          loserScore: participants[1].peak_score,
-        });
+          await client.query(
+            `update profiles
+                set elo = $1,
+                    peak_elo = greatest(peak_elo, $1),
+                    matches_played = matches_played + 1,
+                    matches_tied = matches_tied + 1
+              where user_id = $2`,
+            [elo.newAElo, a.user_id],
+          );
+          await client.query(
+            `update profiles
+                set elo = $1,
+                    peak_elo = greatest(peak_elo, $1),
+                    matches_played = matches_played + 1,
+                    matches_tied = matches_tied + 1
+              where user_id = $2`,
+            [elo.newBElo, b.user_id],
+          );
 
-        // Winner: bump streak, peak_elo, matches_won.
-        await client.query(
-          `update profiles
-              set elo = $1,
-                  peak_elo = greatest(peak_elo, $1),
-                  matches_played = matches_played + 1,
-                  matches_won = matches_won + 1,
-                  current_streak = current_streak + 1,
-                  longest_streak = greatest(longest_streak, current_streak + 1)
-            where user_id = $2`,
-          [elo.newWinnerElo, winnerId],
-        );
+          eloChanges = [
+            { user_id: a.user_id, before: a.elo, after: elo.newAElo, delta: elo.aDelta },
+            { user_id: b.user_id, before: b.elo, after: elo.newBElo, delta: elo.bDelta },
+          ];
 
-        // Loser: reset streak, no matches_won bump.
-        await client.query(
-          `update profiles
-              set elo = $1,
-                  peak_elo = greatest(peak_elo, $1),
-                  matches_played = matches_played + 1,
-                  current_streak = 0
-            where user_id = $2`,
-          [elo.newLoserElo, loserId],
-        );
+          await client.query(
+            `insert into elo_history (user_id, elo, delta, battle_id)
+               values ($1, $2, $3, $5), ($4, $6, $7, $5)`,
+            [
+              a.user_id,
+              elo.newAElo,
+              elo.aDelta,
+              b.user_id,
+              battleId,
+              elo.newBElo,
+              elo.bDelta,
+            ],
+          );
+        }
+      } else {
+        // ---- Win path ----
+        const winnerProfile = winnerId ? byId.get(winnerId) : null;
+        const loserProfile = loserId ? byId.get(loserId) : null;
 
-        eloChanges = [
-          {
-            user_id: winnerId,
-            before: winnerProfile.elo,
-            after: elo.newWinnerElo,
-            delta: elo.winnerDelta,
-          },
-          {
-            user_id: loserId,
-            before: loserProfile.elo,
-            after: elo.newLoserElo,
-            delta: elo.loserDelta,
-          },
-        ];
+        if (winnerProfile && loserProfile && winnerId && loserId) {
+          const elo = computeElo({
+            winnerElo: winnerProfile.elo,
+            winnerMatches: winnerProfile.matches_played,
+            winnerScore: participants[0].peak_score,
+            loserElo: loserProfile.elo,
+            loserMatches: loserProfile.matches_played,
+            loserScore: participants[1].peak_score,
+          });
 
-        // Snapshot the post-battle ELO + delta + battle_id for both
-        // players. The sparkline reads `elo`; the "biggest swings"
-        // panel reads `delta` joined back to `battles` for opponent
-        // attribution.
-        await client.query(
-          `insert into elo_history (user_id, elo, delta, battle_id)
-             values ($1, $2, $3, $5), ($4, $6, $7, $5)`,
-          [
-            winnerId,
-            elo.newWinnerElo,
-            elo.winnerDelta,
-            loserId,
-            battleId,
-            elo.newLoserElo,
-            elo.loserDelta,
-          ],
-        );
+          // Winner: bump streak, peak_elo, matches_won.
+          await client.query(
+            `update profiles
+                set elo = $1,
+                    peak_elo = greatest(peak_elo, $1),
+                    matches_played = matches_played + 1,
+                    matches_won = matches_won + 1,
+                    current_streak = current_streak + 1,
+                    longest_streak = greatest(longest_streak, current_streak + 1)
+              where user_id = $2`,
+            [elo.newWinnerElo, winnerId],
+          );
+
+          // Loser: reset streak, no matches_won bump.
+          await client.query(
+            `update profiles
+                set elo = $1,
+                    peak_elo = greatest(peak_elo, $1),
+                    matches_played = matches_played + 1,
+                    current_streak = 0
+              where user_id = $2`,
+            [elo.newLoserElo, loserId],
+          );
+
+          eloChanges = [
+            {
+              user_id: winnerId,
+              before: winnerProfile.elo,
+              after: elo.newWinnerElo,
+              delta: elo.winnerDelta,
+            },
+            {
+              user_id: loserId,
+              before: loserProfile.elo,
+              after: elo.newLoserElo,
+              delta: elo.loserDelta,
+            },
+          ];
+
+          await client.query(
+            `insert into elo_history (user_id, elo, delta, battle_id)
+               values ($1, $2, $3, $5), ($4, $6, $7, $5)`,
+            [
+              winnerId,
+              elo.newWinnerElo,
+              elo.winnerDelta,
+              loserId,
+              battleId,
+              elo.newLoserElo,
+              elo.loserDelta,
+            ],
+          );
+        }
       }
     }
 
@@ -263,18 +359,43 @@ export async function POST(request: Request) {
 
     await client.query('commit');
 
-    // Build result payload + broadcast.
-    const resultParticipants: ResultParticipant[] = participants.map((p) => ({
-      user_id: p.user_id,
-      display_name: p.display_name,
-      final_score: p.peak_score,
-      is_winner: p.user_id === winnerId,
-    }));
+    // Build result payload + broadcast. `is_tie` rides at both the
+    // top level (one tie = whole battle is tied) and per-participant
+    // for convenience on the client.
+    const resultParticipants: ResultParticipant[] = participants.map((p) => {
+      // Derive weakest_sub_score from the best_scan jsonb so smart
+      // name-fx like `name.callout` ("@opponent (jawline)") render
+      // correctly on the result screen.
+      let weakest: keyof SubScores | null = null;
+      if (p.best_scan && typeof p.best_scan === 'object') {
+        const bs = p.best_scan as { scores?: { sub?: SubScores } };
+        if (bs.scores?.sub) {
+          weakest = weakestSubScore({ overall: 0, sub: bs.scores.sub });
+        }
+      }
+      return {
+        user_id: p.user_id,
+        display_name: p.display_name,
+        final_score: p.peak_score,
+        is_winner: winnerId !== null && p.user_id === winnerId,
+        is_tie: isTie,
+        equipped_name_fx: p.equipped_name_fx,
+        elo: p.elo,
+        current_streak: p.current_streak,
+        matches_won: p.matches_won,
+        best_scan_overall: p.best_scan_overall,
+        weakest_sub_score: weakest,
+        is_subscriber:
+          p.subscription_status === 'active' ||
+          p.subscription_status === 'trialing',
+      };
+    });
 
     const payload = {
       battle_id: battleId,
       kind: battle.kind,
       winner_id: winnerId,
+      is_tie: isTie,
       participants: resultParticipants,
       elo_changes: eloChanges,
     };
@@ -359,25 +480,62 @@ async function cachedResult(battleId: string): Promise<Response> {
     final_score: number | null;
     is_winner: boolean;
     peak_score: number;
+    equipped_name_fx: string | null;
+    elo: number;
+    current_streak: number;
+    matches_won: number;
+    best_scan_overall: number | null;
+    best_scan: unknown | null;
+    subscription_status: string | null;
   }>(
-    `select user_id, display_name, final_score, is_winner, peak_score
-       from battle_participants
-      where battle_id = $1
-      order by peak_score desc, joined_at asc`,
+    `select bp.user_id, bp.display_name, bp.final_score, bp.is_winner, bp.peak_score,
+            pp.equipped_name_fx, pp.elo, pp.current_streak,
+            pp.matches_won, pp.best_scan_overall, pp.best_scan,
+            pp.subscription_status
+       from battle_participants bp
+       join profiles pp on pp.user_id = bp.user_id
+      where bp.battle_id = $1
+      order by bp.peak_score desc, bp.joined_at asc`,
     [battleId],
   );
   const winner = result.rows.find((p) => p.is_winner);
+  // Reconstruct is_tie post-hoc: when no participant has is_winner=true
+  // but the battle has finished participants, that's a tie. (Battles
+  // that crashed mid-finalisation will land here too, but that's
+  // tolerated — we'd rather treat an indeterminate state as a tie
+  // than a fake-win.)
+  const isTie = !winner && result.rows.length >= 2;
   return NextResponse.json({
     result: {
       battle_id: battleId,
       kind,
       winner_id: winner?.user_id ?? null,
-      participants: result.rows.map((p) => ({
-        user_id: p.user_id,
-        display_name: p.display_name,
-        final_score: p.final_score ?? p.peak_score,
-        is_winner: p.is_winner,
-      })),
+      is_tie: isTie,
+      participants: result.rows.map((p) => {
+        let weakest: keyof SubScores | null = null;
+        if (p.best_scan && typeof p.best_scan === 'object') {
+          const bs = p.best_scan as { scores?: { sub?: SubScores } };
+          if (bs.scores?.sub) {
+            weakest = weakestSubScore({ overall: 0, sub: bs.scores.sub });
+          }
+        }
+        return {
+          user_id: p.user_id,
+          display_name: p.display_name,
+          final_score: p.final_score ?? p.peak_score,
+          is_winner: p.is_winner,
+          is_tie: isTie,
+          equipped_name_fx: p.equipped_name_fx,
+          elo: p.elo,
+          current_streak: p.current_streak,
+          matches_won: p.matches_won,
+          best_scan_overall: p.best_scan_overall,
+          weakest_sub_score: weakest,
+          is_subscriber:
+            p.subscription_status === 'active' ||
+            p.subscription_status === 'trialing',
+        };
+      }),
       elo_changes: [],
     },
   });

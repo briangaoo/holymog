@@ -32,7 +32,7 @@ export async function generateMetadata({
   params: Promise<{ username: string }>;
 }): Promise<Metadata> {
   const { username } = await params;
-  return { title: `@${username} is following · holymog` };
+  return { title: `@${username} is following` };
 }
 
 export default async function FollowingPage({

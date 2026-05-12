@@ -1,18 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   AtSign,
   Camera,
+  Check,
   Hash,
   ImagePlus,
+  Loader2,
   MapPin,
   Pencil,
   Trash2,
   User,
+  X,
 } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 import { AvatarUploader } from '@/components/AvatarUploader';
+import { AvatarFallback } from '@/components/AvatarFallback';
+import { BannerUploader } from '@/components/BannerUploader';
 import {
   SaveIndicator,
   Section,
@@ -41,8 +46,7 @@ const SOCIAL_PLACEHOLDERS: Record<SocialKey, string> = {
 const MAX_BIO_LEN = 240;
 const MAX_SOCIAL_LEN = 32;
 const MAX_LOCATION_LEN = 60;
-const MAX_BANNER_BYTES = 4 * 1024 * 1024;
-
+const USERNAME_REGEX = /^[a-z0-9_-]{3,24}$/;
 /**
  * Profile section — banner + avatar editor + bio + location + socials.
  *
@@ -56,19 +60,32 @@ const MAX_BANNER_BYTES = 4 * 1024 * 1024;
 export function ProfileSection({
   profile,
   onUpdate,
+  onRefresh,
 }: {
   profile: SettingsProfile;
   onUpdate: (patch: FieldUpdate) => Promise<{ ok: boolean; error?: string; message?: string }>;
+  /** Called after any profile mutation that other parts of the page
+   *  (header avatar/name, public-profile link, etc) should pick up
+   *  without a full reload. */
+  onRefresh?: () => void | Promise<void>;
 }) {
   const { user } = useUser();
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.image ?? null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [bannerOpen, setBannerOpen] = useState(false);
   const [bannerUrl, setBannerUrl] = useState<string | null>(profile.banner_url);
-  const [bannerBusy, setBannerBusy] = useState<'idle' | 'uploading' | 'removing'>(
-    'idle',
-  );
+  const [bannerBusy, setBannerBusy] = useState<'idle' | 'removing'>('idle');
   const [bannerError, setBannerError] = useState<string | null>(null);
-  const bannerFileRef = useRef<HTMLInputElement | null>(null);
+
+  // Inline username editor (replaces the standalone UsernameSection
+  // that used to live below this one). Same /api/account/me PATCH +
+  // server-side rate-limit + collision check as before; on success we
+  // hard-reload so every other component picks up the new handle.
+  const [usernameEditing, setUsernameEditing] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState(profile.display_name);
+  const [usernameSaving, setUsernameSaving] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const [bio, setBio] = useState(profile.bio ?? '');
   const [location, setLocation] = useState(profile.location ?? '');
@@ -140,53 +157,87 @@ export function ProfileSection({
     else setState({ kind: 'error', message: res.message ?? res.error ?? 'failed' });
   }, [dirty, bio, location, socials, profile, onUpdate]);
 
-  const onPickBannerFile = useCallback(() => {
+  // BannerUploader handles file pick + crop + upload in its own modal.
+  // ProfileSection only opens it and consumes the resulting URL.
+  const onOpenBannerUploader = useCallback(() => {
     if (bannerBusy !== 'idle') return;
-    bannerFileRef.current?.click();
+    setBannerError(null);
+    setBannerOpen(true);
   }, [bannerBusy]);
 
-  const onBannerChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = ''; // allow re-uploading the same file
-      if (!file) return;
-      setBannerError(null);
-      if (file.size > MAX_BANNER_BYTES) {
-        setBannerError('banner max 4 MB');
+  const removeAvatar = useCallback(async () => {
+    if (avatarBusy) return;
+    setAvatarBusy(true);
+    try {
+      const res = await fetch('/api/account/avatar', { method: 'DELETE' });
+      if (res.ok) {
+        setAvatarUrl(null);
+        if (onRefresh) void onRefresh();
+      }
+    } catch {
+      // best-effort
+    } finally {
+      setAvatarBusy(false);
+    }
+  }, [avatarBusy, onRefresh]);
+
+  const onUsernameEnter = useCallback(() => {
+    setUsernameDraft(profile.display_name);
+    setUsernameError(null);
+    setUsernameEditing(true);
+  }, [profile.display_name]);
+
+  const onUsernameCancel = useCallback(() => {
+    setUsernameEditing(false);
+    setUsernameError(null);
+  }, []);
+
+  const onUsernameSave = useCallback(async () => {
+    const value = usernameDraft.trim();
+    if (!USERNAME_REGEX.test(value)) {
+      setUsernameError('3–24 chars · a-z 0-9 _ -');
+      return;
+    }
+    if (value === profile.display_name) {
+      setUsernameEditing(false);
+      return;
+    }
+    setUsernameSaving(true);
+    setUsernameError(null);
+    try {
+      const res = await fetch('/api/account/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: value }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        const msg =
+          data.error === 'username_taken'
+            ? 'username taken'
+            : data.error === 'username_reserved'
+              ? 'reserved'
+              : data.error === 'rate_limited'
+                ? 'try again later'
+                : data.message ?? 'could not save';
+        setUsernameError(msg);
+        setUsernameSaving(false);
         return;
       }
-      if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
-        setBannerError('use PNG, JPG, or WEBP');
-        return;
-      }
-      setBannerBusy('uploading');
-      try {
-        const dataUrl: string = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(reader.error);
-          reader.readAsDataURL(file);
-        });
-        const res = await fetch('/api/account/banner', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: dataUrl }),
-        });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          setBannerError(data.error ?? 'upload failed');
-          return;
-        }
-        const data = (await res.json()) as { banner_url?: string };
-        if (data.banner_url) setBannerUrl(data.banner_url);
-      } catch {
-        setBannerError('upload failed');
-      } finally {
-        setBannerBusy('idle');
-      }
-    },
-    [],
-  );
+      // No hard reload — refreshMe() re-fetches /api/account/me so the
+      // header chip and leaderboard row pick up the new handle
+      // in-place. Snappier than a full nav and preserves tab state.
+      setUsernameEditing(false);
+      setUsernameSaving(false);
+      if (onRefresh) void onRefresh();
+    } catch {
+      setUsernameError('network error');
+      setUsernameSaving(false);
+    }
+  }, [usernameDraft, profile.display_name, onRefresh]);
 
   const onRemoveBanner = useCallback(async () => {
     if (bannerBusy !== 'idle') return;
@@ -200,16 +251,15 @@ export function ProfileSection({
         return;
       }
       setBannerUrl(null);
+      if (onRefresh) void onRefresh();
     } catch {
       setBannerError('remove failed');
     } finally {
       setBannerBusy('idle');
     }
-  }, [bannerBusy]);
+  }, [bannerBusy, onRefresh]);
 
-  const initial = (profile.display_name || user?.email || '?')
-    .charAt(0)
-    .toUpperCase();
+  const avatarSeed = profile.display_name || user?.email || '?';
 
   return (
     <Section
@@ -250,7 +300,7 @@ export function ProfileSection({
           )}
           <button
             type="button"
-            onClick={onPickBannerFile}
+            onClick={onOpenBannerUploader}
             disabled={bannerBusy !== 'idle'}
             style={{ touchAction: 'manipulation' }}
             className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 text-[13px] font-medium text-white transition-colors hover:bg-black/45 focus-visible:bg-black/45 focus-visible:outline-none disabled:cursor-wait"
@@ -263,14 +313,8 @@ export function ProfileSection({
                   : 'opacity-100'
               }`}
             >
-              {bannerBusy === 'uploading' ? (
-                <>uploading…</>
-              ) : (
-                <>
-                  <ImagePlus size={14} aria-hidden />
-                  {bannerUrl ? 'replace banner' : 'upload banner'}
-                </>
-              )}
+              <ImagePlus size={14} aria-hidden />
+              {bannerUrl ? 'replace banner' : 'upload banner'}
             </span>
           </button>
           {bannerUrl && bannerBusy === 'idle' && (
@@ -292,55 +336,141 @@ export function ProfileSection({
             <span className="text-[12px] text-red-400">{bannerError}</span>
           )}
         </div>
-        <input
-          ref={bannerFileRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={onBannerChange}
-          className="hidden"
-          aria-hidden
-        />
       </div>
 
-      {/* Avatar + handle row */}
-      <div className="flex items-center gap-4 border-t border-white/5 px-5 py-5">
-        <button
-          type="button"
-          onClick={() => setAvatarOpen(true)}
-          className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/[0.04] transition-transform hover:scale-[1.03]"
-          title="change avatar"
-        >
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={avatarUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span className="text-lg font-semibold text-foreground">{initial}</span>
-          )}
-          <span className="absolute inset-0 flex items-center justify-center bg-black/55 opacity-0 transition-opacity hover:opacity-100">
-            <Camera size={16} className="text-white" aria-hidden />
-          </span>
-        </button>
-        <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-          <span className="truncate text-[16px] font-medium text-foreground">
-            {profile.display_name || 'unnamed'}
-          </span>
-          {user?.email && (
-            <span className="truncate text-[13px] text-zinc-500">
-              {user.email}
+      {/* Avatar + handle row. Layout note: when editing the username the
+          buttons sit on the same baseline as the input (not centered
+          against the whole input+hint column), so the cancel/save
+          chips align visually with the field rather than floating
+          above it. */}
+      <div className="flex items-start gap-4 border-t border-white/5 px-5 py-5">
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setAvatarOpen(true)}
+            className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-white/15 transition-transform hover:scale-[1.03]"
+          >
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <AvatarFallback seed={avatarSeed} textClassName="text-2xl" />
+            )}
+            <span className="absolute inset-0 flex items-center justify-center bg-black/55 opacity-0 transition-opacity hover:opacity-100">
+              <Camera size={16} className="text-white" aria-hidden />
             </span>
+          </button>
+          {avatarUrl && (
+            <button
+              type="button"
+              onClick={removeAvatar}
+              aria-label="remove avatar"
+              disabled={avatarBusy}
+              className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-black text-zinc-200 shadow-md transition-colors hover:bg-red-500/85 hover:text-white disabled:opacity-50"
+            >
+              <Trash2 size={11} aria-hidden />
+            </button>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setAvatarOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-zinc-200 transition-colors hover:bg-white/[0.07] hover:text-foreground"
-        >
-          <Pencil size={13} aria-hidden /> change
-        </button>
+        <div className="flex flex-1 flex-col gap-1 min-w-0">
+          {usernameEditing ? (
+            <>
+              <div className="flex min-w-0 items-stretch gap-2">
+                <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-md border border-sky-500/40 bg-white/[0.04] focus-within:border-sky-500/60 focus-within:ring-2 focus-within:ring-sky-500/15">
+                  <span
+                    aria-hidden
+                    className="flex select-none items-center pl-2 pr-1 text-zinc-500"
+                  >
+                    <AtSign size={13} />
+                  </span>
+                  <input
+                    type="text"
+                    value={usernameDraft}
+                    autoFocus
+                    disabled={usernameSaving}
+                    onChange={(e) => {
+                      const sanitized = e.target.value
+                        .toLowerCase()
+                        .replace(/[^a-z0-9_-]/g, '')
+                        .slice(0, 24);
+                      setUsernameDraft(sanitized);
+                      if (usernameError) setUsernameError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void onUsernameSave();
+                      if (e.key === 'Escape') onUsernameCancel();
+                    }}
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    placeholder="briangao"
+                    className="min-w-0 flex-1 bg-transparent px-2 py-2 text-[15px] text-foreground placeholder:text-zinc-600 focus:outline-none"
+                    style={{ textTransform: 'lowercase' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={onUsernameCancel}
+                  disabled={usernameSaving}
+                  aria-label="cancel"
+                  className="inline-flex w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-zinc-300 transition-colors hover:bg-white/[0.07] disabled:opacity-50"
+                >
+                  <X size={14} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={onUsernameSave}
+                  disabled={usernameSaving || !usernameDraft.trim()}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-foreground px-3 text-[13px] font-semibold text-background transition-all hover:opacity-90 hover:shadow-[0_0_0_2px_rgba(56,189,248,0.20)] disabled:opacity-50 disabled:hover:shadow-none"
+                >
+                  {usernameSaving ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" aria-hidden /> saving…
+                    </>
+                  ) : (
+                    <>
+                      <Check size={13} aria-hidden /> save
+                    </>
+                  )}
+                </button>
+              </div>
+              {usernameError ? (
+                <span className="truncate text-[12px] text-red-400">
+                  {usernameError}
+                </span>
+              ) : (
+                <span className="truncate text-[12px] text-zinc-500">
+                  3–24 chars · letters, numbers, _, -
+                </span>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate text-[16px] font-medium text-foreground">
+                  {profile.display_name || 'unnamed'}
+                </span>
+                {user?.email && (
+                  <span className="truncate text-[13px] text-zinc-500">
+                    {user.email}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onUsernameEnter}
+                aria-label="change username"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-zinc-200 transition-colors hover:bg-white/[0.07] hover:text-foreground"
+              >
+                <Pencil size={13} aria-hidden /> change
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Bio */}
@@ -450,7 +580,18 @@ export function ProfileSection({
       <AvatarUploader
         open={avatarOpen}
         onClose={() => setAvatarOpen(false)}
-        onSaved={(url) => setAvatarUrl(url)}
+        onSaved={(url) => {
+          setAvatarUrl(url);
+          if (onRefresh) void onRefresh();
+        }}
+      />
+      <BannerUploader
+        open={bannerOpen}
+        onClose={() => setBannerOpen(false)}
+        onSaved={(url) => {
+          setBannerUrl(url);
+          if (onRefresh) void onRefresh();
+        }}
       />
     </Section>
   );

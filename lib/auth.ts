@@ -3,11 +3,11 @@ import type { Provider } from 'next-auth/providers';
 import Google from 'next-auth/providers/google';
 import Apple from 'next-auth/providers/apple';
 import Nodemailer from 'next-auth/providers/nodemailer';
-import Resend from 'next-auth/providers/resend';
 import PostgresAdapter from '@auth/pg-adapter';
 import { getPool } from './db';
 import { magicLinkEmail } from './auth-email';
 import { recordAudit } from './audit';
+import { recordEmailSent } from './emailVolume';
 
 const MAX_NAME_LEN = 24;
 
@@ -32,14 +32,13 @@ function deriveDisplayName(input: {
  *     every 6 months); see https://authjs.dev/getting-started/providers/apple
  *     for the JWT-generation script. Until then the AuthModal shows a
  *     greyed-out button.
- *   - Email magic link — Gmail Workspace SMTP via Nodemailer is the
- *     production path (sends from auth@holymog.com using a Google app
- *     password). When EMAIL_SERVER_PASSWORD isn't set (e.g. workspace
- *     access pending), we fall back to Resend.
- *
- * The exported `EMAIL_PROVIDER_ID` tells the AuthModal which provider id
- * to pass to `signIn()` — `nodemailer` when Gmail SMTP is active,
- * `resend` otherwise.
+ *   - Email magic link — Gmail Workspace SMTP via Nodemailer. Sends
+ *     from auth@holymog.com (a free Workspace alias of the underlying
+ *     hello@holymog.com mailbox) authenticated with a 16-char Google
+ *     app password from myaccount.google.com/apppasswords. The
+ *     provider only activates when EMAIL_SERVER_PASSWORD is set;
+ *     without it, the AuthModal's "email me a link" button still
+ *     renders but signIn() returns an error.
  */
 const providers: Provider[] = [];
 
@@ -48,6 +47,13 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      // Lets a signed-in user click "add Google" and have the Google
+      // account auto-link to their existing account when the verified
+      // emails match. Auth.js calls this "dangerous" because if your
+      // OAuth provider hands you an unverified email, an attacker
+      // could takeover an existing account; Google always returns
+      // email_verified=true so this is safe with Google specifically.
+      allowDangerousEmailAccountLinking: true,
     }),
   );
 }
@@ -57,23 +63,19 @@ if (process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET) {
     Apple({
       clientId: process.env.AUTH_APPLE_ID,
       clientSecret: process.env.AUTH_APPLE_SECRET,
+      allowDangerousEmailAccountLinking: true,
     }),
   );
 }
 
-const useGmailSmtp = Boolean(process.env.EMAIL_SERVER_PASSWORD);
-export const EMAIL_PROVIDER_ID: 'nodemailer' | 'resend' = useGmailSmtp
-  ? 'nodemailer'
-  : 'resend';
+export const EMAIL_PROVIDER_ID = 'nodemailer' as const;
 
-// Both email providers run the same custom HTML template (lib/auth-email.ts):
-//   - Nodemailer (Gmail SMTP) gets a `sendVerificationRequest` that calls
-//     a fresh transporter and sends the rendered html/text directly.
-//   - Resend gets a `sendVerificationRequest` that POSTs to the Resend
-//     REST API with the same payload.
+// Auth.js Nodemailer provider uses our custom HTML template
+// (lib/auth-email.ts) via the sendVerificationRequest hook below.
 // Keeping the template in one place means the email looks identical
-// regardless of which provider is live.
-if (useGmailSmtp) {
+// across magic-link sign-in, email-change verification, and any other
+// future transactional path.
+if (process.env.EMAIL_SERVER_PASSWORD) {
   const fromAddress = process.env.EMAIL_FROM ?? 'auth@holymog.com';
   providers.push(
     Nodemailer({
@@ -115,39 +117,7 @@ if (useGmailSmtp) {
         if (failed.length) {
           throw new Error(`SMTP send failed for ${failed.join(', ')}`);
         }
-      },
-    }),
-  );
-} else if (process.env.AUTH_RESEND_KEY) {
-  const apiKey = process.env.AUTH_RESEND_KEY;
-  const fromAddress = process.env.AUTH_RESEND_FROM ?? 'auth@holymog.com';
-  providers.push(
-    Resend({
-      apiKey,
-      from: fromAddress,
-      async sendVerificationRequest({ identifier, url }) {
-        const { subject, html, text } = magicLinkEmail({
-          url,
-          recipient: identifier,
-        });
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: fromAddress,
-            to: identifier,
-            subject,
-            html,
-            text,
-          }),
-        });
-        if (!res.ok) {
-          const body = await res.text().catch(() => '');
-          throw new Error(`Resend send failed: ${res.status} ${body.slice(0, 200)}`);
-        }
+        void recordEmailSent();
       },
     }),
   );
@@ -157,10 +127,9 @@ const config: NextAuthConfig = {
   adapter: PostgresAdapter(getPool()),
   // Auth.js sessions are stored in the `sessions` table (database strategy
   // via the adapter). Cookies are host-scoped by default. If AUTH_COOKIE_DOMAIN
-  // is set (e.g. ".holymog.com" once we flip from holymog.vercel.app to the
-  // custom domain split between www.holymog.com and auth.holymog.com), we
-  // override and scope cookies to the parent domain so they're shared between
-  // subdomains. In dev we let Auth.js use its default localhost cookie.
+  // is set (e.g. ".holymog.com") we override and scope cookies to the parent
+  // domain so they're shared between any future subdomains. In dev we let
+  // Auth.js use its default localhost cookie.
   session: { strategy: 'database' },
   cookies:
     process.env.NODE_ENV === 'production' && process.env.AUTH_COOKIE_DOMAIN
@@ -226,6 +195,34 @@ const config: NextAuthConfig = {
     },
   },
   callbacks: {
+    /**
+     * Ban gate. The admin "Ban" action on a battle report sets
+     * `profiles.banned_at` and purges sessions; this callback stops the
+     * banned user from establishing a new session on next sign-in.
+     * Returning `false` makes Auth.js redirect to the configured
+     * error page (which routes back to `/`).
+     *
+     * The first-ever sign-in (account creation via the adapter)
+     * runs BEFORE the `profiles` row exists. We return `true` in that
+     * case so the adapter can finish the insert; subsequent sign-ins
+     * see the row and the check kicks in.
+     */
+    async signIn({ user }) {
+      if (!user?.id) return true;
+      try {
+        const pool = getPool();
+        const result = await pool.query<{ banned_at: Date | null }>(
+          'select banned_at from profiles where user_id = $1 limit 1',
+          [user.id],
+        );
+        if (result.rows[0]?.banned_at) return false;
+      } catch {
+        // DB hiccup: fail open. We don't want a Postgres blip to lock
+        // every legitimate user out. Bans still take effect on session
+        // expiry + manual session purge done at ban time.
+      }
+      return true;
+    },
     /**
      * Inject user.id into the session object so client + server can read
      * `session.user.id` without an extra DB roundtrip.

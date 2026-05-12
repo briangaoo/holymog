@@ -24,7 +24,6 @@ export function isStripeConfigured(): boolean {
 }
 
 export function appUrlFor(path: string): string {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.vercel.app';
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.com';
   return `${base.replace(/\/$/, '')}${path}`;
 }

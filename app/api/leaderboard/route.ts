@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import {
-  FACES_BUCKET,
+  UPLOADS_BUCKET,
   getSupabase,
   getSupabaseAdmin,
   type LeaderboardRow,
@@ -89,7 +89,7 @@ function validateScores(s: unknown): Scores | null {
 async function deletePhoto(supabase: SupabaseClient, path: string | null) {
   if (!path) return;
   await supabase.storage
-    .from(FACES_BUCKET)
+    .from(UPLOADS_BUCKET)
     .remove([path])
     .catch(() => {
       // best-effort; orphan acceptable
@@ -299,14 +299,14 @@ export async function POST(request: Request) {
           const safe = await safeImageUpload(buffer, 'leaderboard');
           const dstPath = `${randomUUID()}.${safe.ext}`;
           const { error: upErr } = await supabase.storage
-            .from(FACES_BUCKET)
+            .from(UPLOADS_BUCKET)
             .upload(dstPath, safe.buffer, {
               contentType: safe.mime,
               cacheControl: '3600',
             });
           if (!upErr) {
             const { data: pub } = supabase.storage
-              .from(FACES_BUCKET)
+              .from(UPLOADS_BUCKET)
               .getPublicUrl(dstPath);
             imageUrl = pub.publicUrl;
             imagePath = dstPath;

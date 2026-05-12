@@ -6,7 +6,7 @@ import { Redis } from '@upstash/redis';
  * Tracks cumulative USD spent today in an Upstash counter keyed by
  * the UTC date. Every Gemini call increments the counter. The
  * pre-call check rejects if usage has crossed
- * `DAILY_GEMINI_BUDGET_USD` (default $50).
+ * `DAILY_GEMINI_BUDGET_USD` (default $30 — ~10K full scans/day).
  *
  * This is the hard ceiling that bounds cost-attack risk. Origin
  * guard (Phase 11) is the cheap first line; the budget cap is the
@@ -52,7 +52,7 @@ export type BudgetState =
  * `system_unavailable` in that case.
  */
 export async function checkBudget(): Promise<BudgetState> {
-  const cap = Number(process.env.DAILY_GEMINI_BUDGET_USD ?? '50');
+  const cap = Number(process.env.DAILY_GEMINI_BUDGET_USD ?? '30');
   const redis = getRedis();
   if (!redis) return { ok: true, usage: 0, cap };
   try {

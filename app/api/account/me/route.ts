@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import {
-  FACES_BUCKET,
+  UPLOADS_BUCKET,
   getSupabase,
   getSupabaseAdmin,
   type LeaderboardRow,
@@ -22,6 +22,7 @@ type Profile = {
   peak_elo: number;
   matches_played: number;
   matches_won: number;
+  matches_tied: number;
   current_streak: number;
   longest_streak: number;
   best_scan_overall: number | null;
@@ -101,6 +102,7 @@ export async function GET() {
       pool.query<Profile>(
         `select
            display_name, elo, peak_elo, matches_played, matches_won,
+           coalesce(matches_tied, 0) as matches_tied,
            current_streak, longest_streak, best_scan_overall,
            best_scan, improvement_counts,
            bio, location, banner_url, socials,
@@ -141,8 +143,18 @@ export async function GET() {
       computeMostImproved(pool, user.id),
       // Last 10 finished battles for the W/L pip strip — oldest left,
       // newest right (we reverse client-side).
-      pool.query<{ is_winner: boolean }>(
-        `select bp.is_winner
+      pool.query<{ is_winner: boolean; is_tie: boolean }>(
+        // is_tie = no participant on this battle has is_winner=true AND
+        // it has >= 2 participants. Lets the recent ribbon render grey
+        // for ties instead of treating them as losses.
+        `select bp.is_winner,
+                (
+                  not exists (
+                    select 1 from battle_participants w
+                     where w.battle_id = b.id and w.is_winner = true
+                  )
+                  and (select count(*) from battle_participants c where c.battle_id = b.id) >= 2
+                ) as is_tie
            from battle_participants bp
            join battles b on b.id = bp.battle_id
           where bp.user_id = $1 and b.state = 'finished'
@@ -222,8 +234,11 @@ export async function GET() {
     .map((row) => ({ elo: row.elo, recorded_at: row.recorded_at.toISOString() }));
 
   // Recent W/L strip — server returns newest-first; client reverses for
-  // chronological left-to-right.
-  const recentBattleResults = recentBattles.rows.map((r) => r.is_winner);
+  // chronological left-to-right. Strings instead of booleans so ties
+  // get their own bucket.
+  const recentBattleResults: Array<'win' | 'loss' | 'tie'> = recentBattles.rows.map(
+    (r) => (r.is_tie ? 'tie' : r.is_winner ? 'win' : 'loss'),
+  );
 
   // Biggest swings — split the union into max/min entries.
   const swingsByKind = new Map<'max' | 'min', (typeof biggestSwings.rows)[number]>();
@@ -265,8 +280,19 @@ export async function GET() {
     profile?.subscription_status === 'active' ||
     profile?.subscription_status === 'trialing';
 
+  // Look up the user's avatar (users.image) so the /account page
+  // header can render an up-to-date avatar via refreshMe() — without
+  // this, the header reads from session.user.image which doesn't
+  // update until the next page navigation.
+  const userRow = await pool.query<{ image: string | null }>(
+    'select image from users where id = $1 limit 1',
+    [user.id],
+  );
+  const image = userRow.rows[0]?.image ?? null;
+
   return NextResponse.json({
     profile,
+    image,
     entry,
     total_scans: totalScans,
     account_age_days: accountAgeDays,
@@ -742,7 +768,7 @@ export async function DELETE() {
     ];
     if (leaderboardImagePath) paths.push(leaderboardImagePath);
     await supabase.storage
-      .from(FACES_BUCKET)
+      .from(UPLOADS_BUCKET)
       .remove(paths)
       .catch(() => {});
   }

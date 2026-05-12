@@ -29,6 +29,7 @@ type Profile = {
   peak_elo: number;
   matches_played: number;
   matches_won: number;
+  matches_tied: number;
   current_streak: number;
   longest_streak: number;
   best_scan_overall: number | null;
@@ -53,18 +54,27 @@ type AccountResponse = {
   highest_overall_ever?: number | null;
   elo_sparkline?: EloPoint[];
   most_improved?: { metric: string; delta: number } | null;
-  recent_battle_results?: boolean[];
+  recent_battle_results?: Array<'win' | 'loss' | 'tie'>;
   biggest_win?: SwingEntry | null;
   biggest_loss?: SwingEntry | null;
   scan_overalls?: number[];
 };
 
+// Kept in sync with BATTLE_IMPROVEMENT_OPTIONS in lib/vision.ts. The
+// expanded set means lifetime weakness counters can fill from more
+// dimensions than the original six — chin / brows / lips / forehead /
+// symmetry are now first-class.
 const IMPROVEMENT_KEYS = [
   'jawline',
-  'eyes',
-  'skin',
   'cheekbones',
+  'chin',
   'nose',
+  'forehead',
+  'symmetry',
+  'eyes',
+  'brows',
+  'lips',
+  'skin',
   'hair',
 ] as const;
 
@@ -106,7 +116,7 @@ export function AccountStatsTab({
     highest_overall_ever: number | null;
     elo_sparkline: EloPoint[];
     most_improved: { metric: string; delta: number } | null;
-    recent_battle_results: boolean[];
+    recent_battle_results: Array<'win' | 'loss' | 'tie'>;
     biggest_win: SwingEntry | null;
     biggest_loss: SwingEntry | null;
     scan_overalls: number[];
@@ -164,10 +174,14 @@ export function AccountStatsTab({
     );
   }
 
-  const losses = profile.matches_played - profile.matches_won;
+  const ties = profile.matches_tied ?? 0;
+  const losses = profile.matches_played - profile.matches_won - ties;
+  // Ties excluded from the win-rate denominator so a string of draws
+  // doesn't tank the user's perceived performance.
+  const ratedMatches = profile.matches_played - ties;
   const winRate =
-    profile.matches_played > 0
-      ? Math.round((profile.matches_won / profile.matches_played) * 100)
+    ratedMatches > 0
+      ? Math.round((profile.matches_won / ratedMatches) * 100)
       : null;
   const eloDelta = profile.elo - profile.peak_elo;
 
@@ -184,6 +198,7 @@ export function AccountStatsTab({
         peakElo={profile.peak_elo}
         eloDelta={eloDelta}
         wins={profile.matches_won}
+        ties={ties}
         losses={losses}
         winRate={winRate}
         played={profile.matches_played}
@@ -249,7 +264,7 @@ function IdentitySection({
           value={
             <span className="inline-flex items-center gap-2">
               <span
-                className="font-num text-base font-bold"
+                className="font-num text-base font-bold uppercase"
                 style={tierLetterStyle(tier)}
               >
                 {tier.letter}
@@ -273,7 +288,7 @@ function IdentitySection({
                 {highestOverallEver}
               </span>
               <span
-                className="font-num text-base font-bold"
+                className="font-num text-base font-bold uppercase"
                 style={tierLetterStyle(highestTier)}
               >
                 {highestTier.letter}
@@ -303,6 +318,7 @@ function MultiplayerSection(props: {
   peakElo: number;
   eloDelta: number;
   wins: number;
+  ties: number;
   losses: number;
   winRate: number | null;
   played: number;
@@ -315,6 +331,7 @@ function MultiplayerSection(props: {
     peakElo,
     eloDelta,
     wins,
+    ties,
     losses,
     winRate,
     played,
@@ -365,7 +382,9 @@ function MultiplayerSection(props: {
         value={
           <span className="flex items-center gap-2">
             <span className="font-num text-[14px] font-semibold tabular-nums text-white">
-              {wins}W · {losses}L
+              {ties > 0
+                ? `${wins}W · ${ties}T · ${losses}L`
+                : `${wins}W · ${losses}L`}
             </span>
             {winRate !== null && (
               <span className="font-num text-[12px] tabular-nums text-zinc-500">
@@ -406,11 +425,17 @@ function MultiplayerSection(props: {
 
 // ---- Recent battles strip ------------------------------------------------
 
-function RecentBattlesSection({ results }: { results: boolean[] }) {
+function RecentBattlesSection({
+  results,
+}: {
+  results: Array<'win' | 'loss' | 'tie'>;
+}) {
   // Server returns newest-first; render oldest-left for natural reading.
   const ordered = [...results].reverse();
-  const padded = [
-    ...Array.from({ length: Math.max(0, 10 - ordered.length) }).map(() => null),
+  const padded: Array<'win' | 'loss' | 'tie' | null> = [
+    ...Array.from({ length: Math.max(0, 10 - ordered.length) }).map(
+      () => null as null,
+    ),
     ...ordered,
   ];
   return (
@@ -425,13 +450,15 @@ function RecentBattlesSection({ results }: { results: boolean[] }) {
           {padded.map((r, i) => (
             <span
               key={i}
-              title={r === null ? 'no battle' : r ? 'win' : 'loss'}
+              aria-label={r === null ? 'no battle' : r}
               className={`h-3 flex-1 rounded ${
                 r === null
                   ? 'bg-white/[0.04]'
-                  : r
+                  : r === 'win'
                     ? 'bg-emerald-400/85'
-                    : 'bg-rose-500/70'
+                    : r === 'tie'
+                      ? 'bg-zinc-400/70'
+                      : 'bg-rose-500/70'
               }`}
             />
           ))}
@@ -584,7 +611,7 @@ function BestScanSection({
               {overall}
             </span>
             <span
-              className="font-num text-2xl font-bold"
+              className="font-num text-2xl font-bold uppercase"
               style={tierLetterStyle(tier)}
             >
               {tier.letter}
@@ -612,7 +639,7 @@ function BestScanSection({
                 {overall}
               </span>
               <span
-                className="font-num text-base font-bold"
+                className="font-num text-base font-bold uppercase"
                 style={tierLetterStyle(tier)}
               >
                 {tier.letter}
@@ -698,7 +725,7 @@ function TierDistributionSection({ scans }: { scans: number[] }) {
             className="flex items-center gap-3 border-t border-white/5 px-4 py-2.5"
           >
             <span
-              className="font-num w-7 text-base font-bold"
+              className="font-num w-7 text-base font-bold uppercase"
               style={tierLetterStyle(tier)}
             >
               {c.letter}
@@ -835,15 +862,21 @@ function Row({
 // ---- Helpers -------------------------------------------------------------
 
 function tierLetterStyle(tier: ReturnType<typeof getTier>): React.CSSProperties {
+  // Tier letters MUST render uppercase (S+, A, B-, …) even though the
+  // body globally lowercases everything via app/globals.css. Defense-
+  // in-depth alongside the explicit `uppercase` class on each render
+  // site — keeps the style helper authoritative if a className gets
+  // dropped during a refactor.
   if (tier.isGradient) {
     return {
       backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
       WebkitBackgroundClip: 'text',
       backgroundClip: 'text',
       color: 'transparent',
+      textTransform: 'uppercase',
     };
   }
-  return { color: tier.color };
+  return { color: tier.color, textTransform: 'uppercase' };
 }
 
 function formatAgeDays(days: number): string {

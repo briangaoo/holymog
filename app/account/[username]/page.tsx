@@ -16,17 +16,22 @@ export async function generateMetadata({
   const { username } = await params;
   const result = await lookupPublicProfile(username);
   if (result.kind !== 'found') {
-    return { title: 'profile not found · holymog' };
+    // Template prepends `holymog - `, so the browser tab reads
+    // "holymog - profile not found".
+    return { title: 'profile not found' };
   }
   const { display_name, bio, best_scan_overall } = result.data;
   const tier = best_scan_overall !== null ? overallToTier(best_scan_overall) : null;
-  const titleSuffix = tier ? ` · ${tier} on holymog` : ' · holymog';
+  // Tab title goes through the template → "holymog - @display_name".
+  // OG title bypasses the template so socials see the richer
+  // "@display_name · S+ on holymog" string.
+  const ogSuffix = tier ? ` · ${tier} on holymog` : ' · holymog';
   return {
-    title: `@${display_name}${titleSuffix}`,
+    title: `@${display_name}`,
     description:
       bio ?? `${display_name}'s holymog profile — scan, battle, mog.`,
     openGraph: {
-      title: `@${display_name}${titleSuffix}`,
+      title: `@${display_name}${ogSuffix}`,
       description: bio ?? undefined,
     },
   };

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
+import { AvatarFallback } from './AvatarFallback';
 import { Frame } from './customization/Frame';
 import { Badge } from './customization/Badge';
 import { NameFx } from './customization/NameFx';
@@ -211,9 +212,7 @@ function FollowRow({
               className="h-full w-full object-cover"
             />
           ) : (
-            <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-700 to-zinc-900 text-base font-bold text-white">
-              {(entry.display_name.charAt(0) || '?').toUpperCase()}
-            </span>
+            <AvatarFallback seed={entry.display_name} textClassName="text-base" />
           )}
         </Frame>
       </Link>

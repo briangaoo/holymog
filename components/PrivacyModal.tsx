@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check } from 'lucide-react';
+import { captureCurrentAsBack, consumeModalRestore } from '@/lib/back-nav';
 
 type Props = {
   open: boolean;
@@ -27,6 +28,18 @@ type Props = {
  */
 export function PrivacyModal({ open, onAcknowledge }: Props) {
   const [accepted, setAccepted] = useState(false);
+
+  // Restore the checkbox if the user clicked /terms or /privacy from
+  // inside this modal — the back-nav breadcrumb dropped on link
+  // click is consumed here so the user lands back on /scan with the
+  // popup open and the box still ticked.
+  useEffect(() => {
+    if (!open) return;
+    const restored = consumeModalRestore('privacy');
+    if (restored && typeof restored.accepted === 'boolean') {
+      setAccepted(restored.accepted);
+    }
+  }, [open]);
 
   return (
     <AnimatePresence>
@@ -152,9 +165,13 @@ export function PrivacyModal({ open, onAcknowledge }: Props) {
                 I have read and agree to the{' '}
                 <Link
                   href="/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    captureCurrentAsBack({
+                      id: 'privacy',
+                      state: { accepted },
+                    });
+                  }}
                   className="font-medium text-white underline-offset-2 hover:underline"
                 >
                   Terms of Service
@@ -162,9 +179,13 @@ export function PrivacyModal({ open, onAcknowledge }: Props) {
                 and{' '}
                 <Link
                   href="/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    captureCurrentAsBack({
+                      id: 'privacy',
+                      state: { accepted },
+                    });
+                  }}
                   className="font-medium text-white underline-offset-2 hover:underline"
                 >
                   Privacy Policy

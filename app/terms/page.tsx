@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { LegalBackLink } from '@/components/LegalBackLink';
 
-const LAST_UPDATED = 'May 10, 2026';
+const LAST_UPDATED = 'May 11, 2026';
 
 /**
  * Terms of Service. Includes BIPA-aligned biometric consent, DMCA
@@ -37,12 +38,7 @@ export default function TermsPage() {
           className="mx-auto w-full max-w-2xl px-5 pb-16 pt-8 normal-case"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 64px)' }}
         >
-          <Link
-            href="/"
-            className="mb-8 inline-flex items-center gap-1.5 text-xs text-white/45 transition-colors hover:text-white/80"
-          >
-            <ArrowLeft size={12} aria-hidden /> Back home
-          </Link>
+          <LegalBackLink />
 
           <motion.div
             initial={{ y: 12, opacity: 0 }}
@@ -469,20 +465,106 @@ export default function TermsPage() {
                 devices and we cannot control that.
               </li>
               <li>
+                That for{' '}
+                <span className="font-semibold">every battle (public
+                and private)</span>, we save{' '}
+                <span className="font-semibold">one image per
+                participant per battle</span> &mdash; the
+                highest-scoring frame our scorer pulled during the
+                match &mdash; to a private storage bucket. This image
+                is never publicly readable and is used only for
+                moderation review (e.g. when an opponent reports you,
+                or when we&rsquo;re investigating abuse).
+              </li>
+              <li>
+                That public 1v1 opponents can{' '}
+                <span className="font-semibold">file a report</span>{' '}
+                against you after the match for cheating (deepfake,
+                AI face, celebrity), minors on camera, nudity / sexual
+                content, harassment, spam / impersonation, or other
+                policy violations. The reporting flow does not apply
+                to private parties; concerns about private-party
+                participants must be emailed to{' '}
+                <a
+                  href="mailto:hello@holymog.com"
+                  className="font-medium text-white/85 underline-offset-4 hover:underline"
+                >
+                  hello@holymog.com
+                </a>
+                .
+              </li>
+              <li>
                 That ELO and rating changes from public 1v1 battles are
                 final and non-reversible.
               </li>
             </ul>
             <p className="mt-3">
-              To report abuse during or after a battle, email{' '}
+              <span className="font-semibold text-white/85">
+                Bans.
+              </span>{' '}
+              We review every report and may permanently ban accounts
+              that violate these Terms. Banning is at our sole
+              discretion. When we ban you:
+            </p>
+            <ul className="ml-1 mt-2 flex flex-col gap-1.5 text-sm leading-relaxed text-white/65">
+              <li>
+                Sign-in is disabled and every active session is purged
+                immediately.
+              </li>
+              <li>
+                You receive a notice email at the address on file
+                explaining the action.
+              </li>
+              <li>
+                Your leaderboard entry, scans, and battle history
+                remain on file in case the decision is reversed. You
+                may still request data export or deletion via{' '}
+                <a
+                  href="mailto:hello@holymog.com"
+                  className="font-medium text-white/85 underline-offset-4 hover:underline"
+                >
+                  hello@holymog.com
+                </a>
+                .
+              </li>
+              <li>
+                If you believe the ban was a mistake, you may appeal
+                by emailing{' '}
+                <a
+                  href="mailto:safety@holymog.com"
+                  className="font-medium text-white/85 underline-offset-4 hover:underline"
+                >
+                  safety@holymog.com
+                </a>
+                {' '}with the date of the battle and the basis for
+                your appeal. We read every appeal and respond, but
+                approval is at our sole discretion.
+              </li>
+            </ul>
+            <p className="mt-3">
+              <span className="font-semibold text-white/85">
+                Filing a report.
+              </span>{' '}
+              Report submissions are made in good faith. Filing a
+              false report intended to harass or retaliate is itself
+              a violation of these Terms and may result in a ban of
+              the filing account. The user being reported is{' '}
+              <span className="font-semibold">not notified</span> that
+              a report was filed, only if and when the report results
+              in a ban.
+            </p>
+            <p className="mt-3">
+              For abuse outside the in-app report flow (between
+              battles, on profiles, in leaderboard submissions, etc),
+              email{' '}
               <a
                 href="mailto:safety@holymog.com"
                 className="font-medium text-white/85 underline-offset-4 hover:underline"
               >
                 safety@holymog.com
               </a>{' '}
-              with the battle ID (visible in the result screen) and a
-              brief description.
+              with the relevant IDs (visible in the result screen or
+              on the public profile) and a brief description.
             </p>
           </Section>
 
@@ -593,7 +675,7 @@ export default function TermsPage() {
           <Section index={13} title="Third-Party Services">
             <p>
               The Service relies on third-party providers including,
-              without limitation: Google (OAuth and Gemini AI), Supabase
+              without limitation: Google (OAuth and Vertex AI), Supabase
               (database and storage), LiveKit (real-time video), Vercel
               (hosting), Google Workspace (transactional email), and
               Upstash (rate limiting). Your use of those providers&rsquo;

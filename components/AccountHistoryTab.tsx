@@ -498,8 +498,12 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
           {entry.peak_score}
         </span>
         <span
-          className="font-num text-[11px] font-bold"
-          style={tier.isGradient ? gradientStyle() : { color: tier.color }}
+          className="font-num text-[11px] font-bold uppercase"
+          style={
+            tier.isGradient
+              ? { ...gradientStyle(), textTransform: 'uppercase' }
+              : { color: tier.color, textTransform: 'uppercase' }
+          }
         >
           {tier.letter}
         </span>

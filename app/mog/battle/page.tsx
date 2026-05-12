@@ -1,29 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import {
-  Download,
-  Home as HomeIcon,
-  Loader2,
-  RotateCcw,
-  Swords,
-  X,
-} from 'lucide-react';
+import { Loader2, Swords, X } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 import { AuthModal } from '@/components/AuthModal';
 import { FullPageSpinner } from '@/components/FullPageSpinner';
-import { getSupabaseBrowser } from '@/lib/supabase-browser';
-import { getTier } from '@/lib/tier';
-import { getScoreColor } from '@/lib/scoreColor';
-import { generateBattleShareImage } from '@/lib/battleShareImageGenerator';
+import { MogResultScreen } from '@/components/MogResultScreen';
 import {
   clearActiveBattle,
   readActiveBattle,
   writeActiveBattle,
 } from '@/lib/activeBattle';
+import {
+  BattleConsentModal,
+  readBattleConsent,
+  writeBattleConsent,
+} from '@/components/BattleConsentModal';
 import { BattleRoom } from '../BattleRoom';
 
 // ---- Types -----------------------------------------------------------------
@@ -32,11 +26,19 @@ type FinishPayload = {
   battle_id: string;
   kind?: 'public' | 'private';
   winner_id: string | null;
+  is_tie?: boolean;
   participants: Array<{
     user_id: string;
     display_name: string;
     final_score: number;
     is_winner: boolean;
+    is_tie?: boolean;
+  }>;
+  elo_changes?: Array<{
+    user_id: string;
+    before: number;
+    after: number;
+    delta: number;
   }>;
 };
 
@@ -73,6 +75,21 @@ export default function PublicBattlePage() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>({ kind: 'matchmaking' });
   const [reconnectChecked, setReconnectChecked] = useState(false);
+
+  // Battle consent gate. /mog/battle IS the queue action, so the modal
+  // opens on landing if the user hasn't consented yet. Matchmaking
+  // starts only after acknowledgement (the existing `PublicMatchmaking`
+  // mount waits on `consented`).
+  const [consented, setConsented] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
+  useEffect(() => {
+    setConsented(readBattleConsent());
+    setConsentChecked(true);
+  }, []);
+  const acknowledgeBattleConsent = () => {
+    writeBattleConsent();
+    setConsented(true);
+  };
 
   // Lock body + html scroll for the duration of the full-screen experience.
   useEffect(() => {
@@ -210,11 +227,32 @@ export default function PublicBattlePage() {
 
   if (phase.kind === 'finished') {
     return (
-      <FinishedScreen
+      <MogResultScreen
         result={phase.result}
         currentUserId={user.id}
-        onAgain={() => setPhase({ kind: 'matchmaking' })}
+        onFindAnother={() => setPhase({ kind: 'matchmaking' })}
       />
+    );
+  }
+
+  // Block matchmaking until the user has accepted the battle consent
+  // notice. Until then we show the modal full-screen over a black
+  // backdrop — the camera doesn't start, no queue entry is created.
+  if (!consentChecked) {
+    return (
+      <div className="fixed inset-0 bg-black">
+        <FullPageSpinner label="loading" />
+      </div>
+    );
+  }
+  if (!consented) {
+    return (
+      <div className="fixed inset-0 bg-black">
+        <BattleConsentModal
+          open
+          onAcknowledge={acknowledgeBattleConsent}
+        />
+      </div>
     );
   }
 
@@ -299,10 +337,14 @@ function PublicMatchmaking({
     };
   }, []);
 
-  // Pair + ready handoff (queue POST + realtime subscribe + poll).
+  // Pair + ready handoff. The original implementation used a Supabase
+  // postgres_changes subscription on battle_participants but RLS blocks
+  // that (the policies require auth.uid() match, which Auth.js
+  // sessions don't satisfy). Polling /api/battle/queue/status is the
+  // reliable path: cheap (~1.5s interval × ~10s wait = a handful of
+  // hits) and bypasses RLS via the service-role pool inside the route.
   useEffect(() => {
     let cancelled = false;
-    const supabase = getSupabaseBrowser();
 
     const handlePaired = async (battleId: string) => {
       if (cancelled) return;
@@ -310,29 +352,21 @@ function PublicMatchmaking({
       pairedBattleRef.current = battleId;
       setStatus('found');
       try {
-        const [tokenRes, battleRes] = await Promise.all([
+        const [tokenRes, stateRes] = await Promise.all([
           fetch(`/api/battle/${battleId}/token`),
-          fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/battles?id=eq.${battleId}&select=started_at`,
-            {
-              headers: {
-                apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-                Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''}`,
-              },
-            },
-          ),
+          fetch(`/api/battle/${battleId}/state`, { cache: 'no-store' }),
         ]);
-        if (cancelled || !tokenRes.ok || !battleRes.ok) {
-          // Allow a future signal to retry — pair_two() already inserted us.
+        if (cancelled || !tokenRes.ok || !stateRes.ok) {
+          // Allow a future poll tick to retry — pair_two() already
+          // inserted us into the participants table.
           pairedBattleRef.current = null;
           return;
         }
         const tokenData = (await tokenRes.json()) as { token: string; url: string };
-        const battleRows = (await battleRes.json()) as Array<{
-          started_at: string | null;
-        }>;
-        const startedAtIso = battleRows[0]?.started_at;
-        const startedAt = startedAtIso ? Date.parse(startedAtIso) : Date.now();
+        const stateData = (await stateRes.json()) as { started_at: string | null };
+        const startedAt = stateData.started_at
+          ? Date.parse(stateData.started_at)
+          : Date.now();
         if (cancelled) return;
         setStatus('connecting');
         onReady(battleId, tokenData.token, tokenData.url, startedAt);
@@ -341,23 +375,7 @@ function PublicMatchmaking({
       }
     };
 
-    const channel = supabase
-      .channel(`mm:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'battle_participants',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload: { new: { battle_id?: string } }) => {
-          const row = payload.new;
-          if (row.battle_id) void handlePaired(row.battle_id);
-        },
-      )
-      .subscribe();
-
+    // Kick off the queue once.
     void (async () => {
       try {
         const res = await fetch('/api/battle/queue', { method: 'POST' });
@@ -367,25 +385,36 @@ function PublicMatchmaking({
           void handlePaired(data.battle_id);
         }
       } catch {
-        // realtime + poll will retry
+        // poll loop will keep trying
       }
     })();
 
+    // Poll /queue/status — fires only when pair_two() has dropped us
+    // into a battle. The interval is short because perceived wait
+    // matters; the route hits a single indexed query per tick so the
+    // DB load is trivial.
     const pollId = window.setInterval(async () => {
       if (cancelled || pairedBattleRef.current) return;
       try {
-        const res = await fetch('/api/battle/queue', { method: 'POST' });
-        const data = (await res.json()) as { battle_id?: string };
-        if (data.battle_id) void handlePaired(data.battle_id);
+        const res = await fetch('/api/battle/queue/status', {
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          paired: boolean;
+          battle_id?: string;
+        };
+        if (data.paired && data.battle_id) {
+          void handlePaired(data.battle_id);
+        }
       } catch {
         // ignore
       }
-    }, 3000);
+    }, 1500);
 
     return () => {
       cancelled = true;
       window.clearInterval(pollId);
-      void supabase.removeChannel(channel);
     };
   }, [userId, onReady]);
 
@@ -561,224 +590,3 @@ function OpponentSlot({ status }: { status: MatchStatus }) {
   );
 }
 
-// ---- Finished (slim full-screen result) ----------------------------------
-
-function FinishedScreen({
-  result,
-  currentUserId,
-  onAgain,
-}: {
-  result: FinishPayload;
-  currentUserId: string;
-  onAgain: () => void;
-}) {
-  const me = result.participants.find((p) => p.user_id === currentUserId);
-  const opponent = result.participants.find((p) => p.user_id !== currentUserId);
-  const youWon = me?.is_winner === true;
-
-  const [sharing, setSharing] = useState(false);
-
-  const onShare = useCallback(async () => {
-    if (!me || !opponent) return;
-    setSharing(true);
-    try {
-      const blob = await generateBattleShareImage({
-        self: { display_name: me.display_name, peak_score: me.final_score },
-        opponent: {
-          display_name: opponent.display_name,
-          peak_score: opponent.final_score,
-        },
-        won: youWon,
-      });
-      const filename = `holymog-${youWon ? 'win' : 'loss'}-${Date.now()}.png`;
-      const file = new File([blob], filename, { type: 'image/png' });
-      const navWithShare = navigator as Navigator & {
-        canShare?: (data: { files?: File[] }) => boolean;
-        share?: (data: {
-          files?: File[];
-          title?: string;
-          text?: string;
-        }) => Promise<void>;
-      };
-      if (
-        typeof navWithShare.canShare === 'function' &&
-        typeof navWithShare.share === 'function' &&
-        navWithShare.canShare({ files: [file] })
-      ) {
-        await navWithShare.share({
-          files: [file],
-          title: 'holymog battle',
-          text: youWon ? 'i mogged' : 'i got mogged',
-        });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch {
-      // best-effort
-    } finally {
-      setSharing(false);
-    }
-  }, [me, opponent, youWon]);
-
-  return (
-    <div className="fixed inset-0 flex flex-col bg-black">
-      {/* Win-flash overlay (winner only). */}
-      {youWon && (
-        <motion.div
-          initial={{ opacity: 0.85 }}
-          animate={{ opacity: 0 }}
-          transition={{ duration: 0.55, ease: 'easeOut' }}
-          className="pointer-events-none absolute inset-0 z-50"
-          style={{
-            background:
-              'radial-gradient(circle at center, rgba(16,185,129,0.35) 0%, rgba(0,0,0,0) 65%)',
-          }}
-        />
-      )}
-
-      <main
-        className="mx-auto flex w-full max-w-md flex-1 flex-col items-stretch justify-center px-5"
-        style={{
-          paddingTop: 'max(env(safe-area-inset-top), 32px)',
-          paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
-        }}
-      >
-        <motion.h1
-          initial={{ y: 8, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-1 text-3xl font-bold text-white"
-        >
-          {youWon ? 'you mogged' : me ? 'you got mogged' : 'battle done'}
-        </motion.h1>
-        <motion.p
-          initial={{ y: 8, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{
-            duration: 0.4,
-            ease: [0.22, 1, 0.36, 1],
-            delay: 0.06,
-          }}
-          className="mb-6 text-sm text-zinc-400"
-        >
-          {youWon
-            ? 'highest peak score wins. nice.'
-            : me
-              ? 'rematch in the next one'
-              : 'thanks for spectating'}
-        </motion.p>
-
-        <div className="mb-6 grid grid-cols-2 gap-3">
-          {me && <ResultCell entry={me} you />}
-          {opponent && <ResultCell entry={opponent} />}
-        </div>
-
-        {me && opponent && (
-          <button
-            type="button"
-            onClick={onShare}
-            disabled={sharing}
-            style={{ touchAction: 'manipulation' }}
-            className="mb-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] text-sm text-white hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {sharing ? (
-              <>
-                <Loader2 size={14} className="animate-spin" /> rendering image…
-              </>
-            ) : (
-              <>
-                <Download size={14} aria-hidden /> share result
-              </>
-            )}
-          </button>
-        )}
-
-        <div className="flex gap-2">
-          <Link
-            href="/"
-            className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] text-sm text-white hover:bg-white/[0.07]"
-          >
-            <HomeIcon size={14} aria-hidden /> home
-          </Link>
-          <button
-            type="button"
-            onClick={onAgain}
-            style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black hover:bg-zinc-100"
-          >
-            <RotateCcw size={14} aria-hidden /> find another
-          </button>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function ResultCell({
-  entry,
-  you,
-}: {
-  entry: FinishPayload['participants'][number];
-  you?: boolean;
-}) {
-  const tier = getTier(entry.final_score);
-  const color = getScoreColor(entry.final_score);
-  const tierStyle: React.CSSProperties = tier.isGradient
-    ? {
-        backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-        WebkitBackgroundClip: 'text',
-        backgroundClip: 'text',
-        color: 'transparent',
-      }
-    : { color: tier.color };
-  return (
-    <motion.div
-      initial={{ y: 14, scale: 0.95, opacity: 0 }}
-      animate={{ y: 0, scale: 1, opacity: 1 }}
-      transition={{
-        duration: 0.45,
-        ease: [0.22, 1, 0.36, 1],
-        delay: you ? 0.12 : 0.22,
-      }}
-      className={`relative flex flex-col gap-1 rounded-2xl border px-4 py-3 ${
-        entry.is_winner
-          ? 'border-emerald-500/40 bg-emerald-500/10'
-          : 'border-white/10 bg-white/[0.02]'
-      }`}
-    >
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-        {you ? 'you' : 'opponent'}
-        {entry.is_winner && (
-          <span className="rounded-full bg-emerald-500/20 px-1.5 text-emerald-300 normal-case">
-            win
-          </span>
-        )}
-      </div>
-      <div className="flex items-baseline gap-1.5">
-        <span
-          className="font-num text-3xl font-extrabold tabular-nums"
-          style={{ color }}
-        >
-          {entry.final_score}
-        </span>
-        <span
-          className="font-num text-base font-bold normal-case"
-          style={tierStyle}
-        >
-          {tier.letter}
-        </span>
-      </div>
-      <Link
-        href={`/@${entry.display_name}`}
-        className="truncate text-sm text-zinc-300 hover:text-white hover:underline underline-offset-2"
-      >
-        {entry.display_name}
-      </Link>
-    </motion.div>
-  );
-}

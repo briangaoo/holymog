@@ -58,8 +58,6 @@ function ScanMigrationWatcher() {
       return;
     }
     if (!parsed?.vision || typeof parsed.vision !== 'object') {
-      // Pre-vision-payload localStorage entry — nothing to migrate.
-      // Leave the entry intact so the /scan hydration path still works.
       return;
     }
 
@@ -67,9 +65,7 @@ function ScanMigrationWatcher() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ vision: parsed.vision }),
-    })
-      .then((res) => res.ok)
-      .catch(() => false);
+    }).catch(() => false);
     // We deliberately do NOT clear the localStorage entry. The /scan
     // page still uses it for hydration on revisit; persisting is
     // additive — server gets a copy, client keeps its cache.

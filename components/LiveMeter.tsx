@@ -11,6 +11,10 @@ type Props = {
   /** Number of live calls completed so far (0-total). */
   progress?: number;
   total?: number;
+  /** True when live-score calls are failing (e.g. Gemini 429 / budget
+   *  cap). Meter renders "N/A" in muted gray instead of a coloured
+   *  number so the user doesn't read a 5.0 placeholder as a real score. */
+  error?: boolean;
 };
 
 const FILTER_ID = 'lm-liquid-glass';
@@ -23,15 +27,31 @@ const FILTER_ID = 'lm-liquid-glass';
  *   • multi-layer inner highlights for the rim-light glass effect
  *   • tier-coloured ambient glow + drop shadow
  */
-export function LiveMeter({ score, visible, progress = 0, total = 10 }: Props) {
-  const showCard = visible && score !== null;
+export function LiveMeter({
+  score,
+  visible,
+  progress = 0,
+  total = 10,
+  error = false,
+}: Props) {
+  // Show the card when there's data to display OR when we want to
+  // surface an error state. Without `|| error`, an early failure
+  // (e.g. Gemini 429 on the very first call) would just keep the
+  // meter hidden, which is indistinguishable from "still loading."
+  const showCard = visible && (score !== null || error);
   const safeScore = score ?? 50;
   const tier = getTier(safeScore);
-  const descriptor = getTierDescriptor(tier.letter) || 'live';
-  const color = getScoreColor(safeScore);
-  const display = (safeScore / 10).toFixed(1);
-  // Bar reflects the live score (5.0 → 50%, 9.0 → 90%).
-  const pct = Math.max(0, Math.min(1, safeScore / 100));
+  const descriptor = error
+    ? 'unavailable'
+    : getTierDescriptor(tier.letter) || 'live';
+  // In error state, override the tier colour with a muted zinc so
+  // nothing reads as a real score.
+  const ZINC_500 = '#71717a';
+  const color = error ? ZINC_500 : getScoreColor(safeScore);
+  const display = error ? 'N/A' : (safeScore / 10).toFixed(1);
+  // Bar reflects the live score (5.0 → 50%, 9.0 → 90%). When errored
+  // we drop the bar to 0 so it doesn't read as "halfway there."
+  const pct = error ? 0 : Math.max(0, Math.min(1, safeScore / 100));
 
   return (
     <>
@@ -173,12 +193,14 @@ export function LiveMeter({ score, visible, progress = 0, total = 10 }: Props) {
                   >
                     {display}
                   </span>
-                  <span
-                    className="text-[10px] uppercase tracking-[0.18em] text-white/55"
-                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
-                  >
-                    / 10
-                  </span>
+                  {!error && (
+                    <span
+                      className="text-[10px] uppercase tracking-[0.18em] text-white/55"
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
+                    >
+                      / 10
+                    </span>
+                  )}
                 </div>
 
                 <div

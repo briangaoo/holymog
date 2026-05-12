@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -14,9 +13,9 @@ import {
   ArrowRight,
   Check,
   Copy,
-  Download,
   Loader2,
   Search,
+  Share2,
   Swords,
   Users,
   X,
@@ -24,22 +23,26 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppHeader } from '@/components/AppHeader';
 import { AuthModal } from '@/components/AuthModal';
+import { AvatarFallback } from '@/components/AvatarFallback';
 import { SpectralRim } from '@/components/SpectralRim';
 import { useUser } from '@/hooks/useUser';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import {
+  BATTLE_CODE_ALPHABET,
   BATTLE_CODE_LENGTH,
   isValidBattleCode,
-  normaliseBattleCode,
 } from '@/lib/battle-code';
-import { getTier } from '@/lib/tier';
-import { getScoreColor } from '@/lib/scoreColor';
 import {
   clearActiveBattle,
   readActiveBattle,
   writeActiveBattle,
 } from '@/lib/activeBattle';
-import { generateBattleShareImage } from '@/lib/battleShareImageGenerator';
+import { MogResultScreen } from '@/components/MogResultScreen';
+import {
+  BattleConsentModal,
+  readBattleConsent,
+  writeBattleConsent,
+} from '@/components/BattleConsentModal';
 import { BattleRoom } from './BattleRoom';
 
 type Phase =
@@ -67,11 +70,24 @@ type FinishPayload = {
   battle_id: string;
   kind?: 'public' | 'private';
   winner_id: string | null;
+  /** True when the top two participants tied on peak score. winner_id
+   *  will be null. UI should render a grey "TIE" state instead of
+   *  picking one player as the winner. */
+  is_tie?: boolean;
   participants: Array<{
     user_id: string;
     display_name: string;
     final_score: number;
     is_winner: boolean;
+    is_tie?: boolean;
+  }>;
+  /** Per-user ELO delta from this battle. Empty for private battles or
+   *  for ties that didn't change ratings. */
+  elo_changes?: Array<{
+    user_id: string;
+    before: number;
+    after: number;
+    delta: number;
   }>;
 };
 
@@ -82,6 +98,37 @@ export default function MogPage() {
   // Until reconnection check resolves we don't want to render mode-select
   // for a split second (would flash before navigating into the lobby).
   const [reconnectChecked, setReconnectChecked] = useState(false);
+
+  // Battle consent gate. First-time visitors see the modal before any
+  // entry action goes through (create-party, join-party, find-a-battle).
+  // localStorage flag persists per device — same posture as the scan
+  // privacy modal.
+  const [consented, setConsented] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  useEffect(() => {
+    setConsented(readBattleConsent());
+    setConsentChecked(true);
+  }, []);
+  const guardConsent = useCallback(
+    (action: () => void) => {
+      if (consented) {
+        action();
+      } else {
+        // Stash the action; replay after the user accepts.
+        setPendingAction(() => action);
+      }
+    },
+    [consented],
+  );
+  const acknowledgeConsent = useCallback(() => {
+    writeBattleConsent();
+    setConsented(true);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  }, [pendingAction]);
 
   // Reconnection: on mount, if there's a saved active-battle entry AND
   // its battle row is still in lobby/starting/active, restore the
@@ -101,20 +148,18 @@ export default function MogPage() {
         return;
       }
       try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-        const res = await fetch(
-          `${supabaseUrl}/rest/v1/battles?id=eq.${entry.battle_id}&select=state,kind`,
-          {
-            headers: {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-            },
-          },
-        );
-        const rows = (await res.json()) as Array<{ state: string; kind: string }>;
-        const row = rows[0];
+        // Backend route — Supabase REST + anon key is blocked by RLS
+        // (auth.uid() doesn't propagate from Auth.js sessions).
+        const res = await fetch(`/api/battle/${entry.battle_id}/state`, {
+          cache: 'no-store',
+        });
         if (cancelled) return;
+        if (!res.ok) {
+          clearActiveBattle();
+          setReconnectChecked(true);
+          return;
+        }
+        const row = (await res.json()) as { state: string; kind: string };
         if (!row || row.state === 'finished' || row.state === 'abandoned') {
           clearActiveBattle();
           setReconnectChecked(true);
@@ -217,10 +262,10 @@ export default function MogPage() {
 
   if (phase.kind === 'finished') {
     return (
-      <ResultScreen
+      <MogResultScreen
         result={phase.result}
         currentUserId={user.id}
-        onAgain={() => setPhase({ kind: 'mode-select' })}
+        onFindAnother={() => setPhase({ kind: 'mode-select' })}
         onRematch={(battleId, code, isHost) =>
           setPhase({ kind: 'lobby', battleId, code, isHost })
         }
@@ -261,8 +306,13 @@ export default function MogPage() {
         {phase.kind === 'mode-select' && (
           <>
             <ModeSelect
-              onCreate={() => setPhase({ kind: 'creating' })}
-              onJoin={() => setPhase({ kind: 'join-input' })}
+              onCreate={() =>
+                guardConsent(() => setPhase({ kind: 'creating' }))
+              }
+              onJoin={() =>
+                guardConsent(() => setPhase({ kind: 'join-input' }))
+              }
+              guardConsent={guardConsent}
             />
             <BattleStats />
           </>
@@ -324,6 +374,16 @@ export default function MogPage() {
           />
         )}
       </main>
+
+      {/* Battle consent gate. Open when the user has clicked a battle
+          entry action without having previously accepted on this
+          device. The pending action replays after `acknowledgeConsent`
+          and `pendingAction` is cleared; if the user navigates away
+          mid-modal the state resets on next mount. */}
+      <BattleConsentModal
+        open={consentChecked && !consented && pendingAction !== null}
+        onAcknowledge={acknowledgeConsent}
+      />
     </div>
   );
 }
@@ -347,17 +407,21 @@ function BackButton({ onBack }: { onBack: () => void }) {
 function ModeSelect({
   onCreate,
   onJoin,
+  guardConsent,
 }: {
   onCreate: () => void;
   onJoin: () => void;
+  guardConsent: (action: () => void) => void;
 }) {
   const router = useRouter();
   // Public matchmaking is its own full-screen route. We navigate so the
   // experience can take over the entire viewport (no AppHeader, no
-  // page chrome) and own its own browser-history entry.
+  // page chrome) and own its own browser-history entry. Gate the
+  // navigation behind the consent modal so first-time users see the
+  // popup before the camera ever opens.
   const findBattle = useCallback(() => {
-    router.push('/mog/battle');
-  }, [router]);
+    guardConsent(() => router.push('/mog/battle'));
+  }, [router, guardConsent]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -542,6 +606,7 @@ type ProfileStats = {
   peak_elo: number;
   matches_played: number;
   matches_won: number;
+  matches_tied: number;
   current_streak: number;
   longest_streak: number;
   best_scan_overall: number | null;
@@ -550,6 +615,7 @@ type ProfileStats = {
 type RecentBattle = {
   battle_id: string;
   is_winner: boolean;
+  is_tie?: boolean;
   peak_score: number;
   finished_at: string | null;
 };
@@ -616,10 +682,14 @@ function BattleStats() {
     return null;
   }
 
-  const losses = profile.matches_played - profile.matches_won;
+  const ties = profile.matches_tied ?? 0;
+  const losses = profile.matches_played - profile.matches_won - ties;
+  // Win-rate excludes ties from the denominator — feels right since a
+  // tie is neither a win nor a loss.
+  const ratedMatches = profile.matches_played - ties;
   const winRate =
-    profile.matches_played > 0
-      ? Math.round((profile.matches_won / profile.matches_played) * 100)
+    ratedMatches > 0
+      ? Math.round((profile.matches_won / ratedMatches) * 100)
       : null;
   const eloDelta = profile.elo - profile.peak_elo;
   const unranked = profile.matches_played === 0;
@@ -671,6 +741,15 @@ function BattleStats() {
           value={
             unranked ? (
               <span className="text-zinc-500">—</span>
+            ) : ties > 0 ? (
+              <>
+                <span className="text-white">{profile.matches_won}</span>
+                <span className="text-zinc-500">W · </span>
+                <span className="text-white">{ties}</span>
+                <span className="text-zinc-500">T · </span>
+                <span className="text-white">{losses}</span>
+                <span className="text-zinc-500">L</span>
+              </>
             ) : (
               <>
                 <span className="text-white">{profile.matches_won}</span>
@@ -722,17 +801,22 @@ function BattleStats() {
                 left-to-right oldest→newest so the rightmost cell is the
                 user's last result, which is the conventional reading
                 order for win/loss strips. */}
-            {[...recent].reverse().map((r) => (
-              <span
-                key={r.battle_id}
-                title={r.is_winner ? 'win' : 'loss'}
-                className={`h-2 w-5 rounded-sm ${
-                  r.is_winner
-                    ? 'bg-emerald-400/85'
-                    : 'bg-zinc-600/80'
-                }`}
-              />
-            ))}
+            {[...recent].reverse().map((r) => {
+              const tied = r.is_tie === true;
+              const label = tied ? 'tie' : r.is_winner ? 'win' : 'loss';
+              const cls = tied
+                ? 'bg-zinc-400/70'
+                : r.is_winner
+                  ? 'bg-emerald-400/85'
+                  : 'bg-rose-500/70';
+              return (
+                <span
+                  key={r.battle_id}
+                  aria-label={label}
+                  className={`h-2 w-5 rounded-sm ${cls}`}
+                />
+              );
+            })}
           </div>
           <span
             aria-hidden
@@ -828,6 +912,13 @@ function Creating({
 
 // ---- Join input ------------------------------------------------------------
 
+/**
+ * Kahoot-style code entry. Six independent character cells with
+ * auto-advance focus, paste-distribution across cells, and
+ * auto-submit when the last cell fills. Each cell rejects characters
+ * not in the Crockford-uppercase alphabet so the user can't enter
+ * I/L/O/U or other ambiguous glyphs.
+ */
 function JoinInput({
   onSubmit,
   onCancel,
@@ -835,9 +926,120 @@ function JoinInput({
   onSubmit: (code: string) => void;
   onCancel: () => void;
 }) {
-  const [raw, setRaw] = useState('');
-  const code = normaliseBattleCode(raw);
+  const [cells, setCells] = useState<string[]>(() =>
+    Array(BATTLE_CODE_LENGTH).fill(''),
+  );
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const code = cells.join('');
   const valid = isValidBattleCode(code);
+
+  // Focus the first cell on mount. Mobile keyboards open automatically.
+  useEffect(() => {
+    inputRefs.current[0]?.focus();
+  }, []);
+
+  const sanitizeChar = (c: string): string => {
+    const u = c.toUpperCase();
+    return BATTLE_CODE_ALPHABET.includes(u) ? u : '';
+  };
+
+  const setCellAt = useCallback(
+    (idx: number, value: string) => {
+      setCells((prev) => {
+        const next = [...prev];
+        next[idx] = value;
+        return next;
+      });
+    },
+    [],
+  );
+
+  // Distribute a pasted/typed string across the cells starting at idx.
+  // Returns the final cursor index so the caller can refocus correctly.
+  const writeFromIndex = useCallback(
+    (idx: number, source: string): number => {
+      const sanitized = source
+        .toUpperCase()
+        .split('')
+        .map(sanitizeChar)
+        .filter(Boolean);
+      if (sanitized.length === 0) return idx;
+      setCells((prev) => {
+        const next = [...prev];
+        for (let i = 0; i < sanitized.length && idx + i < BATTLE_CODE_LENGTH; i++) {
+          next[idx + i] = sanitized[i];
+        }
+        return next;
+      });
+      return Math.min(idx + sanitized.length, BATTLE_CODE_LENGTH - 1);
+    },
+    [],
+  );
+
+  const handleChange = (
+    idx: number,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const raw = e.target.value;
+    // Strip leading already-filled char so typing replaces, not appends.
+    // (Some mobile autofills can send multi-char strings into a single
+    // cell — we treat that as a paste and spread it across cells.)
+    const newChars = raw.slice(cells[idx].length || 0);
+    if (newChars.length > 1) {
+      const newIdx = writeFromIndex(idx, newChars);
+      inputRefs.current[newIdx]?.focus();
+      inputRefs.current[newIdx]?.select();
+      return;
+    }
+    const ch = sanitizeChar(newChars || raw.slice(-1));
+    setCellAt(idx, ch);
+    if (ch && idx < BATTLE_CODE_LENGTH - 1) {
+      inputRefs.current[idx + 1]?.focus();
+      inputRefs.current[idx + 1]?.select();
+    }
+  };
+
+  const handleKeyDown = (
+    idx: number,
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (e.key === 'Backspace') {
+      if (cells[idx]) {
+        // Clear this cell first; second backspace then moves left.
+        setCellAt(idx, '');
+        return;
+      }
+      if (idx > 0) {
+        e.preventDefault();
+        setCellAt(idx - 1, '');
+        inputRefs.current[idx - 1]?.focus();
+      }
+      return;
+    }
+    if (e.key === 'ArrowLeft' && idx > 0) {
+      e.preventDefault();
+      inputRefs.current[idx - 1]?.focus();
+      inputRefs.current[idx - 1]?.select();
+    } else if (e.key === 'ArrowRight' && idx < BATTLE_CODE_LENGTH - 1) {
+      e.preventDefault();
+      inputRefs.current[idx + 1]?.focus();
+      inputRefs.current[idx + 1]?.select();
+    } else if (e.key === 'Enter' && valid) {
+      e.preventDefault();
+      onSubmit(code);
+    }
+  };
+
+  const handlePaste = (
+    idx: number,
+    e: React.ClipboardEvent<HTMLInputElement>,
+  ) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text');
+    const newIdx = writeFromIndex(idx, text);
+    inputRefs.current[newIdx]?.focus();
+    inputRefs.current[newIdx]?.select();
+  };
 
   return (
     <form
@@ -845,28 +1047,61 @@ function JoinInput({
         e.preventDefault();
         if (valid) onSubmit(code);
       }}
-      className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.02] p-6"
+      className="flex flex-col gap-5"
     >
-      <div className="flex flex-col gap-1.5">
-        <label
-          htmlFor="party-code"
-          className="text-xs uppercase tracking-[0.16em] text-zinc-500"
-        >
-          party code
-        </label>
-        <input
-          id="party-code"
-          autoFocus
-          autoComplete="off"
-          autoCapitalize="characters"
-          spellCheck={false}
-          value={raw}
-          onChange={(e) => setRaw(e.target.value)}
-          maxLength={BATTLE_CODE_LENGTH + 2}
-          placeholder="e.g. K7M2P9"
-          className="font-num w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-2xl font-bold uppercase tracking-[0.3em] text-white placeholder:text-zinc-700 focus:border-white/30 focus:outline-none"
-          style={{ textTransform: 'uppercase' }}
+      {/* Hero violet halo behind the cells to keep the brand accent
+          consistent with the "join party" card on the mode-select
+          screen. Subtle — the cells themselves are the focus. */}
+      <div className="relative flex flex-col items-center gap-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] px-5 py-9">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              'radial-gradient(circle at 50% 0%, rgba(168,85,247,0.22) 0%, transparent 55%)',
+          }}
         />
+        <div className="flex flex-col items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/30 bg-violet-500/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200">
+            <Search size={11} aria-hidden /> enter code
+          </span>
+          <p className="text-[13px] text-zinc-400">
+            6 characters · sent by your host
+          </p>
+        </div>
+
+        <div
+          className="flex items-center justify-center gap-2 sm:gap-2.5"
+          role="group"
+          aria-label="party code"
+        >
+          {cells.map((ch, idx) => (
+            <input
+              key={idx}
+              ref={(el) => {
+                inputRefs.current[idx] = el;
+              }}
+              type="text"
+              inputMode="text"
+              autoComplete={idx === 0 ? 'one-time-code' : 'off'}
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={BATTLE_CODE_LENGTH}
+              value={ch}
+              onChange={(e) => handleChange(idx, e)}
+              onKeyDown={(e) => handleKeyDown(idx, e)}
+              onPaste={(e) => handlePaste(idx, e)}
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label={`code character ${idx + 1}`}
+              className={`font-num h-14 w-11 rounded-2xl border bg-black/40 text-center text-3xl font-extrabold uppercase tabular-nums text-white caret-transparent transition-all sm:h-16 sm:w-12 sm:text-[2rem] ${
+                ch
+                  ? 'border-violet-400/55 shadow-[0_0_0_3px_rgba(168,85,247,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  : 'border-white/10 hover:border-white/20 focus:border-violet-400/55 focus:shadow-[0_0_0_3px_rgba(168,85,247,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]'
+              } focus:outline-none`}
+              style={{ textTransform: 'uppercase' }}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="flex gap-2">
@@ -882,9 +1117,15 @@ function JoinInput({
           type="submit"
           disabled={!valid}
           style={{ touchAction: 'manipulation' }}
-          className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-white text-sm font-semibold text-black hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black transition-all hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          join
+          {valid ? (
+            <>
+              join party <ArrowRight size={14} aria-hidden />
+            </>
+          ) : (
+            'join party'
+          )}
         </button>
       </div>
     </form>
@@ -979,72 +1220,49 @@ function Lobby({
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  const supabaseRest = useMemo(
-    () => ({
-      url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-    }),
-    [],
-  );
 
   const refetchParticipants = useCallback(async () => {
-    if (!supabaseRest.url) return;
     try {
-      const res = await fetch(
-        `${supabaseRest.url}/rest/v1/battle_participants?battle_id=eq.${battleId}&select=user_id,display_name&order=joined_at.asc`,
-        {
-          headers: {
-            apikey: supabaseRest.key,
-            Authorization: `Bearer ${supabaseRest.key}`,
-          },
-        },
-      );
+      // Backend route — RLS on battle_participants requires auth.uid()
+      // which Auth.js doesn't set, so the Supabase REST + anon-key path
+      // returns 0 rows for every client. Service-role on the server
+      // bypasses RLS and we apply our own "must be a participant or
+      // host" check inside the route.
+      const res = await fetch(`/api/battle/${battleId}/participants`, {
+        cache: 'no-store',
+      });
       if (!res.ok) return;
-      const rows = (await res.json()) as LobbyParticipant[];
-      setParticipants(rows);
+      const data = (await res.json()) as { participants?: LobbyParticipant[] };
+      if (Array.isArray(data.participants)) setParticipants(data.participants);
     } catch {
       // ignore
     }
-  }, [battleId, supabaseRest]);
+  }, [battleId]);
 
-  // Initial + periodic refresh.
+  // Initial + periodic refresh — the broadcast subscription below is
+  // the fast path, but polling is the reliable fallback in case
+  // Realtime is unreachable for any client.
   useEffect(() => {
     void refetchParticipants();
     const id = window.setInterval(refetchParticipants, 4000);
     return () => window.clearInterval(id);
   }, [refetchParticipants]);
 
-  // Realtime: participants joining/leaving + battle row state changes.
+  // Realtime broadcast subscription. The server emits broadcast events
+  // (lib/realtime.ts) on the `battle:${id}` topic when participants
+  // join (/api/battle/join) and when the host starts the battle
+  // (/api/battle/start). Broadcast channels don't go through RLS, so
+  // this works regardless of Supabase Auth state.
   useEffect(() => {
     const supabase = getSupabaseBrowser();
     const channel = supabase
-      .channel(`lobby:${battleId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'battle_participants',
-          filter: `battle_id=eq.${battleId}`,
-        },
-        () => {
-          void refetchParticipants();
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'battles',
-          filter: `id=eq.${battleId}`,
-        },
-        (payload: { new: { state?: string } }) => {
-          if (payload.new.state === 'starting' || payload.new.state === 'active') {
-            onStarting();
-          }
-        },
-      )
+      .channel(`battle:${battleId}`)
+      .on('broadcast', { event: 'participant.joined' }, () => {
+        void refetchParticipants();
+      })
+      .on('broadcast', { event: 'battle.starting' }, () => {
+        onStarting();
+      })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
@@ -1060,6 +1278,25 @@ function Lobby({
       // ignore
     }
   }, [code]);
+
+  // Native Share — only renders the button when the browser actually
+  // exposes the Web Share API (mobile Safari, Chrome on Android,
+  // recent desktop). When it's missing the Copy button is enough.
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => {
+    setCanShare(typeof navigator !== 'undefined' && !!navigator.share);
+  }, []);
+  const onShare = useCallback(async () => {
+    try {
+      await navigator.share({
+        title: 'holymog party',
+        text: `join my holymog party — code ${code}`,
+      });
+    } catch {
+      // user cancelled / share unavailable — fall back to copy
+      void onCopy();
+    }
+  }, [code, onCopy]);
 
   const onStart = useCallback(async () => {
     setStarting(true);
@@ -1085,29 +1322,94 @@ function Lobby({
 
   const canStart = isHost && participants.length >= 2 && !starting;
 
+  // Split the 6-char code into individual cells so the host's display
+  // matches the join input — friends scanning their screen see the
+  // same chunky visual rhythm in both directions.
+  const cells = code.split('');
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-6">
-        <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-          party code
-        </div>
-        <div className="mt-2 flex items-center gap-3">
-          <span className="font-num text-4xl font-extrabold uppercase tracking-[0.3em] text-white">
-            {code}
+      {/* Hero code card — rose accent matches the "create party" tile on
+          mode-select. Big chunky cells, copy + (when available)
+          native share, and a centered "share this with friends" CTA
+          replace the cramped row + tiny copy button. */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] px-5 py-7">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -top-32 left-1/2 -z-10 h-72 w-72 -translate-x-1/2 rounded-full blur-3xl"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(244,63,94,0.30) 0%, rgba(244,63,94,0.10) 35%, transparent 65%)',
+          }}
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 rounded-3xl"
+          style={{
+            boxShadow:
+              'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(244,63,94,0.10)',
+          }}
+        />
+
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-200">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inset-0 animate-ping rounded-full bg-rose-400/70" />
+              <span className="relative h-1.5 w-1.5 rounded-full bg-rose-400" />
+            </span>
+            party code
           </span>
+          <p className="mt-1 text-[12px] text-zinc-400">
+            share with friends · up to 10 players
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onCopy}
+          aria-label="copy code"
+          style={{ touchAction: 'manipulation' }}
+          className="group mt-5 flex w-full items-center justify-center gap-2 sm:gap-2.5"
+        >
+          {cells.map((ch, idx) => (
+            <span
+              key={idx}
+              className="font-num inline-flex h-14 w-11 items-center justify-center rounded-2xl border border-rose-400/40 bg-black/40 text-3xl font-extrabold uppercase tabular-nums text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_3px_rgba(244,63,94,0.05)] transition-all group-hover:border-rose-300/65 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_3px_rgba(244,63,94,0.12)] sm:h-16 sm:w-12 sm:text-[2rem]"
+              style={{ textTransform: 'uppercase' }}
+            >
+              {ch}
+            </span>
+          ))}
+        </button>
+
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           <button
             type="button"
             onClick={onCopy}
-            aria-label="copy code"
             style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.1]"
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-medium text-white transition-colors hover:bg-white/[0.08]"
           >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? (
+              <>
+                <Check size={14} aria-hidden /> copied
+              </>
+            ) : (
+              <>
+                <Copy size={14} aria-hidden /> copy
+              </>
+            )}
           </button>
+          {canShare && (
+            <button
+              type="button"
+              onClick={onShare}
+              style={{ touchAction: 'manipulation' }}
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/[0.10] px-4 text-sm font-medium text-rose-100 transition-colors hover:bg-rose-500/[0.16]"
+            >
+              <Share2 size={14} aria-hidden /> share
+            </button>
+          )}
         </div>
-        <p className="mt-3 text-xs text-zinc-500">
-          share this code with friends. up to 10 players.
-        </p>
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
@@ -1122,23 +1424,56 @@ function Lobby({
           )}
         </div>
         <ul className="flex flex-col gap-1.5">
-          {participants.map((p) => (
-            <li
-              key={p.user_id}
-              className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 text-sm"
-            >
-              <Link
-                href={`/@${p.display_name}`}
-                className="text-white hover:underline underline-offset-2"
+          {participants.map((p, idx) => {
+            const isYou = p.user_id === userId;
+            const isHostRow = idx === 0;
+            return (
+              <motion.li
+                key={p.user_id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2"
               >
-                {p.display_name}
-              </Link>
-              <span className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-                {p.user_id === userId && <span>you</span>}
-                {/* host indicator: first joiner is the host (insert order) */}
+                <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10">
+                  <AvatarFallback
+                    seed={p.display_name}
+                    textClassName="text-[11px]"
+                  />
+                </span>
+                <Link
+                  href={`/@${p.display_name}`}
+                  className="flex-1 truncate text-sm text-white hover:underline underline-offset-2"
+                >
+                  {p.display_name}
+                </Link>
+                <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                  {isHostRow && (
+                    <span className="rounded-full border border-rose-400/30 bg-rose-500/[0.08] px-1.5 py-0.5 text-rose-200">
+                      host
+                    </span>
+                  )}
+                  {isYou && <span>you</span>}
+                </span>
+              </motion.li>
+            );
+          })}
+          {/* Empty placeholder rows so the lobby has a visible "waiting"
+              shape before the first opponent joins — better than the
+              previous bare "loading…" text. */}
+          {participants.length > 0 && participants.length < 2 && (
+            <li className="flex items-center gap-3 rounded-xl border border-dashed border-white/10 bg-white/[0.01] px-3 py-2 text-sm text-zinc-500">
+              <span
+                aria-hidden
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/10"
+              >
+                <Loader2 size={12} className="animate-spin text-zinc-500" />
               </span>
+              waiting for someone to join…
             </li>
-          ))}
+          )}
           {participants.length === 0 && (
             <li className="text-xs text-zinc-500">loading participants…</li>
           )}
@@ -1218,31 +1553,19 @@ function Joining({
     firedRef.current = true;
     (async () => {
       try {
-        const [tokenRes, battleRes] = await Promise.all([
+        const [tokenRes, stateRes] = await Promise.all([
           fetch(`/api/battle/${battleId}/token`),
-          // We pull the battle row through the Supabase REST API to avoid
-          // adding another bespoke route. The battles table is world-
-          // readable so this is fine.
-          fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/battles?id=eq.${battleId}&select=started_at`,
-            {
-              headers: {
-                apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-                Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''}`,
-              },
-            },
-          ),
+          fetch(`/api/battle/${battleId}/state`, { cache: 'no-store' }),
         ]);
-        if (!tokenRes.ok || !battleRes.ok) {
+        if (!tokenRes.ok || !stateRes.ok) {
           onError();
           return;
         }
         const tokenData = (await tokenRes.json()) as { token: string; url: string };
-        const battleRows = (await battleRes.json()) as Array<{
-          started_at: string | null;
-        }>;
-        const startedAtIso = battleRows[0]?.started_at;
-        const startedAt = startedAtIso ? Date.parse(startedAtIso) : Date.now();
+        const stateData = (await stateRes.json()) as { started_at: string | null };
+        const startedAt = stateData.started_at
+          ? Date.parse(stateData.started_at)
+          : Date.now();
         onReady(tokenData.token, tokenData.url, startedAt);
       } catch {
         onError();
@@ -1277,299 +1600,3 @@ function CenteredSpinner({
   );
 }
 
-// ---- Result screen ---------------------------------------------------------
-
-function ResultScreen({
-  result,
-  currentUserId,
-  onAgain,
-  onRematch,
-}: {
-  result: FinishPayload;
-  currentUserId: string;
-  onAgain: () => void;
-  onRematch: (battleId: string, code: string, isHost: boolean) => void;
-}) {
-  const me = result.participants.find((p) => p.user_id === currentUserId);
-  const opponent = result.participants.find((p) => p.user_id !== currentUserId);
-  const youWon = me?.is_winner === true;
-  const isPrivate = result.kind === 'private';
-  const [rematching, setRematching] = useState(false);
-  const [rematchError, setRematchError] = useState<string | null>(null);
-
-  // Listen for the OTHER participant clicking rematch first. When the
-  // server inserts the new private battle it broadcasts battle.rematch
-  // on the OLD battle's channel; we hop into the new lobby as a joiner.
-  useEffect(() => {
-    if (!isPrivate) return;
-    const supabase = getSupabaseBrowser();
-    const channel = supabase
-      .channel(`battle:${result.battle_id}`)
-      .on(
-        'broadcast',
-        { event: 'battle.rematch' },
-        (msg: {
-          payload: { new_battle_id?: string; new_code?: string };
-        }) => {
-          const id = msg.payload.new_battle_id;
-          const code = msg.payload.new_code;
-          if (typeof id === 'string' && typeof code === 'string') {
-            onRematch(id, code, false);
-          }
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [isPrivate, result.battle_id, onRematch]);
-
-  const [sharing, setSharing] = useState(false);
-
-  const onShare = useCallback(async () => {
-    if (!me || !opponent) return;
-    setSharing(true);
-    try {
-      const blob = await generateBattleShareImage({
-        self: { display_name: me.display_name, peak_score: me.final_score },
-        opponent: {
-          display_name: opponent.display_name,
-          peak_score: opponent.final_score,
-        },
-        won: youWon,
-      });
-      const filename = `holymog-${youWon ? 'win' : 'loss'}-${Date.now()}.png`;
-      const file = new File([blob], filename, { type: 'image/png' });
-
-      // On mobile, Web Share API with files lets the user pick IG /
-      // Snap / X / etc. directly. On desktop or unsupported clients,
-      // fall back to a download.
-      const navWithShare = navigator as Navigator & {
-        canShare?: (data: { files?: File[] }) => boolean;
-        share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
-      };
-      if (
-        typeof navWithShare.canShare === 'function' &&
-        typeof navWithShare.share === 'function' &&
-        navWithShare.canShare({ files: [file] })
-      ) {
-        await navWithShare.share({
-          files: [file],
-          title: 'holymog battle',
-          text: youWon ? 'i mogged' : 'i got mogged',
-        });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch {
-      // best-effort; no error UI for now
-    } finally {
-      setSharing(false);
-    }
-  }, [me, opponent, youWon]);
-
-  const startRematch = useCallback(async () => {
-    setRematching(true);
-    setRematchError(null);
-    try {
-      const res = await fetch('/api/battle/rematch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ battle_id: result.battle_id }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        setRematchError(data.error ?? 'rematch failed');
-        setRematching(false);
-        return;
-      }
-      const data = (await res.json()) as { battle_id: string; code: string };
-      onRematch(data.battle_id, data.code, true);
-    } catch {
-      setRematchError('network error');
-      setRematching(false);
-    }
-  }, [result.battle_id, onRematch]);
-
-  return (
-    <div className="min-h-dvh bg-black">
-      {/* Winner flash overlay — only when the local user won. Brief 0.5s
-          emerald wash that fades out, drawing the eye to the headline. */}
-      <AnimatePresence>
-        {youWon && (
-          <motion.div
-            initial={{ opacity: 0.85 }}
-            animate={{ opacity: 0 }}
-            transition={{ duration: 0.55, ease: 'easeOut' }}
-            className="pointer-events-none fixed inset-0 z-50"
-            style={{
-              background:
-                'radial-gradient(circle at center, rgba(16,185,129,0.35) 0%, rgba(0,0,0,0) 65%)',
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      <AppHeader authNext="/mog" />
-      <main
-        className="mx-auto w-full max-w-md px-5 py-8"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
-      >
-        <motion.h1
-          initial={{ y: 8, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-1 text-3xl font-bold text-white"
-        >
-          {youWon ? 'you mogged' : me ? 'you got mogged' : 'battle done'}
-        </motion.h1>
-        <motion.p
-          initial={{ y: 8, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.06 }}
-          className="mb-6 text-sm text-zinc-400"
-        >
-          {youWon
-            ? 'highest peak score wins. nice.'
-            : me
-              ? 'rematch in the next one'
-              : 'thanks for spectating'}
-        </motion.p>
-
-        <div className="mb-6 grid grid-cols-2 gap-3">
-          {me && <ResultCell entry={me} you />}
-          {opponent && <ResultCell entry={opponent} />}
-        </div>
-
-        {me && opponent && (
-          <button
-            type="button"
-            onClick={onShare}
-            disabled={sharing}
-            style={{ touchAction: 'manipulation' }}
-            className="mb-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] text-sm text-white hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {sharing ? (
-              <>
-                <Loader2 size={14} className="animate-spin" /> rendering image…
-              </>
-            ) : (
-              <>
-                <Download size={14} aria-hidden /> share result
-              </>
-            )}
-          </button>
-        )}
-
-        {rematchError && (
-          <p className="mb-2 text-xs text-red-300">{rematchError}</p>
-        )}
-
-        <div className="flex gap-2">
-          <Link
-            href="/"
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-sm text-white hover:bg-white/[0.07]"
-          >
-            home
-          </Link>
-          {isPrivate ? (
-            <button
-              type="button"
-              onClick={startRematch}
-              disabled={rematching}
-              style={{ touchAction: 'manipulation' }}
-              className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {rematching ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" /> rematching…
-                </>
-              ) : (
-                'rematch'
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onAgain}
-              style={{ touchAction: 'manipulation' }}
-              className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-white text-sm font-semibold text-black hover:bg-zinc-100"
-            >
-              find another
-            </button>
-          )}
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function ResultCell({
-  entry,
-  you,
-}: {
-  entry: FinishPayload['participants'][number];
-  you?: boolean;
-}) {
-  const tier = getTier(entry.final_score);
-  const color = getScoreColor(entry.final_score);
-  const tierStyle: React.CSSProperties = tier.isGradient
-    ? {
-        backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-        WebkitBackgroundClip: 'text',
-        backgroundClip: 'text',
-        color: 'transparent',
-      }
-    : { color: tier.color };
-
-  return (
-    <motion.div
-      initial={{ y: 14, scale: 0.95, opacity: 0 }}
-      animate={{ y: 0, scale: 1, opacity: 1 }}
-      transition={{
-        duration: 0.45,
-        ease: [0.22, 1, 0.36, 1],
-        delay: you ? 0.12 : 0.22,
-      }}
-      className={`relative flex flex-col gap-1 rounded-2xl border px-4 py-3 ${
-        entry.is_winner
-          ? 'border-emerald-500/40 bg-emerald-500/10'
-          : 'border-white/10 bg-white/[0.02]'
-      }`}
-    >
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-        {you ? 'you' : 'opponent'}
-        {entry.is_winner && (
-          <span className="rounded-full bg-emerald-500/20 px-1.5 text-emerald-300 normal-case">
-            win
-          </span>
-        )}
-      </div>
-      <div className="flex items-baseline gap-1.5">
-        <span
-          className="font-num text-3xl font-extrabold tabular-nums"
-          style={{ color }}
-        >
-          {entry.final_score}
-        </span>
-        <span
-          className="font-num text-base font-bold normal-case"
-          style={tierStyle}
-        >
-          {tier.letter}
-        </span>
-      </div>
-      <Link
-        href={`/@${entry.display_name}`}
-        className="truncate text-sm text-zinc-300 hover:text-white hover:underline underline-offset-2"
-      >
-        {entry.display_name}
-      </Link>
-    </motion.div>
-  );
-}

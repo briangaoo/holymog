@@ -21,12 +21,23 @@ type Props = {
 };
 
 export function ScoreReveal({ scores, capturedImage, onRevealDone }: Props) {
+  const fallback = scores.fallback === true;
+  // When the vision call fell back, every numeric field is a 50
+  // placeholder. Pass the score through getTier anyway so the
+  // non-fallback path is unchanged, but the fallback branch below
+  // overrides every visual.
   const tier = getTier(scores.overall);
   const descriptor = getTierDescriptor(tier.letter);
   const [mainCount, setMainCount] = useState(0);
   const [bounce, setBounce] = useState(false);
 
   useEffect(() => {
+    if (fallback) {
+      // No count-up when there's no real score to reveal. Still fire
+      // the done timer so the flow advances normally.
+      const doneTimer = window.setTimeout(onRevealDone, REVEAL_DURATION_MS);
+      return () => window.clearTimeout(doneTimer);
+    }
     const startTs = performance.now();
     let raf = 0;
     const tick = () => {
@@ -44,26 +55,42 @@ export function ScoreReveal({ scores, capturedImage, onRevealDone }: Props) {
       window.clearTimeout(bounceTimer);
       window.clearTimeout(doneTimer);
     };
-  }, [scores.overall, onRevealDone]);
+  }, [scores.overall, onRevealDone, fallback]);
 
-  const letterStyle: React.CSSProperties = tier.isGradient
-    ? {
-        backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-        WebkitBackgroundClip: 'text',
-        backgroundClip: 'text',
-        color: 'transparent',
-        textShadow: tier.glow ? '0 0 60px rgba(168,85,247,0.55)' : undefined,
-        filter: tier.glow ? 'drop-shadow(0 0 36px rgba(34,211,238,0.45))' : undefined,
-      }
-    : { color: tier.color };
+  // In fallback mode every visual switches to muted zinc — no
+  // confetti, no tier-colored glow, no count-up. Just "N/A" + "—".
+  const ZINC_500 = '#71717a';
+  const avatarAccent = fallback ? ZINC_500 : tier.color;
+  const avatarGradient = fallback ? false : tier.isGradient;
+  const letterStyle: React.CSSProperties = fallback
+    ? { color: ZINC_500, textTransform: 'uppercase' }
+    : tier.isGradient
+      ? {
+          backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+          color: 'transparent',
+          textShadow: tier.glow ? '0 0 60px rgba(168,85,247,0.55)' : undefined,
+          filter: tier.glow ? 'drop-shadow(0 0 36px rgba(34,211,238,0.45))' : undefined,
+          textTransform: 'uppercase',
+        }
+      : { color: tier.color, textTransform: 'uppercase' };
 
-  const descriptorColor = tier.isGradient ? '#a855f7' : tier.color;
+  const descriptorColor = fallback
+    ? ZINC_500
+    : tier.isGradient
+      ? '#a855f7'
+      : tier.color;
 
   return (
     <div className="flex w-full flex-col items-center gap-6" role="status" aria-live="polite">
-      <Confetti fire color={tier.color} isGradient={tier.isGradient} />
+      {!fallback && <Confetti fire color={tier.color} isGradient={tier.isGradient} />}
 
-      <Avatar src={capturedImage} accent={tier.color} isGradient={tier.isGradient} />
+      <Avatar
+        src={capturedImage}
+        accent={avatarAccent}
+        isGradient={avatarGradient}
+      />
 
       <motion.div
         initial={{ scale: 0.7, opacity: 0 }}
@@ -78,31 +105,35 @@ export function ScoreReveal({ scores, capturedImage, onRevealDone }: Props) {
         className="font-num text-center leading-none"
       >
         <div
-          className="normal-case"
+          className="uppercase"
           style={{
             fontSize: 'clamp(180px, 50vw, 380px)',
             fontWeight: 900,
             ...letterStyle,
           }}
-          aria-label={`Tier ${tier.letter}`}
+          aria-label={fallback ? 'Score unavailable' : `Tier ${tier.letter}`}
         >
-          {tier.letter}
+          {fallback ? '—' : tier.letter}
         </div>
       </motion.div>
 
       <div className="flex flex-col items-center gap-1">
         <div
-          className="font-num font-extrabold text-white"
-          style={{ fontSize: 'clamp(52px, 14vw, 80px)', lineHeight: 1 }}
-          aria-label={`Overall score ${scores.overall}`}
+          className="font-num font-extrabold"
+          style={{
+            fontSize: 'clamp(52px, 14vw, 80px)',
+            lineHeight: 1,
+            color: fallback ? ZINC_500 : '#ffffff',
+          }}
+          aria-label={fallback ? 'Overall score unavailable' : `Overall score ${scores.overall}`}
         >
-          {mainCount}
+          {fallback ? 'N/A' : mainCount}
         </div>
         <div
           className="text-sm font-medium lowercase tracking-wide"
           style={{ color: descriptorColor, opacity: 0.95 }}
         >
-          {descriptor}
+          {fallback ? 'unavailable' : descriptor}
         </div>
       </div>
 
@@ -112,13 +143,29 @@ export function ScoreReveal({ scores, capturedImage, onRevealDone }: Props) {
         transition={{ duration: 0.3, delay: 0.2 }}
         className="grid w-full grid-cols-2 gap-3"
       >
-        <SubScoreCard label="Jawline" finalValue={scores.sub.jawline} startDelayMs={200} />
-        <SubScoreCard label="Eyes" finalValue={scores.sub.eyes} startDelayMs={300} />
-        <SubScoreCard label="Skin" finalValue={scores.sub.skin} startDelayMs={400} />
+        <SubScoreCard
+          label="Jawline"
+          finalValue={scores.sub.jawline}
+          startDelayMs={200}
+          fallback={fallback}
+        />
+        <SubScoreCard
+          label="Eyes"
+          finalValue={scores.sub.eyes}
+          startDelayMs={300}
+          fallback={fallback}
+        />
+        <SubScoreCard
+          label="Skin"
+          finalValue={scores.sub.skin}
+          startDelayMs={400}
+          fallback={fallback}
+        />
         <SubScoreCard
           label="Cheekbones"
           finalValue={scores.sub.cheekbones}
           startDelayMs={500}
+          fallback={fallback}
         />
       </motion.div>
     </div>

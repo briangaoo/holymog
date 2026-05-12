@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
-import { FACES_BUCKET, getSupabaseAdmin } from '@/lib/supabase';
+import { UPLOADS_BUCKET, getSupabaseAdmin } from '@/lib/supabase';
 import { isSubscriber } from '@/lib/subscription';
 import { requireSameOrigin } from '@/lib/originGuard';
 import { publicError } from '@/lib/errors';
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
   const path = `banners/${user.id}.${ext}`;
 
   const { error: uploadErr } = await supabase.storage
-    .from(FACES_BUCKET)
+    .from(UPLOADS_BUCKET)
     .upload(path, buffer, {
       contentType: mime,
       cacheControl: 'no-cache',
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
     return NextResponse.json(publicError('upload_failed', uploadErr.message), { status: 500 });
   }
 
-  const { data: pub } = supabase.storage.from(FACES_BUCKET).getPublicUrl(path);
+  const { data: pub } = supabase.storage.from(UPLOADS_BUCKET).getPublicUrl(path);
   const cacheBustedUrl = `${pub.publicUrl}?v=${Date.now()}`;
 
   const pool = getPool();
@@ -141,7 +141,7 @@ export async function DELETE(request: Request) {
   const supabase = getSupabaseAdmin();
   if (supabase) {
     await supabase.storage
-      .from(FACES_BUCKET)
+      .from(UPLOADS_BUCKET)
       .remove([
         `banners/${user.id}.png`,
         `banners/${user.id}.jpg`,

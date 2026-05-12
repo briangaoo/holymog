@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { FACES_BUCKET, getSupabaseAdmin } from '@/lib/supabase';
+import { UPLOADS_BUCKET, getSupabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,7 +47,7 @@ export async function DELETE() {
 
   if (existing.image_path) {
     await supabase.storage
-      .from(FACES_BUCKET)
+      .from(UPLOADS_BUCKET)
       .remove([existing.image_path])
       .catch(() => {
         // best-effort

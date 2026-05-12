@@ -73,7 +73,13 @@ const EMPTY_STATS: UserStats = {
   weakestSubScore: null,
 };
 
-export function CustomizationSection({ profile }: { profile: SettingsProfile }) {
+export function CustomizationSection({
+  profile,
+  onRefresh,
+}: {
+  profile: SettingsProfile;
+  onRefresh?: () => void | Promise<void>;
+}) {
   const { user } = useUser();
   const [data, setData] = useState<CatalogResponse | null>(null);
   const [userStats, setUserStats] = useState<UserStats>(EMPTY_STATS);
@@ -144,11 +150,12 @@ export function CustomizationSection({ profile }: { profile: SettingsProfile }) 
           return;
         }
         await refresh();
+        if (onRefresh) void onRefresh();
       } finally {
         setPending(null);
       }
     },
-    [refresh],
+    [refresh, onRefresh],
   );
 
   const unequip = useCallback(async () => {
@@ -165,10 +172,11 @@ export function CustomizationSection({ profile }: { profile: SettingsProfile }) 
         return;
       }
       await refresh();
+      if (onRefresh) void onRefresh();
     } finally {
       setPending(null);
     }
-  }, [refresh]);
+  }, [refresh, onRefresh]);
 
   if (!user || !data) {
     return (

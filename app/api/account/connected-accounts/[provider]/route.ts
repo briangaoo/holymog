@@ -5,13 +5,22 @@ import { getPool } from '@/lib/db';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_PROVIDERS = new Set(['google', 'apple', 'github']);
+// 'email' is a synthetic provider that maps to clearing the user's
+// `emailVerified` timestamp (which is what gates magic-link sign-in).
+const ALLOWED_PROVIDERS = new Set(['google', 'apple', 'github', 'email']);
 
 /**
- * DELETE /api/account/connected-accounts/[provider] — unlink an OAuth
- * provider from the user's account. Refuses to unlink the LAST sign-in
- * method (would lock the user out): if the user has no email-auth +
- * only this OAuth, return 409.
+ * DELETE /api/account/connected-accounts/[provider]
+ *
+ * Unlinks a sign-in method from the user's account. For OAuth
+ * providers (google/apple/github) this deletes the row from the
+ * Auth.js `accounts` table. For the synthetic `email` provider it
+ * clears `emailVerified` so the magic-link path no longer recognises
+ * the address.
+ *
+ * Refuses to unlink the LAST sign-in method (would lock the user
+ * out) — returns 409 in that case so the UI can surface a friendly
+ * message.
  */
 export async function DELETE(
   _request: Request,
@@ -30,28 +39,48 @@ export async function DELETE(
 
   const pool = getPool();
 
-  // Lockout guard: count remaining sign-in methods AFTER this unlink.
+  // Count remaining sign-in methods AFTER this unlink.
   const accounts = await pool.query<{ provider: string }>(
     `select provider from accounts where "userId" = $1`,
     [session.user.id],
   );
-  const others = accounts.rows.filter((r) => r.provider !== normalised);
-  const emailAuth = await pool.query<{ exists: boolean }>(
+  const emailAuthRow = await pool.query<{ exists: boolean }>(
     `select exists(
        select 1 from users where id = $1 and email is not null and "emailVerified" is not null
      ) as exists`,
     [session.user.id],
   );
-  const hasEmailAuth = emailAuth.rows[0]?.exists ?? false;
-  if (others.length === 0 && !hasEmailAuth) {
+  const hasEmailAuthAfter =
+    normalised === 'email'
+      ? false
+      : emailAuthRow.rows[0]?.exists ?? false;
+  const otherOauthAfter = accounts.rows.filter(
+    (r) => r.provider !== normalised,
+  );
+
+  if (otherOauthAfter.length === 0 && !hasEmailAuthAfter) {
     return NextResponse.json(
       {
         error: 'last_signin_method',
         message:
-          'This is your only sign-in method. Add a magic-link email or another provider before unlinking.',
+          'This is your only sign-in method. Add another method before removing this one — otherwise you’d be locked out.',
       },
       { status: 409 },
     );
+  }
+
+  if (normalised === 'email') {
+    // Clear the verified timestamp; the magic-link provider only signs
+    // a user in when `users.emailVerified is not null`. Keeping the
+    // address itself (users.email) so re-adding email later works.
+    const result = await pool.query(
+      `update users set "emailVerified" = NULL where id = $1 and "emailVerified" is not null`,
+      [session.user.id],
+    );
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'not_linked' }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
   }
 
   const result = await pool.query(

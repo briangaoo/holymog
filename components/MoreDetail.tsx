@@ -110,6 +110,12 @@ export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }:
     return <MoreDetailLocked onSignIn={onSignIn} />;
   }
 
+  // When the vision call fell back, every numeric field is a 50
+  // placeholder. Switch the entire breakdown to "N/A" gray so the
+  // user doesn't read the neutrals as real per-field scores.
+  const fallback = vision.fallback === true;
+  const ZINC_500 = '#71717a';
+
   return (
     <div className="w-full">
       <button
@@ -181,9 +187,11 @@ export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }:
                     {idx === 0 && (
                       <span
                         className="font-num text-base font-extrabold tabular-nums"
-                        style={{ color: getScoreColor(presentation) }}
+                        style={{
+                          color: fallback ? ZINC_500 : getScoreColor(presentation),
+                        }}
                       >
-                        {presentation}
+                        {fallback ? 'N/A' : presentation}
                       </span>
                     )}
                   </header>
@@ -198,9 +206,11 @@ export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }:
                           <span className="text-zinc-300">{label}</span>
                           <span
                             className="font-num font-semibold tabular-nums"
-                            style={{ color: getScoreColor(value) }}
+                            style={{
+                              color: fallback ? ZINC_500 : getScoreColor(value),
+                            }}
                           >
-                            {value}
+                            {fallback ? 'N/A' : value}
                           </span>
                         </div>
                       );

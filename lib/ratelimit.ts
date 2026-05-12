@@ -38,6 +38,10 @@ const PRESETS = {
   // (each create burns a Crockford code from the keyspace and creates
   // an idle LiveKit room).
   battleCreate: { tokens: 10, window: '1 h' },
+  // Post-match reports against a public-1v1 opponent. Server-side
+  // dedupes on (battle_id, reporter, reported) anyway; this caps a
+  // spam burst from a single user filing dozens of reports.
+  battleReport: { tokens: 10, window: '1 h' },
 } as const satisfies Record<string, Preset>;
 
 export type RatelimitName = keyof typeof PRESETS;

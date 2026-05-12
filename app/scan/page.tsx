@@ -24,6 +24,7 @@ import { LeaderboardButton } from '@/components/LeaderboardButton';
 import { LeaderboardModal } from '@/components/LeaderboardModal';
 import { AuthModal } from '@/components/AuthModal';
 import { useUser } from '@/hooks/useUser';
+import { readBackNav } from '@/lib/back-nav';
 import { LiveMeter, LivePageBorder } from '@/components/LiveMeter';
 import { MoreDetail } from '@/components/MoreDetail';
 import { getScoreColor } from '@/lib/scoreColor';
@@ -54,6 +55,13 @@ const TOTAL_DISPLAY_COUNT = REAL_CALL_COUNT * 2;
 // Spiderweb runs during the scan phase (alongside the live meter), not during
 // mapping, so mapping just waits for the heavy /api/score call to complete.
 const MAPPING_MIN_MS = 0;
+
+// Signed-in users see a one-time-per-session warning toast once their
+// daily-used count crosses this threshold (5 scans before the cap).
+// Mirrors `AUTH_DAILY_WARNING_THRESHOLD` in lib/scanLimit.ts — kept
+// inline here so this client module doesn't pull in pg / crypto from
+// the server-only scanLimit file.
+const AUTH_DAILY_WARNING_THRESHOLD = 25;
 
 /** Mirror of the public `/api/scan/check` shape — sensitive internals
  *  (anon_id, ip_hash, oldest timestamps) are kept server-side. */
@@ -158,6 +166,11 @@ export default function Home() {
   // jitter updates in between.
   const [liveScore, setLiveScore] = useState<number | null>(null);
   const [liveDisplayCount, setLiveDisplayCount] = useState(0);
+  // Set to true when /api/quick-score returns a non-2xx (Gemini 429,
+  // budget cap, kill switch, etc). The live meter switches to "N/A"
+  // gray instead of staying invisible — so the user sees "we tried,
+  // it failed" instead of "the meter never appeared."
+  const [liveError, setLiveError] = useState(false);
   const [tokens, setTokens] = useState<TokenAccum>(EMPTY_TOKENS);
   // Track every score already shown this scan so jitter never lands on a
   // duplicate.
@@ -169,6 +182,27 @@ export default function Home() {
   // is paused until the user dismisses the privacy modal on first visit.
   const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const [privacyChecked, setPrivacyChecked] = useState(false);
+  // "X scans left today" warning banner. Dismissed-state is kept in
+  // sessionStorage so the banner doesn't re-appear every navigation
+  // within the same session, but does re-appear on a fresh open.
+  const [warningDismissed, setWarningDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      setWarningDismissed(
+        !!window.sessionStorage.getItem('holymog-scan-warning-dismissed'),
+      );
+    } catch {
+      setWarningDismissed(false);
+    }
+  }, []);
+  const dismissWarning = useCallback(() => {
+    try {
+      window.sessionStorage.setItem('holymog-scan-warning-dismissed', '1');
+    } catch {
+      // ignore
+    }
+    setWarningDismissed(true);
+  }, []);
 
   useEffect(() => {
     try {
@@ -177,6 +211,18 @@ export default function Home() {
       setPrivacyAcknowledged(false);
     }
     setPrivacyChecked(true);
+  }, []);
+
+  // Re-open the modal the user was inside when they clicked /terms or
+  // /privacy. The breadcrumb is consumed (read + cleared) inside each
+  // modal's own restore effect, so we only need to flip the host's
+  // open flag here. PrivacyModal opens automatically based on
+  // localStorage, so it doesn't need a re-open trigger here.
+  useEffect(() => {
+    const snap = readBackNav();
+    const id = snap?.modal?.id;
+    if (id === 'leaderboard') setLeaderboardOpen(true);
+    else if (id === 'auth') setAuthOpen(true);
   }, []);
 
   const acknowledgePrivacy = useCallback(() => {
@@ -229,6 +275,7 @@ export default function Home() {
 
     setLiveScore(null);
     setLiveDisplayCount(0);
+    setLiveError(false);
     setTokens(EMPTY_TOKENS);
     shownScoresRef.current = new Set();
     lastRealScoreRef.current = null;
@@ -272,7 +319,14 @@ export default function Home() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ imageBase64: image }),
             });
-            if (cancelled || !res.ok) return;
+            if (cancelled) return;
+            if (!res.ok) {
+              // Gemini 429 / budget cap / kill switch — surface as N/A
+              // on the meter so the user sees that scoring failed
+              // rather than the meter never appearing.
+              setLiveError(true);
+              return;
+            }
             const inTok = Number(res.headers.get('X-Tokens-Input') ?? 0);
             const outTok = Number(res.headers.get('X-Tokens-Output') ?? 0);
             const data = (await res.json()) as { overall?: number };
@@ -290,7 +344,9 @@ export default function Home() {
               liveCalls: prev.liveCalls + 1,
             }));
           } catch {
-            // best-effort
+            // best-effort; surface as N/A so the meter doesn't just
+            // hang silently on a network error.
+            if (!cancelled) setLiveError(true);
           }
         }, fireT),
       );
@@ -341,6 +397,17 @@ export default function Home() {
       cancelled = true;
       for (const t of timers) window.clearTimeout(t);
       window.clearTimeout(finalize);
+      // Slow-Vertex safety net: if the scan window closed before any quick-score
+      // response landed (every in-flight fetch hits `if (cancelled) return`
+      // after this), the meter would otherwise stay hidden forever — its
+      // showCard condition is `score !== null || error`. Flipping `error`
+      // on cleanup surfaces "N/A" so the user sees the live-meter failed
+      // rather than nothing at all. Only fires when zero real scores
+      // ever landed; if the first one made it through we leave well
+      // alone.
+      if (lastRealScoreRef.current === null) {
+        setLiveError(true);
+      }
     };
   }, [state.type, dispatch]);
 
@@ -408,14 +475,18 @@ export default function Home() {
           // mapping → revealing → complete state transitions.
           pushAchievements(data.achievements);
         } else {
-          // Non-429 server error: fall back to mock so the UI still resolves.
+          // Non-429 server error: fall back to mock so the UI still
+          // resolves, but flag fallback so the results render "N/A"
+          // gray instead of treating the mock random numbers as real.
           const mock = mockVisionScore();
           final = combineScores(mock);
+          final.fallback = true;
           vision = undefined;
         }
       } catch {
         const mock = mockVisionScore();
         final = combineScores(mock);
+        final.fallback = true;
         vision = undefined;
       }
 
@@ -486,15 +557,23 @@ export default function Home() {
 
   const handleRetake = useCallback(() => {
     if (scanLimit && !scanLimit.allowed) {
-      // Limit exhausted — push the user toward auth instead of restarting
-      // the camera. Server-side gate would reject the heavy /api/score call
-      // anyway; we just save the round-trip and the wasted Gemini calls.
-      setAuthOpen(true);
+      // Limit exhausted. Two paths:
+      //   - Anon user: open the auth modal so they can convert into an
+      //     account and get a fresh 50/day quota.
+      //   - Signed-in user: dropping back to idle renders the ScanPaywall
+      //     branch, which surfaces the `auth_daily` timer ("next scan
+      //     unlocks in Xh Ym") instead of a useless sign-in prompt.
+      if (!signedInUser) {
+        setAuthOpen(true);
+        return;
+      }
+      clearSavedResult();
+      dispatch({ type: 'RETAKE' });
       return;
     }
     clearSavedResult();
     dispatch({ type: 'RETAKE' });
-  }, [dispatch, scanLimit]);
+  }, [dispatch, scanLimit, signedInUser]);
 
   // Fetch scan-limit state on mount AND whenever auth changes (sign in/out
   // flips the user between cookie-keyed and user-keyed counters).
@@ -608,6 +687,39 @@ export default function Home() {
         />
       </header>
 
+      {/* Daily-limit warning — appears once per session after the
+          signed-in user has used >= 25 of their 30 daily scans. Sits
+          just below the wordmark so it's visible but doesn't cover
+          the camera viewfinder. */}
+      {scanLimit !== null &&
+        scanLimit.signedIn &&
+        scanLimit.allowed &&
+        scanLimit.used >= AUTH_DAILY_WARNING_THRESHOLD &&
+        !warningDismissed && (
+          <div
+            className="pointer-events-auto fixed left-1/2 z-40 -translate-x-1/2"
+            style={{ top: 'calc(max(env(safe-area-inset-top), 14px) + 36px)' }}
+            role="status"
+          >
+            <div className="flex items-center gap-2.5 rounded-full border border-amber-400/30 bg-amber-500/[0.10] px-3.5 py-2 text-[12px] text-amber-100 backdrop-blur">
+              <Lock size={12} aria-hidden className="text-amber-200" />
+              <span>
+                {scanLimit.limit - scanLimit.used} scan
+                {scanLimit.limit - scanLimit.used === 1 ? '' : 's'} left today
+              </span>
+              <button
+                type="button"
+                onClick={dismissWarning}
+                aria-label="dismiss"
+                style={{ touchAction: 'manipulation' }}
+                className="-mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-amber-200/80 transition-colors hover:bg-amber-400/10 hover:text-amber-100"
+              >
+                <span aria-hidden className="text-sm leading-none">×</span>
+              </button>
+            </div>
+          </div>
+        )}
+
       {showPaywall && (
         <ScanPaywall
           scanLimit={scanLimit}
@@ -640,10 +752,13 @@ export default function Home() {
             visible={scanPhase || state.type === 'mapping'}
             progress={liveDisplayCount}
             total={TOTAL_DISPLAY_COUNT}
+            error={liveError}
           />
           <LivePageBorder
             color={
-              (scanPhase || state.type === 'mapping') && liveScore !== null
+              (scanPhase || state.type === 'mapping') &&
+              liveScore !== null &&
+              !liveError
                 ? getScoreColor(liveScore)
                 : null
             }
@@ -743,7 +858,8 @@ export default function Home() {
           <ShareSheet
             open={shareOpen}
             onClose={() => setShareOpen(false)}
-            score={state.scores.overall}
+            scores={state.scores}
+            capturedImage={state.capturedImage}
           />
           <LeaderboardModal
             open={leaderboardOpen}
@@ -855,57 +971,98 @@ function CompleteView({
   onAddToLeaderboard: () => void;
   onSignIn: () => void;
 }) {
+  const fallback = scores.fallback === true;
   const tokensForDetail = tokens.liveCalls + tokens.proCalls > 0 ? tokens : undefined;
   const tier = getTier(scores.overall);
   const descriptor = getTierDescriptor(tier.letter);
-  const descriptorColor = tier.isGradient ? '#a855f7' : tier.color;
-  const accent = tier.isGradient ? '#a855f7' : tier.color;
+  const ZINC_500 = '#71717a';
+  const descriptorColor = fallback
+    ? ZINC_500
+    : tier.isGradient
+      ? '#a855f7'
+      : tier.color;
+  // Action-row "add to leaderboard" pill colour. Falls back to a
+  // neutral white outline when scoring failed (no leaderboard
+  // submission makes sense without a real score anyway, but the
+  // button is still rendered so the user can navigate).
+  const accent = fallback
+    ? 'rgba(255,255,255,0.30)'
+    : tier.isGradient
+      ? '#a855f7'
+      : tier.color;
 
-  const letterStyle: React.CSSProperties = tier.isGradient
-    ? {
-        backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-        WebkitBackgroundClip: 'text',
-        backgroundClip: 'text',
-        color: 'transparent',
-        textShadow: tier.glow ? '0 0 60px rgba(168,85,247,0.55)' : undefined,
-        filter: tier.glow ? 'drop-shadow(0 0 36px rgba(34,211,238,0.45))' : undefined,
-      }
-    : { color: tier.color };
+  const letterStyle: React.CSSProperties = fallback
+    ? { color: ZINC_500, textTransform: 'uppercase' }
+    : tier.isGradient
+      ? {
+          backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+          color: 'transparent',
+          textShadow: tier.glow ? '0 0 60px rgba(168,85,247,0.55)' : undefined,
+          filter: tier.glow ? 'drop-shadow(0 0 36px rgba(34,211,238,0.45))' : undefined,
+          textTransform: 'uppercase',
+        }
+      : { color: tier.color, textTransform: 'uppercase' };
 
   return (
     <div className="flex w-full flex-col items-center gap-6">
-      <Avatar src={capturedImage} accent={tier.color} isGradient={tier.isGradient} />
+      <Avatar
+        src={capturedImage}
+        accent={fallback ? ZINC_500 : tier.color}
+        isGradient={fallback ? false : tier.isGradient}
+      />
 
       <div
-        className="font-num leading-none normal-case"
+        className="font-num leading-none uppercase"
         style={{ fontSize: 'clamp(180px, 50vw, 380px)', fontWeight: 900, ...letterStyle }}
       >
-        {tier.letter}
+        {fallback ? '—' : tier.letter}
       </div>
 
       <div className="flex flex-col items-center gap-1">
         <div
-          className="font-num font-extrabold text-white"
-          style={{ fontSize: 'clamp(52px, 14vw, 80px)', lineHeight: 1 }}
+          className="font-num font-extrabold"
+          style={{
+            fontSize: 'clamp(52px, 14vw, 80px)',
+            lineHeight: 1,
+            color: fallback ? ZINC_500 : '#ffffff',
+          }}
         >
-          {scores.overall}
+          {fallback ? 'N/A' : scores.overall}
         </div>
         <div
           className="text-sm font-medium lowercase tracking-wide"
           style={{ color: descriptorColor, opacity: 0.95 }}
         >
-          {descriptor}
+          {fallback ? 'scoring unavailable' : descriptor}
         </div>
       </div>
 
       <div className="grid w-full grid-cols-2 gap-3">
-        <SubScoreCard label="Jawline" finalValue={scores.sub.jawline} animate={false} />
-        <SubScoreCard label="Eyes" finalValue={scores.sub.eyes} animate={false} />
-        <SubScoreCard label="Skin" finalValue={scores.sub.skin} animate={false} />
+        <SubScoreCard
+          label="Jawline"
+          finalValue={scores.sub.jawline}
+          animate={false}
+          fallback={fallback}
+        />
+        <SubScoreCard
+          label="Eyes"
+          finalValue={scores.sub.eyes}
+          animate={false}
+          fallback={fallback}
+        />
+        <SubScoreCard
+          label="Skin"
+          finalValue={scores.sub.skin}
+          animate={false}
+          fallback={fallback}
+        />
         <SubScoreCard
           label="Cheekbones"
           finalValue={scores.sub.cheekbones}
           animate={false}
+          fallback={fallback}
         />
       </div>
 
@@ -1014,7 +1171,7 @@ function ScanPaywall({
   const sub =
     reason === 'auth_daily'
       ? formatReset(scanLimit?.resetInSeconds ?? null)
-      : 'sign in to keep scanning. accounts get 10 scans / day.';
+      : 'sign in to keep scanning. accounts get 30 scans / day.';
   const showSignIn = reason !== 'auth_daily';
 
   return (

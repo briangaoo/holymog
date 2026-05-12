@@ -109,6 +109,7 @@ export function combineScores(vision: VisionScore): FinalScores {
       cheekbones: Math.round(cheekbones),
     },
     vision,
+    ...(vision.fallback ? { fallback: true } : {}),
   };
 }
 

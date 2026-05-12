@@ -25,20 +25,41 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'holymog, rate yourself F- to S+',
+  // Title template: child routes set `title: 'scan'` and we render
+  // "holymog - scan" (regular ASCII hyphen, not en/em dash). The
+  // homepage doesn't override, so it falls through to the `default`
+  // and renders bare "holymog".
+  title: {
+    template: 'holymog - %s',
+    default: 'holymog',
+  },
   description: 'AI-powered face rating. Are you mogging or getting mogged?',
-  metadataBase: new URL('https://holymog.vercel.app'),
+  metadataBase: new URL('https://holymog.com'),
   openGraph: {
     title: 'holymog',
     description: 'AI-powered face rating. F- to S+ tier.',
-    url: 'https://holymog.vercel.app',
+    url: 'https://holymog.com',
     siteName: 'holymog',
-    images: ['/og.png'],
+    images: [
+      {
+        url: '/og.png',
+        width: 1200,
+        height: 630,
+        alt: 'holymog · ai face-rating game',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'holymog',
-    images: ['/og.png'],
+    images: [
+      {
+        url: '/og.png',
+        width: 1200,
+        height: 630,
+        alt: 'holymog · ai face-rating game',
+      },
+    ],
   },
 };
 

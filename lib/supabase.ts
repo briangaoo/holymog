@@ -61,4 +61,5 @@ export type LeaderboardRow = {
   matches_won?: number | null;
 };
 
-export const FACES_BUCKET = 'holymog-faces';
+export const UPLOADS_BUCKET = 'holymog-uploads';
+export const BATTLES_BUCKET = 'holymog-battles';

@@ -18,6 +18,7 @@ import { useUser } from '@/hooks/useUser';
 import { getTier, getTierDescriptor } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import { FRAMES, BADGES, type UserStats } from '@/lib/customization';
+import { AvatarFallback } from './AvatarFallback';
 import { Frame } from './customization/Frame';
 import { Badge } from './customization/Badge';
 import { NameFx } from './customization/NameFx';
@@ -174,9 +175,7 @@ function ProfileHeader({
                 className="h-full w-full object-cover"
               />
             ) : (
-              <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-700 to-zinc-900 text-3xl font-bold text-white">
-                {(data.display_name.charAt(0) || '?').toUpperCase()}
-              </span>
+              <AvatarFallback seed={data.display_name} textClassName="text-3xl" />
             )}
           </Frame>
           <div className="flex translate-y-2 items-center gap-2">
@@ -566,7 +565,7 @@ function TierCard({ data }: { data: PublicProfileData }) {
                     {data.best_scan_overall}
                   </span>
                   <span
-                    className="font-num text-5xl font-extrabold leading-none sm:text-6xl"
+                    className="font-num text-5xl font-extrabold leading-none uppercase sm:text-6xl"
                     style={tierLetterStyle(tier)}
                   >
                     {tier.letter}
@@ -578,9 +577,14 @@ function TierCard({ data }: { data: PublicProfileData }) {
                   </span>
                 )}
                 <p className="mt-1 text-[13px] leading-relaxed text-zinc-400">
-                  {isElite
-                    ? 'top of the board. mogger of moggers.'
-                    : `currently in the ${tier.letter} tier band.`}
+                  {isElite ? (
+                    'top of the board. mogger of moggers.'
+                  ) : (
+                    <>
+                      currently in the{' '}
+                      <span className="uppercase">{tier.letter}</span> tier band.
+                    </>
+                  )}
                 </p>
               </>
             ) : (
@@ -1025,15 +1029,21 @@ function hasAnySocial(socials: PublicProfileData['socials']): boolean {
 function tierLetterStyle(
   tier: ReturnType<typeof getTier>,
 ): React.CSSProperties {
+  // Tier letters MUST render uppercase (S+, A, B-, …) even though the
+  // body globally lowercases everything via app/globals.css. Defense-
+  // in-depth alongside the explicit `uppercase` class on each render
+  // site — keeps the style helper authoritative if a className gets
+  // dropped during a refactor.
   if (tier.isGradient) {
     return {
       backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
       WebkitBackgroundClip: 'text',
       backgroundClip: 'text',
       color: 'transparent',
+      textTransform: 'uppercase',
     };
   }
-  return { color: tier.color };
+  return { color: tier.color, textTransform: 'uppercase' };
 }
 
 function formatJoined(days: number): string {

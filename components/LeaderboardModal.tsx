@@ -8,12 +8,13 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Check, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, Check, ShieldCheck, User as UserIcon, X } from 'lucide-react';
 import type { FinalScores } from '@/types';
 import { getTier, PHOTO_REQUIRED_THRESHOLD } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import { useUser } from '@/hooks/useUser';
 import { clearLeaderboardCache } from '@/lib/leaderboardCache';
+import { captureCurrentAsBack, consumeModalRestore } from '@/lib/back-nav';
 
 type Props = {
   open: boolean;
@@ -74,6 +75,22 @@ export function LeaderboardModal({
     setScanDataConsent(false);
     setPrevious(null);
     setStatus({ kind: 'idle' });
+  }, [open]);
+
+  // If the user clicked /terms or /privacy from inside this modal, the
+  // back-nav breadcrumb dropped on click carries our consent + photo
+  // selections. Consume after the reset above so the restored values
+  // win over the freshly-reset blanks.
+  useEffect(() => {
+    if (!open) return;
+    const restored = consumeModalRestore('leaderboard');
+    if (!restored) return;
+    if (typeof restored.scanDataConsent === 'boolean') {
+      setScanDataConsent(restored.scanDataConsent);
+    }
+    if (typeof restored.includePhoto === 'boolean') {
+      setIncludePhoto(restored.includePhoto);
+    }
   }, [open]);
 
   // Once we know we're signed in, fetch profile + existing leaderboard row.
@@ -273,17 +290,31 @@ export function LeaderboardModal({
                       this off anytime in settings → privacy.
                     </span>
                   </span>
-                  {includePhoto && (
-                    <span className="overflow-hidden rounded-full border border-white/15">
-                      <img
-                        src={capturedImage}
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8 object-cover"
-                      />
-                    </span>
-                  )}
+                  {/* Preview mirrors what /api/leaderboard will actually
+                      render: when `include_photo` is true the scan face
+                      becomes `image_url`; when false the leaderboard
+                      falls back to the user's profile avatar
+                      (`avatar_url`). Showing the same image here keeps
+                      the user from being surprised at what their
+                      leaderboard row looks like. */}
+                  <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/[0.04] text-zinc-500">
+                    {(() => {
+                      const previewSrc = includePhoto
+                        ? capturedImage
+                        : user?.image ?? null;
+                      return previewSrc ? (
+                        <img
+                          src={previewSrc}
+                          alt=""
+                          width={32}
+                          height={32}
+                          className="h-8 w-8 object-cover"
+                        />
+                      ) : (
+                        <UserIcon size={14} aria-hidden />
+                      );
+                    })()}
+                  </span>
                 </button>
 
                 {/* High-score review notice — informational only, no
@@ -351,20 +382,28 @@ export function LeaderboardModal({
                       details:{' '}
                       <Link
                         href="/privacy"
-                        target="_blank"
-                        rel="noopener noreferrer"
                         className="text-white/85 underline-offset-2 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          captureCurrentAsBack({
+                            id: 'leaderboard',
+                            state: { scanDataConsent, includePhoto },
+                          });
+                        }}
                       >
                         privacy policy
                       </Link>
                       {' · '}
                       <Link
                         href="/terms"
-                        target="_blank"
-                        rel="noopener noreferrer"
                         className="text-white/85 underline-offset-2 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          captureCurrentAsBack({
+                            id: 'leaderboard',
+                            state: { scanDataConsent, includePhoto },
+                          });
+                        }}
                       >
                         terms
                       </Link>
@@ -489,7 +528,7 @@ function Cell({
         >
           {score}
         </span>
-        <span className="text-xs text-zinc-400 normal-case">{tier}</span>
+        <span className="text-xs text-zinc-400 uppercase">{tier}</span>
         {accentRight}
       </div>
     </div>

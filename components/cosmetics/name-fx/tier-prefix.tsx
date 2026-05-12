@@ -34,11 +34,13 @@ export default function NameTierPrefix({
   return (
     <span style={{ display: 'inline-block' }}>
       <span
+        className="uppercase"
         style={{
           marginRight: '0.45em',
           fontWeight: 900,
           letterSpacing: '-0.02em',
           ...letterStyle,
+          textTransform: 'uppercase',
         }}
       >
         {tier.letter}

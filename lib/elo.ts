@@ -67,6 +67,35 @@ export type EloUpdate = {
   marginMultiplier: number;
 };
 
+/**
+ * Tie update — both players' actual score = 0.5. The delta is purely a
+ * function of the rating gap: equal-rated players get 0 change, the
+ * higher-rated player slowly drifts toward the lower-rated one. Streaks
+ * are NOT reset by a tie (handled in the route, not here).
+ *
+ * No margin multiplier: a tie is a tie; there's no peak-score delta
+ * worth amplifying.
+ */
+export function computeEloTie(input: {
+  aElo: number;
+  aMatches: number;
+  bElo: number;
+  bMatches: number;
+}): { newAElo: number; newBElo: number; aDelta: number; bDelta: number } {
+  const Ea = expected(input.aElo, input.bElo);
+  const Eb = 1 - Ea;
+  const Ka = kFor(input.aMatches);
+  const Kb = kFor(input.bMatches);
+  const newAElo = Math.max(0, Math.round(input.aElo + Ka * (0.5 - Ea)));
+  const newBElo = Math.max(0, Math.round(input.bElo + Kb * (0.5 - Eb)));
+  return {
+    newAElo,
+    newBElo,
+    aDelta: newAElo - input.aElo,
+    bDelta: newBElo - input.bElo,
+  };
+}
+
 export function computeElo(input: {
   winnerElo: number;
   winnerMatches: number;

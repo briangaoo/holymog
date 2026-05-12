@@ -60,8 +60,11 @@ const CSP_PRODUCTION = [
   "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://*.googleusercontent.com",
   // Camera capture blob URLs + battle share image render.
   "media-src 'self' blob:",
-  // Supabase REST + Realtime (wss), Gemini API, LiveKit (wss + REST).
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com wss://*.livekit.cloud https://*.livekit.cloud",
+  // Supabase REST + Realtime (wss), Vertex AI (any region), LiveKit
+  // (wss + REST), Google's OAuth token endpoint (for service-account
+  // access-token minting if any client-side path ever needs it —
+  // currently server-only, but defense-in-depth).
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.aiplatform.googleapis.com https://oauth2.googleapis.com wss://*.livekit.cloud https://*.livekit.cloud",
   // Next/font/google fetches woff2 from fonts.gstatic.com.
   "font-src 'self' data: https://fonts.gstatic.com",
   // No frames at all.

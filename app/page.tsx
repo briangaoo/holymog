@@ -47,7 +47,7 @@ export default function HomePage() {
           <div className="my-6 h-px bg-white/10" />
 
           <SpectralRim
-            accent="rgba(34,211,238,0.6)"
+            accent="rgba(250,204,21,0.7)"
             spotlight={80}
             className="rounded-2xl"
           >
@@ -82,8 +82,12 @@ export default function HomePage() {
                 privacy
               </Link>
               <span aria-hidden>·</span>
+              <Link href="/help" className="hover:text-zinc-400">
+                help
+              </Link>
+              <span aria-hidden>·</span>
               <a
-                href="https://github.com/briangaoo/holymog"
+                href="https://github.com/holymog/holymog"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-zinc-400"

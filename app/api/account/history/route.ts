@@ -12,6 +12,10 @@ type HistoryRow = {
   kind: 'public' | 'private';
   finished_at: string | null;
   is_winner: boolean;
+  /** True when nobody on this battle had is_winner=true AND it had >=2
+   *  participants — i.e., the peak scores matched. Surfaces as grey in
+   *  the W/L ribbon and counts as a separate bucket from wins/losses. */
+  is_tie: boolean;
   peak_score: number;
   // Opponent rows expose display_name + peak only. user_id is
   // intentionally NOT included in the public response — clients link
@@ -97,9 +101,21 @@ export async function GET(request: Request) {
     is_winner: boolean;
     peak_score: number;
     joined_at: Date;
+    is_tie: boolean;
   }>(
+    // is_tie = nobody on this battle has is_winner=true AND there are
+    // at least 2 participants. Means the peak scores matched.
     `select b.id as battle_id, b.kind, b.finished_at,
-            p.is_winner, p.peak_score, p.joined_at
+            p.is_winner, p.peak_score, p.joined_at,
+            (
+              not exists (
+                select 1 from battle_participants w
+                 where w.battle_id = b.id and w.is_winner = true
+              )
+              and (
+                select count(*) from battle_participants c where c.battle_id = b.id
+              ) >= 2
+            ) as is_tie
        from battle_participants p
        join battles b on b.id = p.battle_id
       where ${whereSql}
@@ -178,6 +194,7 @@ export async function GET(request: Request) {
     kind: r.kind,
     finished_at: r.finished_at ? r.finished_at.toISOString() : null,
     is_winner: r.is_winner,
+    is_tie: r.is_tie,
     peak_score: r.peak_score,
     opponents: oppByBattle.get(r.battle_id) ?? [],
   }));

@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { LegalBackLink } from '@/components/LegalBackLink';
 
-const LAST_UPDATED = 'May 10, 2026';
+const LAST_UPDATED = 'May 11, 2026';
 
 /**
  * Privacy Policy. Includes explicit BIPA-style biometric classification,
@@ -35,12 +36,7 @@ export default function PrivacyPage() {
           className="mx-auto w-full max-w-2xl px-5 pb-16 pt-8 normal-case"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 64px)' }}
         >
-          <Link
-            href="/"
-            className="mb-8 inline-flex items-center gap-1.5 text-xs text-white/45 transition-colors hover:text-white/80"
-          >
-            <ArrowLeft size={12} aria-hidden /> Back home
-          </Link>
+          <LegalBackLink />
 
           <motion.div
             initial={{ y: 12, opacity: 0 }}
@@ -137,7 +133,7 @@ export default function PrivacyPage() {
                 /account
               </Link>
               . Avatars and banners are stored in our public{' '}
-              <code className="font-mono text-[12px]">holymog-faces</code>{' '}
+              <code className="font-mono text-[12px]">holymog-uploads</code>{' '}
               bucket so other viewers&rsquo; browsers can fetch them;
               you can clear either upload at any time, after which
               the file is deleted within minutes.
@@ -291,6 +287,43 @@ export default function PrivacyPage() {
               have no technical means to prevent that.
             </p>
 
+            <p className="mt-2 font-semibold text-white/85">
+              Battle peak frames (saved for moderation review)
+            </p>
+            <p>
+              For every battle &mdash;{' '}
+              <span className="font-semibold">public 1v1 and private
+              parties alike</span> &mdash; we save{' '}
+              <span className="font-semibold">one image per signed-in
+              participant per battle</span>: the highest-scoring single
+              frame our scorer pulled during that match. Frames are
+              stored in a{' '}
+              <span className="font-semibold">private storage bucket</span>{' '}
+              (
+              <code className="font-mono text-[12px]">holymog-battles</code>
+              ) and are{' '}
+              <span className="font-semibold">never publicly readable</span>.
+              We use them only to verify post-match reports (see Section
+              9a) and only ever access them via short-lived authenticated
+              URLs.
+            </p>
+
+            <p className="mt-2 font-semibold text-white/85">
+              Battle reports (public 1v1 only)
+            </p>
+            <p>
+              After a public 1v1 match, your opponent may file a report
+              against you for cheating (deepfake / AI face / celebrity
+              photo), the presence of a minor on camera, nudity or
+              sexual content, harassment, spam / impersonation, or
+              other policy violations. The report includes the reason,
+              optional written details, the battle ID, both participant
+              user IDs, and a 7-day signed link to the reported
+              player&rsquo;s saved peak frame. Reports are reviewed by
+              a holymog operator; see Section 9a for the resolution
+              flow and what happens to your data if you&rsquo;re banned.
+            </p>
+
             <p className="mt-2 font-semibold text-white/85">Technical data</p>
             <p>
               We collect standard web technical data: IP address, user
@@ -414,27 +447,30 @@ export default function PrivacyPage() {
           <Section index={6} title="AI Processing">
             <p>
               Every face scan and every battle frame is sent to Google
-              Gemini 2.5 Flash Lite for scoring via the standard{' '}
-              <span className="font-semibold">paid-tier</span> Gemini
-              API. The request includes the cropped face image and a
-              prompt instructing the model to return a numeric score and
-              breakdown.
+              Gemini 2.5 Flash Lite for scoring via{' '}
+              <span className="font-semibold">
+                Google Cloud Vertex AI
+              </span>
+              . The request includes the cropped face image and a
+              prompt instructing the model to return a numeric score
+              and breakdown.
             </p>
             <p>
-              For the paid-tier Gemini API, Google&rsquo;s published
-              terms state that API inputs and outputs are{' '}
+              Under the Google Cloud Service Specific Terms for Vertex
+              AI, customer data (including prompts and responses) is{' '}
               <span className="font-semibold">
-                not used to train or improve Google&rsquo;s models
+                not used to train or improve Google&rsquo;s foundation
+                models
               </span>{' '}
-              and are subject to Google&rsquo;s data-handling commitments
-              described at{' '}
+              and is subject to Google&rsquo;s data-processing
+              commitments described at{' '}
               <a
-                href="https://ai.google.dev/gemini-api/terms"
+                href="https://cloud.google.com/terms/service-terms"
                 className="font-medium text-white/85 underline-offset-4 hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                ai.google.dev/gemini-api/terms
+                cloud.google.com/terms/service-terms
               </a>{' '}
               and Google&rsquo;s{' '}
               <a
@@ -472,9 +508,10 @@ export default function PrivacyPage() {
               </li>
               <li>
                 <span className="font-semibold text-white/85">
-                  Google (Gemini API)
+                  Google Cloud Vertex AI
                 </span>{' '}
-                &mdash; AI scoring of face images.
+                &mdash; AI scoring of face images via Gemini 2.5 Flash
+                Lite.
               </li>
               <li>
                 <span className="font-semibold text-white/85">
@@ -583,6 +620,24 @@ export default function PrivacyPage() {
                   </tr>
                   <tr className="border-b border-white/10">
                     <td className="px-3 py-2.5">
+                      Battle peak frames (private bucket)
+                    </td>
+                    <td className="px-3 py-2.5">
+                      ≤ 1 year from battle, unless tied to an open
+                      report (kept until resolution)
+                    </td>
+                  </tr>
+                  <tr className="border-b border-white/10">
+                    <td className="px-3 py-2.5">
+                      Battle reports (pending or resolved)
+                    </td>
+                    <td className="px-3 py-2.5">
+                      ≤ 2 years from filing (forensic retention for
+                      bans + appeals)
+                    </td>
+                  </tr>
+                  <tr className="border-b border-white/10">
+                    <td className="px-3 py-2.5">
                       Rate-limit and abuse-prevention logs
                     </td>
                     <td className="px-3 py-2.5">Up to 30 days</td>
@@ -653,6 +708,35 @@ export default function PrivacyPage() {
               advertising. See Section 11 for California-specific rights
               including the right to opt out.
             </p>
+
+            <p className="mt-4 font-semibold text-white/85">
+              Reports + bans
+            </p>
+            <p>
+              When you file a report against an opponent after a
+              public 1v1 battle, we email a holymog operator the
+              report reason, your optional written details, both
+              participant user IDs, the battle ID, and a 7-day signed
+              link to the reported player&rsquo;s saved peak frame
+              from the &ldquo;battle peak frames&rdquo; bucket. The
+              operator clicks Ban or Dismiss; either action is
+              recorded in our audit log and tied to the resolved
+              report row. The reported player is{' '}
+              <span className="font-semibold">not notified</span> when
+              a report is filed or dismissed &mdash; only when an
+              operator clicks &ldquo;Ban&rdquo;, in which case the
+              banned user receives an email explaining the action,
+              every active session is purged, and sign-in is blocked
+              going forward. The reporter is never told the outcome.
+              Banned users may appeal by emailing{' '}
+              <a
+                href="mailto:safety@holymog.com"
+                className="text-white underline-offset-2 hover:underline"
+              >
+                safety@holymog.com
+              </a>{' '}
+              with the date of the battle and the reason for appeal.
+            </p>
           </Section>
 
           <Section index={10} title="Cookies & Local Storage">
@@ -677,9 +761,13 @@ export default function PrivacyPage() {
                 <code className="font-mono text-xs text-white/85">
                   holymog-last-result
                 </code>
-                ) and your active-battle reconnection token (
+                ), your active-battle reconnection token (
                 <code className="font-mono text-xs text-white/85">
                   holymog-active-battle
+                </code>
+                ), and your first-battle consent acknowledgement (
+                <code className="font-mono text-xs text-white/85">
+                  holymog-battle-consent-accepted
                 </code>
                 ). These stay on your device and are never transmitted.
               </li>

@@ -59,13 +59,17 @@ function validateVision(input: unknown): VisionScore | null {
 /**
  * POST /api/account/migrate-scan
  *
- * Lifts a scan recorded in localStorage (typically captured before
- * the user signed up) into their profile.best_scan. Used by the
- * post-sign-in migration watcher: when a freshly authenticated
- * client detects a `holymog-last-result` blob, it posts here once
- * and clears local storage. Idempotent — multiple calls are safe;
- * the conditional update only writes if the new score beats the
- * stored best.
+ * Runs when an anonymous browser transitions to a signed-in session
+ * and the localStorage cache contains a pre-signup scan. Scores the
+ * `vision` payload server-side and conditionally persists it to
+ * `profiles.best_scan` (only when it beats the stored best, so
+ * repeat invocations are race-safe).
+ *
+ * Note: we intentionally do NOT re-key the user's prior anon
+ * `scan_attempts` rows onto their new user_id. The signup UX should
+ * give a fresh 10/24h regardless of any anon scans done first; the
+ * tiny abuse window that opens (1 free anon scan + 10 fresh =
+ * 11 per device-day) is acceptable.
  */
 export async function POST(request: Request) {
   const session = await auth();
@@ -91,8 +95,6 @@ export async function POST(request: Request) {
   const payload = JSON.stringify({ vision, scores });
 
   const pool = getPool();
-  // Conditional write: only persist when the new overall beats the
-  // stored best (or there is no stored best yet). Race-safe.
   const result = await pool.query<{ best_scan_overall: number | null }>(
     `update profiles
         set best_scan_overall = $1,

@@ -14,6 +14,10 @@ type Props = {
   finalValue: number;
   startDelayMs?: number;
   animate?: boolean;
+  /** When true, the underlying score is a neutral placeholder because
+   *  the vision API failed. We render "N/A" in muted gray + a flat
+   *  empty bar so it doesn't read as a real score. */
+  fallback?: boolean;
 };
 
 const NUMBER_FONT_STYLE: React.CSSProperties = {
@@ -26,12 +30,17 @@ export function SubScoreCard({
   finalValue,
   startDelayMs = 0,
   animate = true,
+  fallback = false,
 }: Props) {
   const [displayed, setDisplayed] = useState(animate ? 0 : finalValue);
   const rafRef = useRef<number | null>(null);
   const delayTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (fallback) {
+      // No animation when there's no real score to count up to.
+      return;
+    }
     if (!animate) {
       setDisplayed(finalValue);
       return;
@@ -53,7 +62,24 @@ export function SubScoreCard({
       if (delayTimerRef.current !== null) window.clearTimeout(delayTimerRef.current);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, [animate, finalValue, startDelayMs]);
+  }, [animate, finalValue, startDelayMs, fallback]);
+
+  if (fallback) {
+    return (
+      <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="flex flex-col gap-1.5">
+          <div className="text-sm font-medium text-zinc-300">{label}</div>
+          <div
+            className="font-num font-extrabold text-zinc-500"
+            style={NUMBER_FONT_STYLE}
+          >
+            N/A
+          </div>
+        </div>
+        <div className="h-[10px] w-full overflow-hidden rounded-full bg-white/[0.06]" />
+      </div>
+    );
+  }
 
   const fillColor = getScoreColor(displayed);
 

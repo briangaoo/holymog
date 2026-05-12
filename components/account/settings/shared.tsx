@@ -57,7 +57,11 @@ export type SectionAccent =
   | 'emerald'
   | 'purple'
   | 'red'
-  | 'zinc';
+  | 'zinc'
+  | 'indigo'
+  | 'teal'
+  | 'fuchsia'
+  | 'orange';
 
 const ACCENT_STYLES: Record<
   SectionAccent,
@@ -147,6 +151,38 @@ const ACCENT_STYLES: Record<
     glow: 'rgba(255,255,255,0.04)',
     title: '#e4e4e7',
     spectral: 'rgba(255,255,255,0.55)',
+  },
+  indigo: {
+    iconBg: 'rgba(99,102,241,0.16)',
+    iconColor: '#a5b4fc',
+    border: 'rgba(99,102,241,0.20)',
+    glow: 'rgba(99,102,241,0.10)',
+    title: '#e0e7ff',
+    spectral: 'rgba(99,102,241,0.85)',
+  },
+  teal: {
+    iconBg: 'rgba(20,184,166,0.16)',
+    iconColor: '#5eead4',
+    border: 'rgba(20,184,166,0.20)',
+    glow: 'rgba(20,184,166,0.10)',
+    title: '#ccfbf1',
+    spectral: 'rgba(20,184,166,0.85)',
+  },
+  fuchsia: {
+    iconBg: 'rgba(217,70,239,0.14)',
+    iconColor: '#f0abfc',
+    border: 'rgba(217,70,239,0.20)',
+    glow: 'rgba(217,70,239,0.10)',
+    title: '#fae8ff',
+    spectral: 'rgba(217,70,239,0.85)',
+  },
+  orange: {
+    iconBg: 'rgba(249,115,22,0.16)',
+    iconColor: '#fdba74',
+    border: 'rgba(249,115,22,0.20)',
+    glow: 'rgba(249,115,22,0.10)',
+    title: '#ffedd5',
+    spectral: 'rgba(249,115,22,0.85)',
   },
 };
 

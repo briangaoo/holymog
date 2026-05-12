@@ -8,6 +8,7 @@ import { requireSameOrigin } from '@/lib/originGuard';
 import { isBattlesKilled } from '@/lib/featureFlags';
 import { publicError } from '@/lib/errors';
 import { checkBudget } from '@/lib/costCap';
+import { BATTLES_BUCKET, getSupabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'image_too_large' }, { status: 413 });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.VERTEX_API_KEY) {
     return NextResponse.json({ error: 'vision_unavailable' }, { status: 503 });
   }
 
@@ -127,7 +128,10 @@ export async function POST(request: Request) {
     const elapsedMs = Date.now() - started_at.getTime();
     // Window: from started_at - 1s (catches the warmup call right before
     // the active phase begins) to started_at + 11s (10s active + 1s grace).
-    if (elapsedMs < -1000 || elapsedMs > 11000) {
+    // -3000 accommodates the client's pre-fire (PRE_FIRE_LEAD_MS = 2000)
+    // plus a 1s buffer for clock skew + countdown lead-in. +11000 keeps
+    // the original 1-second post-end grace.
+    if (elapsedMs < -3000 || elapsedMs > 11000) {
       return NextResponse.json({ error: 'outside_window' }, { status: 409 });
     }
   }
@@ -150,10 +154,23 @@ export async function POST(request: Request) {
 
   // Update participant peak_score; bump lifetime improvement counter.
   // Both happen in one connection so they share the same transaction
-  // boundary if anything fails.
+  // boundary if anything fails. We also figure out whether THIS call
+  // produced a new peak — if so, the image becomes the per-user peak
+  // frame in the `holymog-battles` bucket (used by the moderation
+  // review path on /api/battle/report).
+  let isNewPeak = false;
   const client = await pool.connect();
   try {
     await client.query('begin');
+
+    const before = await client.query<{ peak_score: number }>(
+      `select peak_score from battle_participants
+        where battle_id = $1 and user_id = $2
+        for update`,
+      [battleId, user.id],
+    );
+    const oldPeak = before.rows[0]?.peak_score ?? 0;
+    isNewPeak = result.overall > oldPeak;
 
     await client.query(
       `update battle_participants
@@ -183,6 +200,41 @@ export async function POST(request: Request) {
     );
   } finally {
     client.release();
+  }
+
+  // Persist the peak frame post-commit. We don't need this in the
+  // critical path — score updates broadcast regardless — but doing it
+  // sync lets us audit the image-write failure mode without a separate
+  // queue. Path is stable per (battle, user) so re-peak just overwrites.
+  // Public + private battles both save (the report surface gates
+  // public-only but evidence may still be needed for private complaints
+  // routed manually through hello@holymog.com).
+  if (isNewPeak) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      const path = `${battleId}/${user.id}.jpg`;
+      try {
+        await supabase.storage.from(BATTLES_BUCKET).upload(path, buffer, {
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+          upsert: true,
+        });
+        await pool
+          .query(
+            `update battle_participants
+                set peak_image_path = $1
+              where battle_id = $2 and user_id = $3`,
+            [path, battleId, user.id],
+          )
+          .catch(() => {
+            // peak_image_path column may not exist yet on older deploys;
+            // soft-fail so scoring keeps working.
+          });
+      } catch {
+        // Storage hiccup — broadcast still goes out so gameplay is
+        // unaffected. The next peak will retry.
+      }
+    }
   }
 
   // Read the (possibly updated) peak so we can broadcast it.

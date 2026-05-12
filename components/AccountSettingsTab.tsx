@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useUser } from '@/hooks/useUser';
 import { ProfileSection } from './account/settings/ProfileSection';
-import { UsernameSection } from './account/settings/UsernameSection';
 import { PrivacySection } from './account/settings/PrivacySection';
 import { BattleSection } from './account/settings/BattleSection';
 import { NotificationsSection } from './account/settings/NotificationsSection';
@@ -14,7 +13,7 @@ import { HelpSection } from './account/settings/HelpSection';
 import type { FieldUpdate, SettingsProfile } from './account/settings/shared';
 
 /**
- * Account settings tab — composes per-domain sections (profile, username,
+ * Account settings tab — composes per-domain sections (profile,
  * privacy, battle, notifications, data, help). Each section reads its
  * slice of the profile and writes back through the shared `updateProfile`
  * helper, which optimistically applies the patch then talks to
@@ -36,7 +35,13 @@ type MeResponse = {
   entry?: LeaderboardEntryShape | null;
 };
 
-export function AccountSettingsTab({ initial }: { initial?: MeResponse | null }) {
+export function AccountSettingsTab({
+  initial,
+  onRefresh,
+}: {
+  initial?: MeResponse | null;
+  onRefresh?: () => void | Promise<void>;
+}) {
   const { user } = useUser();
   const [profile, setProfile] = useState<ServerProfile | null>(
     initial?.profile ?? null,
@@ -70,6 +75,19 @@ export function AccountSettingsTab({ initial }: { initial?: MeResponse | null })
     if (initial != null) return;
     void refresh();
   }, [user?.id, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync local profile state when the parent re-fetches /api/account/me
+  // (e.g. after a username change). Without this, the inline username
+  // editor view in ProfileSection keeps reading the OLD display_name
+  // through props even though every other surface on the page has
+  // already updated, because useState only honours the initial value
+  // on first mount.
+  useEffect(() => {
+    if (!initial) return;
+    if (initial.profile) setProfile(initial.profile);
+    setHasLeaderboardEntry(!!initial.entry);
+    setHasLeaderboardPhoto(!!initial.entry?.image_url);
+  }, [initial]);
 
   // Patches go through here; we apply optimistically so toggles feel
   // instant, then roll back on error.
@@ -124,13 +142,17 @@ export function AccountSettingsTab({ initial }: { initial?: MeResponse | null })
           setProfile(previous);
           return { ok: false, error: data.error, message: data.message };
         }
+        // Tell the parent page to refetch /api/account/me so anything
+        // outside this tab (header chip, public profile link, etc) sees
+        // the new value without a full reload.
+        if (onRefresh) void onRefresh();
         return { ok: true };
       } catch {
         setProfile(previous);
         return { ok: false, error: 'network_error' };
       }
     },
-    [profile],
+    [profile, onRefresh],
   );
 
   // Danger-zone callbacks for DataSection — wrap fetches in a stable shape.
@@ -192,8 +214,12 @@ export function AccountSettingsTab({ initial }: { initial?: MeResponse | null })
 
   return (
     <div className="flex flex-col gap-6">
-      <ProfileSection profile={profile} onUpdate={updateProfile} />
-      <UsernameSection profile={profile} />
+      <ProfileSection
+        profile={profile}
+        onUpdate={updateProfile}
+        onRefresh={onRefresh}
+      />
+      <CustomizationSection profile={profile} onRefresh={onRefresh} />
       <PrivacySection
         profile={profile}
         hasLeaderboardPhoto={hasLeaderboardPhoto}
@@ -201,7 +227,6 @@ export function AccountSettingsTab({ initial }: { initial?: MeResponse | null })
       />
       <BattleSection profile={profile} onUpdate={updateProfile} />
       <NotificationsSection profile={profile} onUpdate={updateProfile} />
-      <CustomizationSection profile={profile} />
       <AccountSection
         twoFactorEnabled={profile.two_factor_enabled}
         email={user.email}

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
-import { FACES_BUCKET, getSupabaseAdmin } from '@/lib/supabase';
+import { UPLOADS_BUCKET, getSupabaseAdmin } from '@/lib/supabase';
 import { requireSameOrigin } from '@/lib/originGuard';
 import { publicError } from '@/lib/errors';
 import { parseJsonBody } from '@/lib/parseRequest';
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
   const path = `avatars/${user.id}.${safe.ext}`;
 
   const { error: uploadErr } = await supabase.storage
-    .from(FACES_BUCKET)
+    .from(UPLOADS_BUCKET)
     .upload(path, safe.buffer, {
       contentType: safe.mime,
       cacheControl: 'no-cache',
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     return NextResponse.json(publicError('upload_failed', uploadErr.message), { status: 500 });
   }
 
-  const { data: pub } = supabase.storage.from(FACES_BUCKET).getPublicUrl(path);
+  const { data: pub } = supabase.storage.from(UPLOADS_BUCKET).getPublicUrl(path);
   const cacheBustedUrl = `${pub.publicUrl}?v=${Date.now()}`;
 
   const pool = getPool();
@@ -118,7 +118,7 @@ export async function DELETE(request: Request) {
     // Best-effort delete of any existing avatar files. We don't know the
     // exact extension stored last, so attempt both common forms.
     await supabase.storage
-      .from(FACES_BUCKET)
+      .from(UPLOADS_BUCKET)
       .remove([`avatars/${user.id}.png`, `avatars/${user.id}.jpg`])
       .catch(() => {
         // best-effort

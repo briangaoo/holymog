@@ -9,6 +9,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Section } from './shared';
+import { captureCurrentAsBack } from '@/lib/back-nav';
 
 /**
  * Help & legal — links and version footer. /help carries the FAQ +
@@ -17,7 +18,7 @@ import { Section } from './shared';
  * revisit when there's volume to justify one.
  */
 export function HelpSection() {
-  const version = process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev';
+  const version = process.env.NEXT_PUBLIC_APP_VERSION ?? 'v1';
   return (
     <Section
       id="help"
@@ -37,7 +38,7 @@ export function HelpSection() {
       />
       <div className="border-t border-white/5 px-4 py-3">
         <span className="font-num text-[11px] tabular-nums text-zinc-600">
-          holymog · v{version}
+          holymog · {version}
         </span>
       </div>
     </Section>
@@ -78,9 +79,17 @@ function LinkRow({
       </a>
     );
   }
+  // Drop a back-nav breadcrumb so /terms and /privacy can route the
+  // user back here with a "back to account" label instead of the
+  // hardcoded "back home". /help doesn't need it (its own back link
+  // handles the destination) but it's harmless.
+  const isLegal = href === '/terms' || href === '/privacy';
   return (
     <Link
       href={href}
+      onClick={() => {
+        if (isLegal) captureCurrentAsBack();
+      }}
       className="flex items-center gap-3 border-t border-white/5 px-4 py-3 transition-colors hover:bg-white/[0.025]"
     >
       {inner}

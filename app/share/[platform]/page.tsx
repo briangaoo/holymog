@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Check, ExternalLink } from 'lucide-react';
@@ -50,14 +50,44 @@ const PLATFORM_ACCENT: Record<string, string> = {
   whatsapp: '#25D366',
 };
 
-export default function SharePlatformPage() {
+// Hostnames the `to=` query param is allowed to point at. Without
+// this allowlist /share/<anything>?to=https://evil.com is an open
+// redirect — the user sees holymog.com in their address bar, trusts
+// the page, and lands somewhere we didn't sanction. Subdomains are
+// matched by suffix (e.g. m.tiktok.com matches tiktok.com).
+const ALLOWED_REDIRECT_HOSTS = [
+  'tiktok.com',
+  'instagram.com',
+  'snapchat.com',
+  'discord.com',
+  'reddit.com',
+  'wa.me',
+  'whatsapp.com',
+  'x.com',
+  'twitter.com',
+] as const;
+
+function isAllowedShareDest(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const host = u.host.toLowerCase();
+    return ALLOWED_REDIRECT_HOSTS.some(
+      (h) => host === h || host.endsWith('.' + h),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function SharePlatformPageInner() {
   const params = useParams<{ platform: string }>();
   const search = useSearchParams();
   const slug = (params?.platform ?? '').toLowerCase();
   const label = PLATFORM_LABELS[slug] ?? capitalize(slug);
 
   const toRaw = search.get('to') ?? '';
-  const dest = isHttpUrl(toRaw)
+  const dest = isAllowedShareDest(toRaw)
     ? toRaw
     : PLATFORM_FALLBACK_URL[slug] ?? 'https://www.google.com/';
 
@@ -198,12 +228,15 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function isHttpUrl(s: string): boolean {
-  if (!s) return false;
-  try {
-    const u = new URL(s);
-    return u.protocol === 'http:' || u.protocol === 'https:';
-  } catch {
-    return false;
-  }
+export default function SharePlatformPage() {
+  // useSearchParams() must sit under a Suspense boundary or the
+  // static-prerender phase bails the whole build. The fallback is a
+  // bare black panel — this is an interstitial that auto-redirects
+  // within 2s, so a brief blank frame is fine.
+  return (
+    <Suspense fallback={<div className="min-h-dvh bg-black" />}>
+      <SharePlatformPageInner />
+    </Suspense>
+  );
 }
+

@@ -13,8 +13,9 @@ export function ShareCard({ score }: Props) {
         backgroundClip: 'text',
         color: 'transparent',
         textShadow: tier.glow ? '0 0 28px rgba(168,85,247,0.55)' : undefined,
+        textTransform: 'uppercase',
       }
-    : { color: tier.color };
+    : { color: tier.color, textTransform: 'uppercase' };
 
   return (
     <div
@@ -28,13 +29,13 @@ export function ShareCard({ score }: Props) {
     >
       <div className="absolute top-4 font-mono text-xs text-white/60">holymog</div>
       <div
-        className="font-sans text-[120px] font-black leading-none normal-case"
+        className="font-sans text-[120px] font-black leading-none uppercase"
         style={letterStyle}
       >
         {tier.letter}
       </div>
       <div className="absolute bottom-4 px-2 text-center font-mono text-[10px] text-white/70">
-        rate yours at holymog.vercel.app
+        rate yours at holymog.com
       </div>
     </div>
   );

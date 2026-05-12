@@ -16,12 +16,20 @@
  * last one.
  */
 
+// Localhost entries are dev-only. Leaving them in the production allow-list
+// would let a server-side attacker forge `Origin: http://localhost:3000` from
+// curl/Python and pass the same-origin gate — Origin is the cheap first line
+// and that hole defeats the point.
+// Canonical host is holymog.com (apex, no www). The www.holymog.com
+// entry is kept as a courtesy in case a user types it directly — the
+// vercel.com domain redirect catches that — but we never link to it
+// ourselves. Localhost entries are dev-only.
 const FALLBACK_HOSTS = [
   'https://holymog.com',
   'https://www.holymog.com',
-  'https://holymog.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:3001',
+  ...(process.env.NODE_ENV !== 'production'
+    ? ['http://localhost:3000', 'http://localhost:3001']
+    : []),
 ];
 
 // Hosts we accept as the request origin. NEXT_PUBLIC_APP_URL is the

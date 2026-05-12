@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   LiveKitRoom,
-  ParticipantTile,
-  RoomAudioRenderer,
+  VideoTrack,
+  isTrackReference,
+  useConnectionQualityIndicator,
   useLocalParticipant,
   useTracks,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
-import { Track } from 'livekit-client';
+import { ConnectionQuality, Track, type Participant } from 'livekit-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getScoreColor } from '@/lib/scoreColor';
 import { getTier } from '@/lib/tier';
@@ -72,24 +73,34 @@ const SCAN_DURATION_MS = 10_000;
 const REAL_CALL_COUNT = 10;
 const REAL_INTERVAL_MS = 1000;
 const SYNTHETIC_OFFSET_MS = 500;
+// Fire the first real-score call this many ms BEFORE the countdown ends,
+// so the score is already on screen the instant the active window
+// starts. Coupled with the relaxed -3s server-side window guard in
+// /api/battle/score, the round-trip can land on time even with a
+// 1s+ Vertex latency.
+const PRE_FIRE_LEAD_MS = 2000;
 
 // ---- Top-level component ---------------------------------------------------
 
 export function BattleRoom(props: Props) {
   const [connected, setConnected] = useState(false);
 
+  // No audio anywhere: don't publish the local mic, don't subscribe to
+  // remote audio, and skip the RoomAudioRenderer entirely. Mog is a
+  // face-rating game, not a Zoom call — the camera is the whole point,
+  // and audio adds zero gameplay value while introducing meaningful
+  // safety surface (under-13 voice exposure, harassment) we don't want.
   return (
     <LiveKitRoom
       token={props.livekitToken}
       serverUrl={props.livekitUrl}
       connect
-      audio
+      audio={false}
       video
       onConnected={() => setConnected(true)}
       data-lk-theme="default"
       style={{ width: '100%', height: '100dvh' }}
     >
-      <RoomAudioRenderer />
       <BattleInterior
         battleId={props.battleId}
         startedAt={props.startedAt}
@@ -226,22 +237,33 @@ function BattleInterior({
   }
 
   // Hook the local camera track up to the off-screen video element so
-  // drawImage() has a source.
+  // drawImage() has a source. Previously this used
+  // `localParticipant.getTrackPublication` with `[localParticipant]`
+  // as the dep — but `localParticipant` is the same object across
+  // renders, so the effect didn't re-fire when the track was
+  // published a tick later. Result: scoreFrame() always saw
+  // video.readyState=0, returned null, and the entire scoring loop
+  // silently no-op'd (battle finished with 0/0 peak scores).
+  //
+  // Driving off the `tracks` array (from useTracks above) fixes it:
+  // useTracks subscribes to publication events, so the local camera
+  // appears here the moment LiveKit publishes it.
   useEffect(() => {
-    if (!localParticipant) return;
-    const pub = localParticipant.getTrackPublication(Track.Source.Camera);
-    const track = pub?.track;
-    if (!track) return;
+    const localTrackRef = tracks.find(
+      (t) => t.participant.isLocal && t.source === Track.Source.Camera,
+    );
+    const mediaStreamTrack = localTrackRef?.publication?.track?.mediaStreamTrack;
+    if (!mediaStreamTrack) return;
     const v = captureVideoRef.current;
     if (!v) return;
     const ms = new MediaStream();
-    ms.addTrack(track.mediaStreamTrack);
+    ms.addTrack(mediaStreamTrack);
     v.srcObject = ms;
     void v.play().catch(() => {});
     return () => {
       v.srcObject = null;
     };
-  }, [localParticipant]);
+  }, [tracks]);
 
   /** Capture a frame from the off-screen video, return a JPEG data URL. */
   const captureFrame = useCallback((): string | null => {
@@ -283,7 +305,12 @@ function BattleInterior({
     const timers: number[] = [];
 
     for (let i = 0; i < REAL_CALL_COUNT; i++) {
-      const fireAtMs = startMs + i * REAL_INTERVAL_MS;
+      // First call fires PRE_FIRE_LEAD_MS BEFORE startMs so the
+      // response (subject to Vertex round-trip) lands roughly when
+      // the active window begins. Subsequent calls keep the 1s
+      // cadence anchored to startMs.
+      const fireAtMs =
+        i === 0 ? startMs - PRE_FIRE_LEAD_MS : startMs + (i - 1) * REAL_INTERVAL_MS;
       const delay = Math.max(0, fireAtMs - Date.now());
       timers.push(window.setTimeout(() => void sendScoreCall(), delay));
     }
@@ -437,11 +464,19 @@ function BattleInterior({
 
   return (
     <div className="relative min-h-dvh bg-black text-white">
+      <TileLiquidFilter />
       <div className="flex h-dvh w-full flex-col">
         {rowLayout.map((cellsInRow, rowIdx) => {
-          const slice = tracks.slice(consumed, consumed + cellsInRow);
-          consumed += cellsInRow;
           const isLastRow = rowIdx === rowLayout.length - 1;
+          // Build a cellsInRow-length array; entries past tracks.length
+          // render the "waiting for opponent" placeholder. This keeps
+          // the geometry stable from the moment the user lands in the
+          // room — no full-screen flash before the remote track joins.
+          const rowCells = Array.from({ length: cellsInRow }, (_, i) => {
+            const idx = consumed + i;
+            return idx < tracks.length ? tracks[idx] : null;
+          });
+          consumed += cellsInRow;
           return (
             <div
               key={rowIdx}
@@ -449,23 +484,52 @@ function BattleInterior({
                 isLastRow ? '' : 'border-b border-sky-500/30'
               }`}
             >
-              {slice.map((trackRef, colIdx) => {
+              {rowCells.map((trackRef, colIdx) => {
+                const isLastCell = colIdx === rowCells.length - 1;
+                const key = trackRef
+                  ? `${trackRef.participant.identity}-${rowIdx}-${colIdx}`
+                  : `waiting-${rowIdx}-${colIdx}`;
+                if (!trackRef) {
+                  return (
+                    <div
+                      key={key}
+                      className={`relative min-w-0 flex-1 overflow-hidden bg-black ${
+                        isLastCell ? '' : 'border-r border-sky-500/30'
+                      }`}
+                    >
+                      <WaitingTile />
+                    </div>
+                  );
+                }
                 const userId = trackRef.participant.identity;
                 const score = scores[userId];
                 const hasLeft = leftUsers.has(userId);
-                const isLastCell = colIdx === slice.length - 1;
                 return (
                   <div
-                    key={`${userId}-${rowIdx}-${colIdx}`}
+                    key={key}
                     className={`relative min-w-0 flex-1 overflow-hidden bg-black transition-opacity duration-300 ${
                       isLastCell ? '' : 'border-r border-sky-500/30'
                     }`}
                     style={{ opacity: hasLeft ? 0.35 : 1 }}
                   >
-                    <ParticipantTile
-                      trackRef={trackRef}
-                      className="h-full w-full"
-                    />
+                    {isTrackReference(trackRef) ? (
+                      <VideoTrack
+                        trackRef={trackRef}
+                        className="h-full w-full object-cover"
+                        style={
+                          trackRef.participant.identity ===
+                          localParticipant?.identity
+                            ? { transform: 'scaleX(-1)' }
+                            : undefined
+                        }
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-zinc-900">
+                        <span className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                          camera off
+                        </span>
+                      </div>
+                    )}
                     <ScoreOverlay
                       displayName={
                         trackRef.participant.name ||
@@ -474,6 +538,7 @@ function BattleInterior({
                       score={score}
                       meta={parseMetadata(trackRef.participant.metadata)}
                     />
+                    <ConnectionBars participant={trackRef.participant} />
                     {hasLeft && (
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40">
                         <span className="rounded-full border border-white/15 bg-black/70 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-300 backdrop-blur">
@@ -543,11 +608,38 @@ function BattleInterior({
  * rows when N is odd. For N <= 10 (max private-party size) every
  * layout is hand-tuned; beyond 10 we fall back to a square-ish grid.
  */
+function WaitingTile() {
+  // Placeholder for a participant slot whose camera track hasn't
+  // published yet. Quiet treatment — a single pulsing dot + label so
+  // the user reads "we're waiting on them" without feeling stuck.
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-zinc-950 via-black to-zinc-950 text-center">
+      <span
+        aria-hidden
+        className="relative inline-flex h-4 w-4"
+      >
+        <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/60" />
+        <span className="relative h-4 w-4 rounded-full bg-sky-400/85" />
+      </span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+        waiting for opponent
+      </span>
+    </div>
+  );
+}
+
 function participantRowLayout(n: number, isLandscape: boolean): number[] {
-  if (n <= 1) return [Math.max(1, n)];
+  // Every battle has ≥ 2 participants by design — when only one track
+  // is currently published (you joined first, opponent's track hasn't
+  // arrived yet OR LiveKit hasn't surfaced it), we still want the
+  // layout reserved for two. Otherwise the single tile briefly
+  // expands to fill the whole screen and "pops" into half when the
+  // remote track lands — the bug the user reported.
+  const effective = Math.max(2, n);
+  if (effective <= 1) return [1];
 
   if (isLandscape) {
-    switch (n) {
+    switch (effective) {
       case 2: return [2];
       case 3: return [3];
       case 4: return [2, 2];
@@ -559,7 +651,7 @@ function participantRowLayout(n: number, isLandscape: boolean): number[] {
       case 10: return [4, 3, 3];
     }
   } else {
-    switch (n) {
+    switch (effective) {
       case 2: return [1, 1];
       case 3: return [1, 2];
       case 4: return [2, 2];
@@ -674,53 +766,52 @@ function countdownColor(n: number): string {
 
 // ---- Per-tile score overlay -----------------------------------------------
 
-function AvatarPill({
-  displayName,
-  meta,
-}: {
-  displayName: string;
-  meta: ParticipantMeta;
-}) {
-  // Pill links to the participant's public profile so the rest of the
-  // room can tap a face mid-battle and read up on someone. The video
-  // tile underneath stays interactive — the link is only on the pill.
-  // Equipped frame + badge render here too, so flair shows during
-  // battles (the "discord route" for monetization).
-  const userStats = userStatsFromMeta(meta);
-  const inner = meta.avatarUrl ? (
-    <img
-      src={meta.avatarUrl}
-      alt=""
-      className="h-5 w-5 rounded-full object-cover"
-    />
-  ) : (
-    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-700 text-[9px] font-semibold text-white">
-      {(displayName.charAt(0) || '?').toUpperCase()}
-    </span>
-  );
+// Shared SVG filter id for the liquid-glass refraction. Mounted once
+// per BattleRoom render (see BattleInterior), referenced by every
+// AvatarPill / ScoreCard on the page. The displacement amount is
+// modest — too high and the contents of the chip warp visibly,
+// breaking legibility of the score.
+const TILE_LIQUID_FILTER_ID = 'mog-liquid-glass';
 
+/**
+ * Hidden SVG with the displacement-map filter used by the player
+ * banner + score card backdrops. Render this exactly once per battle.
+ */
+function TileLiquidFilter() {
   return (
-    <Link
-      href={`/@${displayName}`}
-      onClick={(e) => e.stopPropagation()}
-      className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/55 pl-1 pr-2.5 py-1 backdrop-blur transition-colors hover:bg-black/75"
+    <svg
+      aria-hidden
+      width="0"
+      height="0"
+      className="pointer-events-none absolute"
+      style={{ position: 'absolute', width: 0, height: 0 }}
     >
-      {meta.equippedFrame ? (
-        <Frame slug={meta.equippedFrame} size={20} userStats={userStats}>
-          {inner}
-        </Frame>
-      ) : (
-        inner
-      )}
-      <span className="text-[11px] text-white/85">
-        <NameFx slug={meta.equippedNameFx ?? null} userStats={userStats}>
-          {displayName}
-        </NameFx>
-      </span>
-      {meta.equippedFlair && (
-        <Badge slug={meta.equippedFlair} userStats={userStats} />
-      )}
-    </Link>
+      <defs>
+        <filter
+          id={TILE_LIQUID_FILTER_ID}
+          x="-15%"
+          y="-15%"
+          width="130%"
+          height="130%"
+        >
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.014 0.020"
+            numOctaves="2"
+            seed="7"
+            result="noise"
+          />
+          <feGaussianBlur in="noise" stdDeviation="1.4" result="softNoise" />
+          <feDisplacementMap
+            in="SourceGraphic"
+            in2="softNoise"
+            scale="7"
+            xChannelSelector="R"
+            yChannelSelector="G"
+          />
+        </filter>
+      </defs>
+    </svg>
   );
 }
 
@@ -733,57 +824,284 @@ function ScoreOverlay({
   score?: { overall: number; peak: number; improvement: string };
   meta: ParticipantMeta;
 }) {
-  if (!score) {
-    return <AvatarPill displayName={displayName} meta={meta} />;
-  }
-
-  const tier = getTier(score.overall);
-  const color = getScoreColor(score.overall);
-  const peakColor = getScoreColor(score.peak);
+  // Single substantial card on the left edge of each tile. Replaces
+  // the prior 3-corner chip layout (avatar top-left + score top-right
+  // + improvement bottom-right). Shows everything in one slab so the
+  // eye doesn't have to triangulate three corners to read a player's
+  // state: live score, tier, peak, name, weakness.
+  const tier = score ? getTier(score.overall) : null;
+  const color = score ? getScoreColor(score.overall) : '#a1a1aa';
+  const peakColor = score ? getScoreColor(score.peak) : '#a1a1aa';
+  const userStats = userStatsFromMeta(meta);
 
   return (
-    <>
-      {/* Display name + avatar top-left */}
-      <AvatarPill displayName={displayName} meta={meta} />
-
-      {/* Big score top-right */}
-      <div
+    <Link
+      href={`/@${displayName}`}
+      onClick={(e) => e.stopPropagation()}
+      className="group absolute left-3 top-3 z-10 flex w-[180px] flex-col gap-3 overflow-hidden rounded-2xl px-3.5 py-3 transition-transform hover:scale-[1.01]"
+      style={{
+        background: 'rgba(0,0,0,0.32)',
+        backdropFilter: `url(#${TILE_LIQUID_FILTER_ID}) blur(30px) saturate(1.9) brightness(0.92)`,
+        WebkitBackdropFilter: 'blur(30px) saturate(1.9) brightness(0.92)',
+        boxShadow: `
+          0 22px 60px rgba(0,0,0,0.55),
+          0 4px 16px rgba(0,0,0,0.30),
+          0 0 0 0.5px rgba(255,255,255,0.18),
+          0 0 0 2px ${color}1d,
+          0 0 36px ${color}33,
+          inset 0 1.5px 0 rgba(255,255,255,0.30),
+          inset 0 -1px 0 rgba(0,0,0,0.45)
+        `,
+      }}
+    >
+      {/* Top rim-light */}
+      <span
         aria-hidden
-        className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-1 rounded-2xl border border-white/10 bg-black/55 px-3 py-2 backdrop-blur"
-      >
-        <div className="flex items-baseline gap-2">
-          <span
-            className="font-num text-3xl font-extrabold leading-none tabular-nums"
-            style={{
-              color,
-              textShadow: `0 0 18px ${color}88`,
-            }}
-          >
-            {score.overall}
+        className="pointer-events-none absolute inset-x-0 top-0 h-[24%]"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.05) 60%, transparent 100%)',
+          mixBlendMode: 'screen',
+        }}
+      />
+      {/* Corner lensing */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(120% 100% at 10% 8%, rgba(255,255,255,0.10) 0%, transparent 40%)',
+          mixBlendMode: 'overlay',
+        }}
+      />
+      {/* Top edge shimmer */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+        style={{
+          background:
+            'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)',
+        }}
+      />
+      {/* Tier-color tinted ambient sweep */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -inset-10 blur-3xl"
+        style={{
+          background: `radial-gradient(circle at 30% 0%, ${color}30 0%, transparent 55%)`,
+        }}
+      />
+
+      {/* Header: LIVE pip + peak */}
+      <div className="relative flex items-center justify-between">
+        <span
+          className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-white/80"
+          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}
+        >
+          <span aria-hidden className="relative inline-flex h-1.5 w-1.5">
+            <span
+              className="absolute inset-0 animate-ping rounded-full"
+              style={{ background: `${color}cc` }}
+            />
+            <span
+              className="relative h-1.5 w-1.5 rounded-full"
+              style={{ background: color }}
+            />
           </span>
-          <span className="text-xs uppercase tracking-[0.18em] text-white/60 normal-case">
+          live score
+        </span>
+      </div>
+
+      {/* The big score + tier */}
+      <div className="relative flex items-baseline gap-1.5">
+        <span
+          className="font-num font-black leading-none tabular-nums"
+          style={{
+            color,
+            fontSize: 48,
+            lineHeight: 0.92,
+            textShadow: `0 0 24px ${color}aa, 0 2px 6px rgba(0,0,0,0.7)`,
+          }}
+        >
+          {score?.overall ?? '—'}
+        </span>
+        {tier && (
+          <span
+            className="font-num text-xl font-black uppercase"
+            style={tierTextStyleInline(score!.overall, tier)}
+          >
             {tier.letter}
           </span>
-        </div>
-        <div className="text-[10px] text-zinc-400">
-          peak{' '}
-          <span
-            className="font-num font-semibold tabular-nums"
-            style={{ color: peakColor }}
-          >
-            {score.peak}
-          </span>
-        </div>
+        )}
       </div>
 
-      {/* Improvement ticker bottom-right */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-3 right-3 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200 backdrop-blur"
-      >
-        needs: <span className="font-semibold">{score.improvement}</span>
+      {/* Score-as-bar visualisation */}
+      <div className="relative h-1 w-full overflow-hidden rounded-full bg-white/10">
+        <span
+          className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
+          style={{
+            width: score ? `${Math.max(0, Math.min(100, score.overall))}%` : '0%',
+            background: color,
+            boxShadow: `0 0 8px ${color}aa`,
+          }}
+        />
       </div>
-    </>
+
+      {/* PEAK row */}
+      <div className="relative flex items-baseline justify-between">
+        <span
+          className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/55"
+          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
+        >
+          peak
+        </span>
+        <span
+          className="font-num text-base font-bold tabular-nums"
+          style={{
+            color: peakColor,
+            textShadow: `0 0 10px ${peakColor}88`,
+          }}
+        >
+          {score?.peak ?? '—'}
+        </span>
+      </div>
+
+      {/* Divider hair */}
+      <span
+        aria-hidden
+        className="relative h-px w-full"
+        style={{
+          background:
+            'linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent)',
+        }}
+      />
+
+      {/* Player handle */}
+      <div className="relative flex flex-col gap-0.5">
+        <span
+          className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/55"
+          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
+        >
+          player
+        </span>
+        <span
+          className="truncate text-[14px] font-bold leading-tight text-white"
+          style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}
+        >
+          <NameFx slug={meta.equippedNameFx ?? null} userStats={userStats}>
+            {displayName}
+          </NameFx>
+        </span>
+      </div>
+
+      {/* Improvement (flaw) — only when we have a score, otherwise the
+          row is empty and we skip it to avoid showing a blank "—". */}
+      {score?.improvement && (
+        <div className="relative flex items-baseline justify-between">
+          <span
+            className="text-[9px] font-semibold uppercase tracking-[0.22em] text-amber-300/80"
+            style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
+          >
+            flaw
+          </span>
+          <span
+            className="text-[12px] font-bold uppercase tracking-[0.10em] text-amber-100"
+            style={{ textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}
+          >
+            {score.improvement}
+          </span>
+        </div>
+      )}
+    </Link>
   );
+}
+
+/**
+ * Bottom-right connection indicator for each tile. Shows THAT
+ * participant's connection quality (not the local user's) so each tile
+ * tells you how the person it represents is doing — when you see your
+ * opponent's video freeze, the bars on their tile go red. Three
+ * staggered bars, coloured per LiveKit's quality enum.
+ */
+function ConnectionBars({ participant }: { participant: Participant }) {
+  const { quality } = useConnectionQualityIndicator({ participant });
+
+  // active = how many of the three bars light up
+  // colour = signal colour (green / yellow / red / grey)
+  let active = 0;
+  let color = '#a1a1aa';
+  switch (quality) {
+    case ConnectionQuality.Excellent:
+      active = 3;
+      color = '#22c55e';
+      break;
+    case ConnectionQuality.Good:
+      active = 2;
+      color = '#facc15';
+      break;
+    case ConnectionQuality.Poor:
+      active = 1;
+      color = '#f97316';
+      break;
+    case ConnectionQuality.Lost:
+      active = 0;
+      color = '#ef4444';
+      break;
+    case ConnectionQuality.Unknown:
+    default:
+      active = 0;
+      color = '#71717a';
+      break;
+  }
+
+  return (
+    <div
+      aria-label={`connection ${quality}`}
+      className="pointer-events-none absolute bottom-3 right-3 z-10 flex items-end gap-1 rounded-full bg-black/55 px-2 py-1.5 backdrop-blur"
+      style={{
+        boxShadow:
+          '0 4px 14px rgba(0,0,0,0.45), inset 0 0 0 0.5px rgba(255,255,255,0.18)',
+      }}
+    >
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="block w-[3px] rounded-sm transition-colors"
+          style={{
+            height: 6 + i * 4,
+            backgroundColor: i < active ? color : 'rgba(255,255,255,0.18)',
+            boxShadow: i < active ? `0 0 6px ${color}88` : undefined,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Inline tier-color helper for the glass score card. Same logic as the
+// page-level tierTextStyle but accepts a pre-computed tier so we don't
+// re-invoke getTier for the gradient check.
+function tierTextStyleInline(
+  score: number,
+  tier: ReturnType<typeof getTier>,
+): React.CSSProperties {
+  // Defense-in-depth alongside the `uppercase` class on the render
+  // site — body globally lowercases everything, so tier letters need
+  // an explicit override here too.
+  if (tier.isGradient) {
+    return {
+      backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
+      WebkitBackgroundClip: 'text',
+      backgroundClip: 'text',
+      color: 'transparent',
+      textShadow: '0 0 18px rgba(168,85,247,0.4)',
+      textTransform: 'uppercase',
+    };
+  }
+  return {
+    color: tier.color,
+    textShadow: `0 0 14px ${getScoreColor(score)}66`,
+    textTransform: 'uppercase',
+  };
 }
 

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { generateShareImage } from '@/lib/shareImageGenerator';
 import { getTier } from '@/lib/tier';
+import type { FinalScores } from '@/types';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.com';
 
 function getShareText(tier: string, url: string): string {
   if (['F-', 'F', 'F+', 'D-', 'D', 'D+'].includes(tier))
@@ -18,7 +19,7 @@ function getShareText(tier: string, url: string): string {
 
 type Toast = { id: number; message: string };
 
-export function useShare(score: number) {
+export function useShare(scores: FinalScores, capturedImage?: string) {
   const [toast, setToast] = useState<Toast | null>(null);
   const blobRef = useRef<Blob | null>(null);
   const blobPromiseRef = useRef<Promise<Blob> | null>(null);
@@ -40,15 +41,18 @@ export function useShare(score: number) {
   const ensureBlob = useCallback(async (): Promise<Blob> => {
     if (blobRef.current) return blobRef.current;
     if (!blobPromiseRef.current) {
-      blobPromiseRef.current = generateShareImage(score).then((b) => {
+      blobPromiseRef.current = generateShareImage({
+        scores,
+        capturedImage,
+      }).then((b) => {
         blobRef.current = b;
         return b;
       });
     }
     return blobPromiseRef.current;
-  }, [score]);
+  }, [scores, capturedImage]);
 
-  const tier = getTier(score).letter;
+  const tier = getTier(scores.overall).letter;
   const shareText = getShareText(tier, APP_URL);
   // URL-bound copy: strip emojis. WhatsApp Web and a few other targets
   // mojibake them into � when round-tripping through their intent URLs.

@@ -8,10 +8,10 @@ import {
   Database,
   Download,
   Loader2,
-  LogOut,
   Skull,
 } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { Section, type SaveState } from './shared';
 
 /**
@@ -73,56 +73,39 @@ export function DataSection({
     }
   }, []);
 
-  // ---- Reset stats -------------------------------------------------------
-  const resetStats = useCallback(async () => {
-    if (
-      !window.confirm(
-        'Reset all stats? ELO returns to 1000 and your matches, streaks, best scan, and weakness counts are cleared. Past battle history rows are kept. Cannot be undone.',
-      )
-    ) {
-      return;
-    }
+  // Custom-modal state for each destructive action. We don't use a
+  // single 'open: string | null' because the modals open and close
+  // independently and each has its own pending/result lifecycle.
+  const [resetOpen, setResetOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const doResetStats = useCallback(async () => {
+    setResetOpen(false);
     setResetState({ kind: 'pending' });
     const res = await onResetStats();
     if (!res.ok) {
-      setResetState({
-        kind: 'error',
-        message: res.message ?? 'failed',
-      });
+      setResetState({ kind: 'error', message: res.message ?? 'failed' });
       return;
     }
     setResetState({ kind: 'saved' });
     window.setTimeout(() => setResetState({ kind: 'idle' }), 1800);
   }, [onResetStats]);
 
-  // ---- Remove leaderboard entry -----------------------------------------
-  const removeLeaderboard = useCallback(async () => {
-    if (
-      !window.confirm(
-        'Remove your leaderboard entry? Photo and score will be deleted from the public board.',
-      )
-    ) {
-      return;
-    }
+  const doRemoveLeaderboard = useCallback(async () => {
+    setRemoveOpen(false);
     setRemoveState({ kind: 'pending' });
     const res = await onRemoveLeaderboard();
     if (!res.ok) {
-      setRemoveState({
-        kind: 'error',
-        message: res.message ?? 'failed',
-      });
+      setRemoveState({ kind: 'error', message: res.message ?? 'failed' });
       return;
     }
     setRemoveState({ kind: 'saved' });
     window.setTimeout(() => setRemoveState({ kind: 'idle' }), 1800);
   }, [onRemoveLeaderboard]);
 
-  // ---- Delete account ---------------------------------------------------
-  const deleteAccount = useCallback(async () => {
-    const typed = window.prompt(
-      'Permanently delete your account, leaderboard entry, scan history, and battle stats. To confirm, type DELETE.',
-    );
-    if (typed !== 'DELETE') return;
+  const doDeleteAccount = useCallback(async () => {
+    setDeleteOpen(false);
     setDeleteState({ kind: 'pending' });
     const res = await onDeleteAccount();
     if (!res.ok) {
@@ -138,6 +121,13 @@ export function DataSection({
     await signOut();
     router.push('/');
   }, [onDeleteAccount, signOut, router]);
+
+  // Public-facing triggers — these open the custom ConfirmModal
+  // instead of calling window.confirm/prompt. DangerRow still calls
+  // these with the same signatures.
+  const resetStats = useCallback(() => setResetOpen(true), []);
+  const removeLeaderboard = useCallback(() => setRemoveOpen(true), []);
+  const deleteAccount = useCallback(() => setDeleteOpen(true), []);
 
   // ---- Sign out ---------------------------------------------------------
   const onSignOut = useCallback(async () => {
@@ -166,14 +156,6 @@ export function DataSection({
         />
       </Section>
 
-      <button
-        type="button"
-        onClick={onSignOut}
-        className="self-start inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-[12px] text-zinc-200 transition-colors hover:bg-white/[0.06] hover:text-white"
-      >
-        <LogOut size={12} aria-hidden /> sign out
-      </button>
-
       <Section
         id="danger"
         label="danger zone"
@@ -186,6 +168,17 @@ export function DataSection({
           </span>
         }
       >
+        {/* Sign out lives here too because there's nowhere safer for it
+            on this page — it's not destructive but it does kick you out
+            of the session, so it sits at the top of the danger list as
+            the mildest entry. */}
+        <DangerRow
+          title="sign out"
+          description="end this session on this device. you'll need to sign in again."
+          action="sign out"
+          state={{ kind: 'idle' }}
+          onClick={onSignOut}
+        />
         <DangerRow
           title="reset stats"
           description="elo → 1000, counters → 0, best scan cleared. battle history rows kept."
@@ -214,6 +207,63 @@ export function DataSection({
           variant="solid"
         />
       </Section>
+
+      <ConfirmModal
+        open={resetOpen}
+        danger
+        title="Reset your stats?"
+        description={
+          <>
+            Your ELO returns to <strong className="text-white">1000</strong>{' '}
+            and matches, streaks, best scan, and weakness counts are cleared.
+            Past battle history rows are kept so you can still see what you
+            played, but the aggregate stats reset. Cannot be undone.
+          </>
+        }
+        confirmLabel="Reset"
+        onConfirm={doResetStats}
+        onCancel={() => setResetOpen(false)}
+      />
+
+      <ConfirmModal
+        open={removeOpen}
+        danger
+        title="Remove your leaderboard entry?"
+        description={
+          <>
+            Your photo and score are deleted from the public board. You can
+            scan again any time to land a new entry.
+          </>
+        }
+        confirmLabel="Remove"
+        onConfirm={doRemoveLeaderboard}
+        onCancel={() => setRemoveOpen(false)}
+      />
+
+      <ConfirmModal
+        open={deleteOpen}
+        danger
+        title="Delete your account?"
+        description={
+          <>
+            Cascades through your profile, leaderboard entry, scan history,
+            battles, sessions, and purchases.{' '}
+            <strong className="text-white">This is irreversible.</strong> Type{' '}
+            <code className="rounded bg-white/10 px-1.5 py-0.5 text-[12px] text-white">
+              DELETE
+            </code>{' '}
+            below to confirm.
+          </>
+        }
+        confirmLabel="Delete forever"
+        input={{
+          placeholder: 'DELETE',
+          matchPhrase: 'DELETE',
+          autoComplete: 'off',
+        }}
+        onConfirm={doDeleteAccount}
+        onCancel={() => setDeleteOpen(false)}
+      />
     </>
   );
 }

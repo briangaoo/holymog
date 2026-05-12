@@ -5,11 +5,16 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, Link as LinkIcon, Share2, X } from 'lucide-react';
 import { useShare } from '@/hooks/useShare';
+import type { FinalScores } from '@/types';
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  score: number;
+  scores: FinalScores;
+  /** dataURL of the captured frame. Threaded to the canvas generator
+   *  so the share image shows the same avatar circle that's on-screen.
+   *  Optional — generator skips the avatar cleanly when absent. */
+  capturedImage?: string;
 };
 
 type Platform = {
@@ -93,7 +98,7 @@ function PlatformTile({ p }: { p: Platform }) {
   );
 }
 
-export function ShareSheet({ open, onClose, score }: Props) {
+export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
   const {
     canNativeShare,
     nativeShare,
@@ -108,7 +113,7 @@ export function ShareSheet({ open, onClose, score }: Props) {
     copyImage,
     copyLink,
     toast,
-  } = useShare(score);
+  } = useShare(scores, capturedImage);
 
   // Order: visual social → public posting → closed-circle. 9 platforms,
   // 3×3 grid. Brand colours match official guidelines so the sheet still

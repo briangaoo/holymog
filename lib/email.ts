@@ -1,14 +1,42 @@
+import type { Transporter } from 'nodemailer';
+import { recordEmailSent } from '@/lib/emailVolume';
+
 /**
- * Resend HTTP client wrapper. We use the REST API directly (no @resend/node
- * dep) so we stay aligned with how Auth.js's Resend provider sends magic
- * links — single vendor, single key, single failure mode.
+ * Gmail Workspace SMTP wrapper. All transactional email (magic-link
+ * sign-in via Auth.js, email-change verification, cron-driven digests,
+ * leaderboard-displaced alerts, S-tier review notifications to admin,
+ * contact-form forwarding) flows through this single send function.
  *
- * Quietly no-ops when AUTH_RESEND_KEY is unset (local dev without a real
- * Resend account). Returns `{ ok }` so callers can decide whether to log
- * a failure to the audit log.
+ * Auth.js's Nodemailer provider has its own copy of the transport
+ * config in lib/auth.ts — we deliberately don't share state, because
+ * Auth.js manages its own connection pool internally. This module is
+ * for everything else.
+ *
+ * Returns `{ ok: false, error: 'smtp_unconfigured' }` when
+ * EMAIL_SERVER_PASSWORD is missing — keeps local dev working without
+ * a real Google app password.
  */
 
-const FROM_DEFAULT = 'holymog <auth@holymog.com>';
+let cachedTransport: Transporter | null = null;
+
+async function getTransport(): Promise<Transporter | null> {
+  if (cachedTransport) return cachedTransport;
+  const host = process.env.EMAIL_SERVER_HOST;
+  const port = Number(process.env.EMAIL_SERVER_PORT ?? 465);
+  const user = process.env.EMAIL_SERVER_USER;
+  const pass = process.env.EMAIL_SERVER_PASSWORD;
+  if (!host || !user || !pass) return null;
+  const nodemailer = await import('nodemailer');
+  cachedTransport = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+  return cachedTransport;
+}
+
+const FROM_DEFAULT = process.env.EMAIL_FROM ?? 'auth@holymog.com';
 
 export type EmailResult =
   | { ok: true; id?: string }
@@ -23,36 +51,35 @@ export async function sendEmail(args: {
   replyTo?: string;
   tags?: Array<{ name: string; value: string }>;
 }): Promise<EmailResult> {
-  const apiKey = process.env.AUTH_RESEND_KEY;
-  if (!apiKey) {
-    return { ok: false, error: 'resend_unconfigured' };
+  const transport = await getTransport();
+  if (!transport) return { ok: false, error: 'smtp_unconfigured' };
+
+  // Custom tags survive as X-headers. Gmail preserves them through
+  // delivery and they're useful for inbox-side filtering or reply
+  // routing without affecting deliverability scoring.
+  const headers: Record<string, string> = {};
+  for (const tag of args.tags ?? []) {
+    headers[`X-${tag.name}`] = tag.value;
   }
+
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: args.from ?? FROM_DEFAULT,
-        to: args.to,
-        subject: args.subject,
-        html: args.html,
-        text: args.text,
-        reply_to: args.replyTo,
-        tags: args.tags,
-      }),
+    const result = await transport.sendMail({
+      from: args.from ?? FROM_DEFAULT,
+      to: args.to,
+      subject: args.subject,
+      html: args.html,
+      text: args.text,
+      replyTo: args.replyTo,
+      headers,
     });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      return {
-        ok: false,
-        error: `resend ${res.status}: ${body.slice(0, 200)}`,
-      };
+    const failed = result.rejected
+      .concat(result.pending ?? [])
+      .filter(Boolean);
+    if (failed.length) {
+      return { ok: false, error: `SMTP rejected: ${failed.join(', ')}` };
     }
-    const data = (await res.json().catch(() => ({}))) as { id?: string };
-    return { ok: true, id: data.id };
+    void recordEmailSent();
+    return { ok: true, id: result.messageId };
   } catch (err) {
     return {
       ok: false,
@@ -80,10 +107,9 @@ export function verifyCronAuth(request: Request): boolean {
 
 /**
  * Public-facing app URL for email links. Falls back to the canonical
- * holymog.vercel.app if NEXT_PUBLIC_APP_URL is unset (local dev).
+ * holymog.com if NEXT_PUBLIC_APP_URL is unset.
  */
 export function appUrl(path: string = ''): string {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.vercel.app';
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://holymog.com';
   return `${base.replace(/\/$/, '')}${path}`;
 }

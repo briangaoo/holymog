@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { AppHeader } from '@/components/AppHeader';
 import { AuthModal } from '@/components/AuthModal';
@@ -10,6 +10,7 @@ import { FullPageSpinner } from '@/components/FullPageSpinner';
 import { AccountStatsTab } from '@/components/AccountStatsTab';
 import { AccountHistoryTab } from '@/components/AccountHistoryTab';
 import { AccountSettingsTab } from '@/components/AccountSettingsTab';
+import { AvatarFallback } from '@/components/AvatarFallback';
 import { NameFx } from '@/components/customization/NameFx';
 import type { UserStats } from '@/lib/customization';
 import type { VisionScore, FinalScores } from '@/types';
@@ -18,12 +19,17 @@ type Tab = 'stats' | 'history' | 'settings';
 
 // Shapes returned by the API — shared across all three tabs.
 export type MeData = {
+  /** The user's current avatar URL — mirrors users.image. Sourced
+   *  through here (not through useSession) so refreshMe() picks up
+   *  changes after the user uploads or removes their avatar. */
+  image?: string | null;
   profile: {
     display_name: string;
     elo: number;
     peak_elo: number;
     matches_played: number;
     matches_won: number;
+    matches_tied: number;
     current_streak: number;
     longest_streak: number;
     best_scan_overall: number | null;
@@ -60,7 +66,7 @@ export type MeData = {
   highest_overall_ever?: number | null;
   elo_sparkline?: Array<{ elo: number; recorded_at: string }>;
   most_improved?: { metric: string; delta: number } | null;
-  recent_battle_results?: boolean[];
+  recent_battle_results?: Array<'win' | 'loss' | 'tie'>;
   biggest_win?: {
     delta: number;
     opponent_display_name: string | null;
@@ -94,11 +100,53 @@ type Prefetched = {
   history: HistoryData | null;
 };
 
-export default function AccountPage() {
+const VALID_TABS: ReadonlySet<Tab> = new Set(['stats', 'history', 'settings']);
+
+function isValidTab(value: string | null): value is Tab {
+  return value !== null && VALID_TABS.has(value as Tab);
+}
+
+/**
+ * Next.js prerenders client components at build time, and any
+ * useSearchParams() call inside one needs a Suspense boundary above it
+ * so the prerender can bail out cleanly. We wrap the real component
+ * in <Suspense> below; this is the inner implementation.
+ */
+function AccountPageInner() {
   const { user, loading } = useUser();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('stats');
+  const searchParams = useSearchParams();
+  // Tab is sourced from `?tab=…` so a reload (or a deep-link from the
+  // header chip / the leaderboard "edit in settings" link) preserves
+  // whichever tab the user was on. Fallback is 'stats' for clean URLs.
+  const tabFromUrl = searchParams.get('tab');
+  const initialTab: Tab = isValidTab(tabFromUrl) ? tabFromUrl : 'stats';
+  const [tab, setTabState] = useState<Tab>(initialTab);
   const [prefetched, setPrefetched] = useState<Prefetched | null>(null);
+
+  // Sync URL → state when the user uses browser back/forward.
+  useEffect(() => {
+    const next = isValidTab(tabFromUrl) ? tabFromUrl : 'stats';
+    setTabState((curr) => (curr === next ? curr : next));
+  }, [tabFromUrl]);
+
+  // State → URL via shallow replace so reloads land back on the same
+  // tab. router.replace doesn't push history, so the back button still
+  // exits /account cleanly instead of cycling through tabs.
+  const setTab = useCallback(
+    (next: Tab) => {
+      setTabState(next);
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === 'stats') {
+        params.delete('tab');
+      } else {
+        params.set('tab', next);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `/account?${qs}` : '/account', { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   // Once auth resolves, fire both account fetches in parallel.
   // If the user isn't signed in, set prefetched immediately so we skip
@@ -125,6 +173,43 @@ export default function AccountPage() {
       cancelled = true;
     };
   }, [user, loading]);
+
+  // Hot-refresh /api/account/me — children call this after they mutate
+  // profile/avatar/banner/username so the rest of the page re-renders
+  // without a full page reload. Cheaper than reload because we don't
+  // re-fetch history.
+  const refreshMe = useCallback(async () => {
+    try {
+      const me = (await fetch('/api/account/me', { cache: 'no-store' }).then(
+        (r) => r.json(),
+      )) as MeData;
+      setPrefetched((curr) =>
+        curr ? { ...curr, me } : { me, history: null },
+      );
+      // Broadcast so siblings outside this page tree (AppHeader's
+      // AccountAvatar chip) also re-fetch — useSession's user.image
+      // doesn't auto-refresh after avatar upload/delete, so without
+      // this the header chip keeps showing the old picture until the
+      // session re-issues a token.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('holymog:profile-changed'));
+      }
+    } catch {
+      // ignore — the next page navigation will pick up fresh state
+    }
+  }, []);
+
+  // Banner image preload — the banner only renders inside the Settings
+  // tab's ProfileSection, but the URL is known immediately from
+  // /api/account/me. Kicking off the image download in parallel means
+  // when the user tabs into Settings the banner is already in the
+  // browser cache (no flash of "missing banner" while the JPEG loads).
+  useEffect(() => {
+    const banner = prefetched?.me?.profile?.banner_url;
+    if (!banner) return;
+    const img = new window.Image();
+    img.src = banner;
+  }, [prefetched?.me?.profile?.banner_url]);
 
   if (!prefetched) {
     return (
@@ -184,18 +269,21 @@ export default function AccountPage() {
       <AppHeader />
       <main className="relative mx-auto w-full max-w-2xl px-5 py-6">
         <header className="mb-6 flex items-center gap-3">
-          {user.image ? (
+          {prefetched.me?.image ?? user.image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={user.image}
+              src={prefetched.me?.image ?? user.image ?? ''}
               alt=""
               className="h-12 w-12 flex-shrink-0 rounded-full border border-white/15 object-cover"
             />
           ) : (
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-lg font-semibold text-white">
-              {(prefetched.me?.profile?.display_name ?? user.email ?? '?')
-                .charAt(0)
-                .toUpperCase()}
+            <span className="flex h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border border-white/15">
+              <AvatarFallback
+                seed={
+                  prefetched.me?.profile?.display_name ?? user.email ?? '?'
+                }
+                textClassName="text-lg"
+              />
             </span>
           )}
           <div className="flex flex-col gap-0.5 min-w-0">
@@ -267,8 +355,18 @@ export default function AccountPage() {
 
         {tab === 'stats' && <AccountStatsTab initial={prefetched.me} />}
         {tab === 'history' && <AccountHistoryTab initial={prefetched.history} />}
-        {tab === 'settings' && <AccountSettingsTab initial={prefetched.me} />}
+        {tab === 'settings' && (
+          <AccountSettingsTab initial={prefetched.me} onRefresh={refreshMe} />
+        )}
       </main>
     </div>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner label="loading account" />}>
+      <AccountPageInner />
+    </Suspense>
   );
 }

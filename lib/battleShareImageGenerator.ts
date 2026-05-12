@@ -1,127 +1,216 @@
 import { getTier } from './tier';
+import { getScoreColor } from './scoreColor';
+import {
+  anyColorToRgb,
+  readFonts,
+  roundedRect,
+} from './shareImageGenerator';
 
 const W = 1080;
 const H = 1920;
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const m = hex.replace('#', '');
-  const r = parseInt(m.substring(0, 2), 16);
-  const g = parseInt(m.substring(2, 4), 16);
-  const b = parseInt(m.substring(4, 6), 16);
-  return { r, g, b };
-}
-
 export type BattleShareInput = {
-  self: { display_name: string; peak_score: number };
+  self: {
+    display_name: string;
+    peak_score: number;
+    /** Optional ELO delta for this match (signed). When present we
+     *  render the same "+24 ELO · now 1547" pill the result screen
+     *  shows. Omitted for private battles where ELO doesn't move. */
+    elo_delta?: number;
+    elo_after?: number;
+  };
   opponent: { display_name: string; peak_score: number };
   won: boolean;
+  /** Tie state is distinct from won=false so we render the zinc "TIED"
+   *  treatment instead of the rose "GOT MOGGED" treatment. */
+  tied?: boolean;
 };
 
 /**
- * Render a 1080×1920 (9:16) PNG of the battle result for sharing to
- * stories / DMs. Layout:
+ * Render a 1080×1920 PNG of the battle result for story / DM sharing.
  *
- *   ┌────────────────────────────┐
- *   │   holymog wordmark         │
- *   │                            │
- *   │   you mogged   /    you    │
- *   │   <opponent>        got    │
- *   │                  mogged    │
- *   │                            │
- *   │   ┌─────────┐  ┌─────────┐ │
- *   │   │ S+      │  │ A       │ │
- *   │   │ 96      │  │ 78      │ │
- *   │   │ you     │  │ <name>  │ │
- *   │   │ WIN     │  │         │ │
- *   │   └─────────┘  └─────────┘ │
- *   │                            │
- *   │   rate yours at holymog…   │
- *   └────────────────────────────┘
- *
- * No participant photos — pre-existing storage is for the leaderboard
- * faces bucket and we don't want to leak in-battle frames into share
- * imagery without an explicit opt-in. Score panels are tier-coloured;
- * the winner panel gets an emerald border + WIN chip, the loser panel
- * is faded.
+ * Mirrors components/MogResultScreen.tsx as faithfully as a static
+ * canvas can — same headline ("YOU MOGGED" / "GOT MOGGED" / "TIED"),
+ * same lowercase subhead ("you cooked @opponent."), same vs board
+ * (two side-by-side cards with score + tier + name + progress bar),
+ * same margin pill ("+12 · CLEAR WIN") and ELO pill ("+24 ELO · NOW
+ * 1547") rendered to the bottom of the card. No in-battle peak frame
+ * is bundled — peak frames are stored in the private holymog-battles
+ * bucket and aren't exposed to the client at finish time anyway.
  */
 export async function generateBattleShareImage(
   input: BattleShareInput,
 ): Promise<Blob> {
+  const tied = input.tied === true;
+  const fonts = readFonts();
+
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas context unavailable');
 
-  // ---- Background --------------------------------------------------
+  // ---- Background -------------------------------------------------
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle radial wash. Emerald if won, deep red if lost.
+  // Headline accent — tier-color for win, rose for loss, zinc for tie.
+  // Matches the result screen's ResultHeadline + ResultAmbient logic.
+  const headlineColor = tied
+    ? '#d4d4d8'
+    : input.won
+      ? getScoreColor(input.self.peak_score)
+      : '#fda4af';
+
+  // Radial wash, same intensity as the result screen ambient layer.
   const cx = W / 2;
-  const cy = H / 2;
-  const maxR = Math.sqrt(cx * cx + cy * cy);
-  const accent = input.won ? '#10b981' : '#ef4444';
-  const { r, g, b } = hexToRgb(accent);
-  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.7);
-  grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.28)`);
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = grad;
+  const washTopCY = H * 0.35;
+  const washRgb = anyColorToRgb(headlineColor);
+  const wash = ctx.createRadialGradient(
+    cx,
+    washTopCY,
+    0,
+    cx,
+    washTopCY,
+    Math.sqrt(W * W + H * H) * 0.55,
+  );
+  wash.addColorStop(
+    0,
+    `rgba(${washRgb.r}, ${washRgb.g}, ${washRgb.b}, ${input.won ? 0.32 : 0.22})`,
+  );
+  wash.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = wash;
   ctx.fillRect(0, 0, W, H);
 
-  // ---- Wordmark ----------------------------------------------------
-  ctx.fillStyle = 'rgba(255,255,255,0.65)';
-  ctx.font = '600 48px "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace';
+  // ---- Top wordmark -----------------------------------------------
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `600 38px ${fonts.mono}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('holymog', cx, 140);
+  ctx.fillText('holymog', cx, 110);
 
-  // ---- Headline ----------------------------------------------------
+  // ---- HUGE headline ----------------------------------------------
+  const headline = tied ? 'TIED' : input.won ? 'YOU MOGGED' : 'GOT MOGGED';
+  // "YOU MOGGED" is longer than "GOT MOGGED" or "TIED"; size down a
+  // touch when long so it doesn't bleed past the canvas edges.
+  const headlineSize = headline.length > 5 ? 180 : 230;
+  ctx.font = `900 ${headlineSize}px ${fonts.sans}`;
+  ctx.fillStyle = headlineColor;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '900 130px Inter, system-ui, sans-serif';
-  ctx.fillText(input.won ? 'you mogged' : 'you got mogged', cx, 380);
+  ctx.shadowColor = `rgba(${washRgb.r}, ${washRgb.g}, ${washRgb.b}, 0.45)`;
+  ctx.shadowBlur = 60;
+  ctx.fillText(headline, cx, 320);
+  ctx.shadowBlur = 0;
 
-  // Subhead
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = '500 38px "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace';
-  const subhead = input.won
-    ? 'highest peak score wins.'
-    : 'rematch in the next one.';
-  ctx.fillText(subhead, cx, 480);
+  // ---- Lowercase subhead -----------------------------------------
+  const subhead = tied
+    ? `you and @${input.opponent.display_name} tied.`
+    : input.won
+      ? `you cooked @${input.opponent.display_name}.`
+      : `@${input.opponent.display_name} cooked you.`;
+  ctx.fillStyle = tied
+    ? 'rgba(212,212,216,0.85)'
+    : input.won
+      ? 'rgba(110,231,183,0.85)'
+      : 'rgba(253,164,175,0.85)';
+  ctx.font = `500 38px ${fonts.sans}`;
+  ctx.fillText(truncate(subhead, 40), cx, 460);
 
-  // ---- Score panels (side by side) --------------------------------
-  // Two cards centered vertically, one for self, one for opponent.
-  const panelW = 440;
-  const panelH = 580;
+  // ---- vs board (two cards) --------------------------------------
+  const boardTop = 580;
+  const cardW = 460;
+  const cardH = 540;
   const gap = 40;
-  const totalW = panelW * 2 + gap;
-  const panelTop = 700;
+  const totalW = cardW * 2 + gap;
   const leftX = cx - totalW / 2;
-  const rightX = leftX + panelW + gap;
+  const rightX = leftX + cardW + gap;
 
-  drawScorePanel(ctx, leftX, panelTop, panelW, panelH, {
+  drawPlayerCard(ctx, leftX, boardTop, cardW, cardH, fonts, {
     label: 'you',
     name: input.self.display_name,
     score: input.self.peak_score,
-    isWinner: input.won,
-    faded: !input.won,
+    isWinner: !tied && input.won,
+    tied,
   });
-  drawScorePanel(ctx, rightX, panelTop, panelW, panelH, {
+  drawPlayerCard(ctx, rightX, boardTop, cardW, cardH, fonts, {
     label: 'opponent',
     name: input.opponent.display_name,
     score: input.opponent.peak_score,
-    isWinner: !input.won,
-    faded: input.won,
+    isWinner: !tied && !input.won,
+    tied,
   });
 
-  // ---- Bottom CTA --------------------------------------------------
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = '500 36px "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace';
+  // "vs" / "=" divider between the two cards
+  ctx.fillStyle = tied ? '#71717a' : '#52525b';
+  ctx.font = `900 italic 70px ${fonts.sans}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('rate yours at holymog.vercel.app', cx, H - 140);
+  ctx.fillText(tied ? '=' : 'vs', cx, boardTop + cardH / 2);
+
+  // ---- Margin pill ------------------------------------------------
+  const delta = Math.abs(input.self.peak_score - input.opponent.peak_score);
+  const marginText = tied
+    ? 'dead even'
+    : delta >= 25
+      ? 'utter mog'
+      : delta >= 12
+        ? 'clear win'
+        : delta >= 5
+          ? 'comfortable'
+          : delta >= 1
+            ? 'photo finish'
+            : 'dead even';
+  const marginSign = tied
+    ? '±0'
+    : (input.won ? '+' : '−') + delta;
+
+  drawPill(ctx, cx, boardTop + cardH + 80, fonts, {
+    leadLabel: 'margin',
+    leadValue: marginSign,
+    leadValueColor: tied
+      ? '#d4d4d8'
+      : input.won
+        ? '#34d399'
+        : '#fb7185',
+    tailLabel: marginText.toUpperCase(),
+    borderColor: 'rgba(255,255,255,0.12)',
+  });
+
+  // ---- ELO pill (optional) ---------------------------------------
+  if (typeof input.self.elo_delta === 'number') {
+    const eloDelta = input.self.elo_delta;
+    const positive = eloDelta > 0;
+    const neutral = eloDelta === 0;
+    const eloColor = tied
+      ? '#d4d4d8'
+      : positive
+        ? '#34d399'
+        : neutral
+          ? '#a1a1aa'
+          : '#fb7185';
+    const eloSign = positive ? '+' : eloDelta < 0 ? '−' : '±';
+    const eloLead = `${eloSign}${Math.abs(eloDelta)}`;
+    const eloTail =
+      typeof input.self.elo_after === 'number'
+        ? `ELO  ·  NOW ${input.self.elo_after}`
+        : 'ELO';
+    drawPill(ctx, cx, boardTop + cardH + 200, fonts, {
+      leadLabel: '',
+      leadValue: eloLead,
+      leadValueColor: eloColor,
+      tailLabel: eloTail,
+      borderColor: `rgba(${anyColorToRgb(eloColor).r}, ${anyColorToRgb(eloColor).g}, ${anyColorToRgb(eloColor).b}, 0.35)`,
+      glowColor: eloColor,
+    });
+  }
+
+  // ---- Bottom CTA -------------------------------------------------
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.font = `500 32px ${fonts.mono}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('rate yours at holymog.com', cx, H - 130);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -131,112 +220,249 @@ export async function generateBattleShareImage(
   });
 }
 
-type PanelOpts = {
+/* ---------- card + pill helpers ------------------------------------ */
+
+type CardOpts = {
   label: string;
   name: string;
   score: number;
   isWinner: boolean;
-  faded: boolean;
+  tied: boolean;
 };
 
-function drawScorePanel(
+function drawPlayerCard(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  opts: PanelOpts,
+  fonts: ReturnType<typeof readFonts>,
+  opts: CardOpts,
 ) {
-  const { label, name, score, isWinner, faded } = opts;
+  const { label, name, score, isWinner, tied } = opts;
   const tier = getTier(score);
+  const color = tied ? '#a1a1aa' : getScoreColor(score);
 
-  // Card background
-  ctx.save();
-  ctx.globalAlpha = faded ? 0.55 : 1;
-
+  // Card bg + border. Winner gets emerald-tinted glow; tied gets a
+  // neutral zinc border; loser stays subtle white/10.
   roundedRect(ctx, x, y, w, h, 36);
-  ctx.fillStyle = isWinner ? 'rgba(16,185,129,0.10)' : 'rgba(255,255,255,0.03)';
-  ctx.fill();
+  if (isWinner) {
+    const rgb = anyColorToRgb(color);
+    ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.10)`;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(16,185,129,0.55)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
 
-  // Border
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = isWinner ? 'rgba(16,185,129,0.55)' : 'rgba(255,255,255,0.10)';
-  ctx.stroke();
+    // Soft outer glow.
+    ctx.save();
+    ctx.shadowColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.45)`;
+    ctx.shadowBlur = 32;
+    roundedRect(ctx, x, y, w, h, 36);
+    ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  } else if (tied) {
+    ctx.fillStyle = 'rgba(113,113,122,0.08)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.025)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
-  // Top label (you / opponent)
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.font = '600 30px "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label.toUpperCase(), x + w / 2, y + 60);
+  // Winner chip
+  if (isWinner) {
+    const chipW = 180;
+    const chipH = 44;
+    const chipX = x + w - chipW - 16;
+    const chipY = y + 16;
+    roundedRect(ctx, chipX, chipY, chipW, chipH, chipH / 2);
+    ctx.fillStyle = 'rgba(16,185,129,0.25)';
+    ctx.fill();
+    ctx.fillStyle = '#6ee7b7';
+    ctx.font = `700 20px ${fonts.mono}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✦ WINNER', chipX + chipW / 2, chipY + chipH / 2);
+  } else if (tied) {
+    const chipW = 130;
+    const chipH = 44;
+    const chipX = x + w - chipW - 16;
+    const chipY = y + 16;
+    roundedRect(ctx, chipX, chipY, chipW, chipH, chipH / 2);
+    ctx.fillStyle = 'rgba(113,113,122,0.30)';
+    ctx.fill();
+    ctx.fillStyle = '#e4e4e7';
+    ctx.font = `700 20px ${fonts.mono}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('= TIED', chipX + chipW / 2, chipY + chipH / 2);
+  }
 
-  // Tier letter (large)
-  const letterY = y + 200;
-  ctx.font = '900 200px Inter, system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  if (tier.isGradient) {
-    const lg = ctx.createLinearGradient(x, letterY - 100, x + w, letterY + 100);
+  // "YOU" / "OPPONENT" label
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.font = `700 22px ${fonts.mono}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(label.toUpperCase(), x + 28, y + 32);
+
+  // Score + tier letter, baseline-aligned (mirrors the on-screen
+  // `<span text-7xl>{score}</span><span text-3xl>{tier}</span>` row).
+  const scoreText = String(score);
+  ctx.font = `900 150px ${fonts.num}`;
+  const scoreWidth = ctx.measureText(scoreText).width;
+  const rowY = y + 230;
+
+  ctx.fillStyle = color;
+  ctx.shadowColor = `${color}88`;
+  ctx.shadowBlur = 24;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(scoreText, x + 28, rowY);
+  ctx.shadowBlur = 0;
+
+  // Tier letter to the right of the score, sized for visual balance
+  // with the score number. Gradient fill for S-tier.
+  ctx.font = `900 70px ${fonts.num}`;
+  const tierY = rowY - 8;
+  if (tier.isGradient && !tied) {
+    const lg = ctx.createLinearGradient(
+      x + 28 + scoreWidth + 18,
+      tierY - 60,
+      x + 28 + scoreWidth + 160,
+      tierY,
+    );
     lg.addColorStop(0, '#22d3ee');
     lg.addColorStop(1, '#a855f7');
     ctx.fillStyle = lg;
-    if (tier.glow) {
-      ctx.shadowColor = '#a855f7';
-      ctx.shadowBlur = 30;
-    }
   } else {
-    ctx.fillStyle = tier.color;
+    ctx.fillStyle = color;
   }
-  ctx.fillText(tier.letter, x + w / 2, letterY);
-  ctx.shadowBlur = 0;
+  ctx.fillText(tier.letter.toUpperCase(), x + 28 + scoreWidth + 18, tierY);
 
-  // Score number
+  // Progress bar
+  const barX = x + 28;
+  const barY = y + 290;
+  const barW = w - 56;
+  const barH = 10;
+  roundedRect(ctx, barX, barY, barW, barH, barH / 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fill();
+  const fillW = Math.max(2, Math.round((score / 100) * barW));
+  roundedRect(ctx, barX, barY, fillW, barH, barH / 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Display name (@truncated)
   ctx.fillStyle = '#ffffff';
-  ctx.font = '900 140px Inter, system-ui, sans-serif';
-  ctx.fillText(String(score), x + w / 2, y + 380);
+  ctx.font = `500 30px ${fonts.sans}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(truncate(`@${name}`, 18), x + 28, y + 360);
 
-  // Display name
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.font = '500 32px Inter, system-ui, sans-serif';
-  const trimmedName = truncate(name, 16);
-  ctx.fillText(trimmedName, x + w / 2, y + 480);
-
-  // Win chip
-  if (isWinner) {
-    const chipW = 140;
-    const chipH = 44;
-    const chipX = x + w / 2 - chipW / 2;
-    const chipY = y + 510;
-    roundedRect(ctx, chipX, chipY, chipW, chipH, chipH / 2);
-    ctx.fillStyle = 'rgba(16,185,129,0.30)';
-    ctx.fill();
-    ctx.fillStyle = '#10b981';
-    ctx.font = '700 24px "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace';
-    ctx.fillText('WIN', x + w / 2, chipY + chipH / 2);
-  }
-
-  ctx.restore();
+  // Subtle inner highlight / shading at the bottom for depth.
+  ctx.fillStyle = 'rgba(255,255,255,0.018)';
+  roundedRect(ctx, x + 12, y + h - 80, w - 24, 60, 18);
+  ctx.fill();
 }
 
-function roundedRect(
+type PillOpts = {
+  /** Small uppercase label printed before the value (e.g. "margin"). */
+  leadLabel: string;
+  /** The actual coloured number (e.g. "+12", "+24"). */
+  leadValue: string;
+  leadValueColor: string;
+  /** Uppercase label printed after a separator dot (e.g. "CLEAR WIN"). */
+  tailLabel: string;
+  borderColor: string;
+  /** When set, applies a soft outer glow in this colour. */
+  glowColor?: string;
+};
+
+function drawPill(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
+  cx: number,
+  cy: number,
+  fonts: ReturnType<typeof readFonts>,
+  opts: PillOpts,
 ) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
+  const pillH = 86;
+  // Width depends on the actual text. Measure each segment, sum with
+  // padding + gap allowances, then centre the pill on cx.
+  ctx.textBaseline = 'middle';
+
+  const leadLabelText = opts.leadLabel ? opts.leadLabel.toUpperCase() : '';
+  const tailLabelText = opts.tailLabel;
+  const valueText = opts.leadValue;
+
+  ctx.font = `700 22px ${fonts.mono}`;
+  const leadLabelW = leadLabelText ? ctx.measureText(leadLabelText).width : 0;
+
+  ctx.font = `900 44px ${fonts.num}`;
+  const valueW = ctx.measureText(valueText).width;
+
+  ctx.font = `700 22px ${fonts.mono}`;
+  const tailLabelW = ctx.measureText(tailLabelText).width;
+  const dotW = 24;
+  const padX = 36;
+  const gap = 18;
+
+  const innerW =
+    (leadLabelText ? leadLabelW + gap : 0) +
+    valueW +
+    gap +
+    dotW +
+    gap +
+    tailLabelW;
+  const pillW = innerW + padX * 2;
+  const x = cx - pillW / 2;
+  const y = cy - pillH / 2;
+
+  // Pill background + border (+ optional outer glow for ELO).
+  ctx.save();
+  if (opts.glowColor) {
+    ctx.shadowColor = opts.glowColor;
+    ctx.shadowBlur = 28;
+  }
+  roundedRect(ctx, x, y, pillW, pillH, pillH / 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.025)';
+  ctx.fill();
+  ctx.strokeStyle = opts.borderColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // Walk the segments left → right.
+  let cursor = x + padX;
+  ctx.textAlign = 'left';
+
+  if (leadLabelText) {
+    ctx.fillStyle = '#a1a1aa';
+    ctx.font = `700 22px ${fonts.mono}`;
+    ctx.fillText(leadLabelText, cursor, cy);
+    cursor += leadLabelW + gap;
+  }
+
+  ctx.fillStyle = opts.leadValueColor;
+  ctx.font = `900 44px ${fonts.num}`;
+  ctx.fillText(valueText, cursor, cy);
+  cursor += valueW + gap;
+
+  ctx.fillStyle = '#52525b';
+  ctx.font = `700 28px ${fonts.mono}`;
+  ctx.fillText('·', cursor + 6, cy);
+  cursor += dotW + gap;
+
+  ctx.fillStyle = '#d4d4d8';
+  ctx.font = `700 22px ${fonts.mono}`;
+  ctx.fillText(tailLabelText, cursor, cy);
 }
 
 function truncate(s: string, max: number): string {

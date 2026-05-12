@@ -420,8 +420,9 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
         WebkitBackgroundClip: 'text',
         backgroundClip: 'text',
         color: 'transparent',
+        textTransform: 'uppercase',
       }
-    : { color: tier.color };
+    : { color: tier.color, textTransform: 'uppercase' };
   const photoSrc = row.image_url ?? row.avatar_url ?? null;
   // Smart cosmetics on the scan-leaderboard row know the user's best
   // overall (= row.overall) and their current_streak / matches_won
@@ -468,7 +469,7 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
         </div>
         <div className="text-right">
           <div
-            className="font-num text-2xl font-extrabold leading-none normal-case"
+            className="font-num text-2xl font-extrabold leading-none uppercase"
             style={tierStyle}
             aria-label={`Tier ${row.tier}`}
           >

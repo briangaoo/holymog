@@ -1,11 +1,35 @@
 import type { VisionScore } from '@/types';
 import { recordCost } from './costCap';
 
-// Google Generative AI REST endpoint. The model name is interpolated into
-// the URL at call time. Pricing for gemini-2.5-flash-lite is $0.10/M input,
-// $0.40/M output (vs Grok 4.20's $1.25/$2.50) — ~12× cheaper for input,
-// ~6× cheaper for output.
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+// Google Cloud Vertex AI — Gemini 2.5 Flash Lite via the global
+// generateContent endpoint, authenticated with an API key (Vertex AI
+// Express-mode). We chose Vertex over AI Studio after hitting
+// prepayment-credit-depletion on AI Studio; Vertex bills against the
+// linked GCP credit card with no prepay wall, has higher quotas, and
+// runs the same model at the same pricing ($0.10/M input, $0.40/M
+// output for gemini-2.5-flash-lite).
+//
+// API-key auth (vs the service-account JWT route) is the cleaner of
+// the two Vertex auth flows for our use case: no token caching, no
+// google-auth-library dependency, no project/location URL plumbing.
+// The key carries the project binding internally.
+//
+// Differences from AI Studio worth noting in this file:
+//   - Endpoint is aiplatform.googleapis.com, not generativelanguage.
+//   - Request/response field names are camelCase end-to-end
+//     (`inlineData`, `mimeType`, `responseMimeType`, …) where AI
+//     Studio's REST surface used snake_case.
+//   - Response carries `trafficType` + `modelVersion` extras we
+//     ignore.
+// Regional endpoint — measured ~1s per call vs ~11s on the global
+// `aiplatform.googleapis.com` host. The global endpoint round-trips
+// through Google's global LB to a backend region and adds ~10s of
+// pure server-side latency on Express-mode requests; pinning the
+// region cuts that out. us-central1 is supported for gemini-2.5-flash-lite
+// and has US-wide latency parity. Override per-call via
+// VERTEX_REGION env var if you want to pin elsewhere later.
+const VERTEX_REGION = process.env.VERTEX_REGION ?? 'us-central1';
+const VERTEX_API_BASE = `https://${VERTEX_REGION}-aiplatform.googleapis.com/v1/publishers/google/models`;
 const DEFAULT_MODEL = 'gemini-2.5-flash-lite';
 
 const ANCHOR_RUBRIC = `CRITICAL CALIBRATION, read carefully.
@@ -355,12 +379,19 @@ async function callGemini(
   prompt: string,
   options: GeminiCallOptions = {},
 ): Promise<{ text: string; tokens: TokenUsage }> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+  const apiKey = process.env.VERTEX_API_KEY;
+  if (!apiKey) throw new Error('VERTEX_API_KEY is not set');
   const model = options.model ?? process.env.GEMINI_MODEL ?? DEFAULT_MODEL;
   const { mimeType, base64 } = splitDataUrl(dataUrl);
 
-  const url = `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  // Vertex AI global endpoint. The model identifier is the same
+  // string as on AI Studio (e.g. "gemini-2.5-flash-lite"); Vertex
+  // wraps it in the publishers/google path. The API key carries the
+  // project binding internally — no project ID or region needed in
+  // the URL.
+  const url =
+    `${VERTEX_API_BASE}/${encodeURIComponent(model)}:generateContent` +
+    `?key=${encodeURIComponent(apiKey)}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -371,7 +402,7 @@ async function callGemini(
           role: 'user',
           parts: [
             { text: prompt },
-            { inline_data: { mime_type: mimeType, data: base64 } },
+            { inlineData: { mimeType, data: base64 } },
           ],
         },
       ],
@@ -384,7 +415,7 @@ async function callGemini(
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`gemini ${res.status}: ${text.slice(0, 300)}`);
+    throw new Error(`vertex ${res.status}: ${text.slice(0, 300)}`);
   }
 
   const data = (await res.json()) as GeminiResponse;
@@ -528,10 +559,15 @@ export async function analyzeQuick(
 
 export const BATTLE_IMPROVEMENT_OPTIONS = [
   'jawline',
-  'eyes',
-  'skin',
   'cheekbones',
+  'chin',
   'nose',
+  'forehead',
+  'symmetry',
+  'eyes',
+  'brows',
+  'lips',
+  'skin',
   'hair',
 ] as const;
 export type BattleImprovement = (typeof BATTLE_IMPROVEMENT_OPTIONS)[number];
@@ -551,10 +587,23 @@ If the face is clearly making a deliberately distorted/contorted expression (eye
 
 A working-pro editorial pose — neutral or cold stare, slight orbital squint (eyes deliberately narrowed, NOT closed), pursed/inwardly-sucked lips, cheeks drawn inward, mild jaw clench, slight chin-down tilt — is the model-tier pose. Score it HIGHER, not lower. Smiling hides bone structure; do not boost smiling.
 
-Pick the improvement label from EXACTLY these six options (lowercase, no punctuation):
-  jawline, eyes, skin, cheekbones, nose, hair
+Pick the improvement label from EXACTLY these eleven options (lowercase, no punctuation):
+  jawline, cheekbones, chin, nose, forehead, symmetry, eyes, brows, lips, skin, hair
 
-Output ONLY: {"overall": <integer 0-100>, "improvement": "<one of the six>"}`;
+What each label means (pick the ONE biggest weakness):
+  jawline   — undefined edge, weak masseter, soft / round lower face
+  cheekbones — flat malar projection, no shadow under the eye
+  chin      — recessive, no projection, weak / short lower third
+  nose      — bridge bump, bulbous tip, asymmetric, disproportionate
+  forehead  — disproportionately tall / short, recessed hairline
+  symmetry  — visible left/right mismatch in any feature
+  eyes      — flat or negative canthal tilt, hooded / droopy, narrow setting
+  brows     — thin, sparse, over-plucked, unkempt, mis-arched
+  lips      — thin upper lip, no defined cupid's bow or vermilion border
+  skin      — clarity, acne, scarring, texture, dark circles, redness
+  hair      — thinning, damaged, unstyled, poor cut, hairline issues
+
+Output ONLY: {"overall": <integer 0-100>, "improvement": "<one of the eleven>"}`;
 
 /**
  * Per-frame battle score: returns a single overall + the area Gemini

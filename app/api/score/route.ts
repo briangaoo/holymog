@@ -7,12 +7,14 @@ import { auth } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { getOrIssueAnonymousId } from '@/lib/anonymousId';
 import {
-  checkScanLimit,
+  attemptScan,
   readClientIp,
-  recordScanAttempt,
+  rollbackScanAttempt,
 } from '@/lib/scanLimit';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendEmail, appUrl } from '@/lib/email';
+import { highScoreReviewEmail } from '@/lib/email-templates';
+import { signReviewToken } from '@/lib/reviewToken';
 import { PHOTO_REQUIRED_THRESHOLD } from '@/lib/tier';
 import {
   checkAchievements,
@@ -140,7 +142,12 @@ export async function POST(request: Request) {
   const anonId = userId ? null : await getOrIssueAnonymousId();
   const ip = readClientIp(request);
 
-  const limit = await checkScanLimit({ userId, anonId, ip });
+  // Atomic check + insert under an advisory lock. The attempt row is committed
+  // up front so concurrent requests in the same window see the consumed slot
+  // and reject; if the Vertex call below fails we roll back the row so the
+  // user keeps their quota point.
+  const attempt = await attemptScan({ userId, anonId, ip });
+  const limit = attempt.state;
   if (!limit.allowed) {
     return NextResponse.json(
       {
@@ -154,6 +161,7 @@ export async function POST(request: Request) {
       { status: 429 },
     );
   }
+  const attemptId = attempt.attemptId;
 
   const limiter = getRatelimit();
   if (limiter) {
@@ -195,7 +203,7 @@ export async function POST(request: Request) {
     blobs.push(result.blob);
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.VERTEX_API_KEY) {
     return NextResponse.json({ error: 'vision_unavailable' }, { status: 503 });
   }
 
@@ -208,6 +216,9 @@ export async function POST(request: Request) {
     inputTokens = result.tokens.input;
     outputTokens = result.tokens.output;
   } catch (err) {
+    // Vertex failed after the quota slot was committed — give the user their
+    // slot back so a transient failure doesn't burn an attempt.
+    if (attemptId) void rollbackScanAttempt(attemptId);
     const message = err instanceof Error ? err.message : 'vision_error';
     return NextResponse.json({ error: message }, { status: 502 });
   }
@@ -215,10 +226,6 @@ export async function POST(request: Request) {
   // Server-side scoring. Anon never receives the raw vision payload — the
   // 30-field breakdown is the value prop behind the sign-in gate.
   const scores = combineScores(vision);
-
-  // Best-effort: persist to profile + record the attempt. Fire-and-forget so
-  // the response isn't blocked by DB latency.
-  void recordScanAttempt({ userId, anonId, ip });
   if (userId) {
     void persistBestScanIfBeaten(userId, vision);
     // Archive the scan image + score to the private bucket. Uses the
@@ -392,27 +399,31 @@ async function notifyAdminOfHighScoreScan(args: {
       .createSignedUrl(args.imagePath, 60 * 60 * 24 * 7); // 7 days
     if (!signed?.signedUrl) return;
 
-    const subject = `holymog · high-score review · ${args.overall}`;
-    const html = `<!doctype html><html><body style="font-family:sans-serif;margin:24px;background:#0a0a0a;color:#f5f5f5;">
-      <h2>High-score scan flagged for review</h2>
-      <p><strong>User ID:</strong> ${args.userId}</p>
-      <p><strong>Scan ID:</strong> ${args.scanId}</p>
-      <p><strong>Overall:</strong> ${args.overall} (≥ ${PHOTO_REQUIRED_THRESHOLD})</p>
-      <p><a href="${signed.signedUrl}" style="color:#38bdf8;">view scan image</a> (7-day signed link)</p>
-      <p style="color:#a1a1aa;font-size:12px;margin-top:16px;">
-        Review for legitimacy only — verify the face appears to belong
-        to the user. No auto-action; this is a human-in-the-loop
-        anti-cheat check on top-of-board entries.
-      </p>
-      <p style="color:#71717a;font-size:11px;">
-        <a href="${appUrl('/account/' + args.userId)}" style="color:#71717a;">user profile</a>
-      </p>
-    </body></html>`;
+    // One-click email-action links: HMAC-signed tokens authorise a
+    // specific (scanId, action) pair for 7 days, so anyone with the
+    // email URL can apply the action without logging in. The
+    // /admin/review/[scanId]/[action] page verifies the token before
+    // mutating anything.
+    const approve = signReviewToken(args.scanId, 'approve');
+    const decline = signReviewToken(args.scanId, 'decline');
+    const buildActionUrl = (action: 'approve' | 'decline', token: string, expires: number) =>
+      `${appUrl(`/admin/review/${args.scanId}/${action}`)}?token=${token}&expires=${expires}`;
+
+    const { subject, html, text } = highScoreReviewEmail({
+      userId: args.userId,
+      scanId: args.scanId,
+      overall: args.overall,
+      threshold: PHOTO_REQUIRED_THRESHOLD,
+      imageUrl: signed.signedUrl,
+      profileUrl: appUrl(`/account/${args.userId}`),
+      approveUrl: buildActionUrl('approve', approve.token, approve.expires),
+      declineUrl: buildActionUrl('decline', decline.token, decline.expires),
+    });
     await sendEmail({
       to: adminTo,
       subject,
       html,
-      text: `High-score scan ${args.overall} from ${args.userId}\n\n${signed.signedUrl}`,
+      text,
       tags: [{ name: 'kind', value: 'high_score_review' }],
     });
   } catch {

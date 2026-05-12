@@ -54,6 +54,11 @@ export type FinalScores = {
    *  All new scans populate both. */
   presentation?: number;
   vision?: VisionScore;
+  /** True when one or more vision category calls failed and the numeric
+   *  fields are neutral 50 placeholders rather than real model output.
+   *  UI surfaces render "N/A" in muted gray when this is set, instead of
+   *  treating the underlying values as legitimate scores. */
+  fallback?: boolean;
 };
 
 /** A single frame sample captured during the countdown.
