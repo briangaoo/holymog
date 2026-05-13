@@ -238,34 +238,6 @@ function AccountPageInner() {
 
   return (
     <div className="relative min-h-dvh overflow-hidden bg-black">
-      {/* Ambient gradient blobs — give the section glass something to
-          refract. Three patches at corners, low-saturation so colour
-          on the cards is per-section accent, not page-wide. */}
-      <span
-        aria-hidden
-        className="pointer-events-none fixed -top-32 -right-32 h-[36rem] w-[36rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(56,189,248,0.10) 0%, rgba(14,165,233,0.04) 40%, transparent 70%)',
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none fixed -bottom-40 -left-40 h-[32rem] w-[32rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(168,85,247,0.10) 0%, rgba(139,92,246,0.04) 40%, transparent 70%)',
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none fixed bottom-1/3 -right-40 h-[28rem] w-[28rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 60%)',
-        }}
-      />
-
       <AppHeader />
       <main className="relative mx-auto w-full max-w-2xl px-5 py-6">
         <header className="mb-6 flex items-center gap-3">
@@ -316,16 +288,17 @@ function AccountPageInner() {
           {prefetched.me?.profile?.display_name && (
             <Link
               href={`/@${prefetched.me.profile.display_name}`}
-              className="ml-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] text-zinc-300 transition-colors hover:bg-white/[0.07] hover:text-white"
+              className="ml-auto border-2 border-white/30 bg-black px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
+              style={{ borderRadius: 2 }}
             >
-              view public profile
+              VIEW PUBLIC PROFILE
             </Link>
           )}
         </header>
 
         <nav
           aria-label="account tabs"
-          className="mb-6 flex gap-5 border-b border-white/10 text-xs"
+          className="mb-6 flex gap-5 border-b-2 border-white/20 text-xs"
         >
           {(['stats', 'history', 'settings'] as Tab[]).map((t) => {
             const active = tab === t;
@@ -335,17 +308,17 @@ function AccountPageInner() {
                 type="button"
                 onClick={() => setTab(t)}
                 style={{ touchAction: 'manipulation' }}
-                className={`relative -mb-px px-0.5 pb-2.5 transition-colors ${
+                className={`relative -mb-0.5 px-0.5 pb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] transition-colors ${
                   active
                     ? 'text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
+                    : 'text-white/40 hover:text-white/70'
                 }`}
               >
-                {t}
+                {t.toUpperCase()}
                 {active && (
                   <span
                     aria-hidden
-                    className="absolute -bottom-px left-0 right-0 h-px bg-white"
+                    className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-white"
                   />
                 )}
               </button>
