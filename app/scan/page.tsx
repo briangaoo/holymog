@@ -25,7 +25,7 @@ import { LeaderboardModal } from '@/components/LeaderboardModal';
 import { AuthModal } from '@/components/AuthModal';
 import { useUser } from '@/hooks/useUser';
 import { readBackNav } from '@/lib/back-nav';
-import { LiveMeter, LivePageBorder } from '@/components/LiveMeter';
+import { LivePageBorder } from '@/components/LiveMeter';
 import { MoreDetail } from '@/components/MoreDetail';
 import { getScoreColor } from '@/lib/scoreColor';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
@@ -51,7 +51,6 @@ const WARMUP_BEFORE_END = 1000;
 const REAL_CALL_COUNT = 5;
 const REAL_INTERVAL_MS = 1000;
 const SYNTHETIC_OFFSET_MS = 500;
-const TOTAL_DISPLAY_COUNT = REAL_CALL_COUNT * 2;
 // Spiderweb runs during the scan phase (alongside the live meter), not during
 // mapping, so mapping just waits for the heavy /api/score call to complete.
 const MAPPING_MIN_MS = 0;
@@ -165,7 +164,6 @@ export default function Home() {
   // Live meter (during scan phase): score is set by real Gemini calls + synthetic
   // jitter updates in between.
   const [liveScore, setLiveScore] = useState<number | null>(null);
-  const [liveDisplayCount, setLiveDisplayCount] = useState(0);
   // Set to true when /api/quick-score returns a non-2xx (Gemini 429,
   // budget cap, kill switch, etc). The live meter switches to "N/A"
   // gray instead of staying invisible — so the user sees "we tried,
@@ -274,7 +272,6 @@ export default function Home() {
     if (state.type !== 'detected') return;
 
     setLiveScore(null);
-    setLiveDisplayCount(0);
     setLiveError(false);
     setTokens(EMPTY_TOKENS);
     shownScoresRef.current = new Set();
@@ -335,7 +332,6 @@ export default function Home() {
               lastRealScoreRef.current = realScore;
               const displayed = pickUnique(realScore);
               setLiveScore(displayed);
-              setLiveDisplayCount((c) => c + 1);
             }
             setTokens((prev) => ({
               ...prev,
@@ -364,7 +360,6 @@ export default function Home() {
           if (anchor === null) return; // no real score yet, skip
           const displayed = pickUnique(anchor);
           setLiveScore(displayed);
-          setLiveDisplayCount((c) => c + 1);
         }, t),
       );
     }
@@ -745,15 +740,11 @@ export default function Home() {
             <Countdown durationMs={COUNTDOWN_MS} />
           )}
 
-          {/* Live meter + page border stay up from scan-phase start through
-              the mapping/API call until the reveal page appears. */}
-          <LiveMeter
-            score={liveScore}
-            visible={scanPhase || state.type === 'mapping'}
-            progress={liveDisplayCount}
-            total={TOTAL_DISPLAY_COUNT}
-            error={liveError}
-          />
+          {/* Ambient page-edge rim is the sole live-score indicator —
+              tier-coloured glow breathes during the scan phase and
+              through the mapping phase until the reveal page appears.
+              No on-screen number; user feels the score climb via colour
+              + intensity, then sees the actual value on the result page. */}
           <LivePageBorder
             color={
               (scanPhase || state.type === 'mapping') &&
