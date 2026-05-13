@@ -24,7 +24,6 @@ import { Badge } from './customization/Badge';
 import { NameFx } from './customization/NameFx';
 import { ThemeAmbient } from './customization/ThemeAmbient';
 import { Sparkline } from './Sparkline';
-import { SpectralRim } from './SpectralRim';
 import type { PublicProfileData } from '@/lib/publicProfile';
 
 type SocialKey = 'instagram' | 'x' | 'snapchat' | 'tiktok' | 'discord';
@@ -494,12 +493,7 @@ function TierCard({ data }: { data: PublicProfileData }) {
     : (tier?.color ?? 'rgba(245,245,245,0.20)');
 
   return (
-    <SpectralRim
-      accent={isElite ? 'rgba(168,85,247,0.85)' : `${accentColor}d0`}
-      thickness={1.5}
-      spotlight={240}
-      className="rounded-sm"
-    >
+    <div className="rounded-sm">
       <section
         className="relative overflow-hidden rounded-sm border"
         style={{
@@ -598,7 +592,7 @@ function TierCard({ data }: { data: PublicProfileData }) {
           </div>
         </div>
       </section>
-    </SpectralRim>
+    </div>
   );
 }
 
@@ -718,17 +712,12 @@ function ClimbChart({
   const max = Math.max(...sparkline);
   const trend = sparkline[sparkline.length - 1] - sparkline[0];
   return (
-    <SpectralRim
-      accent="rgba(56,189,248,0.85)"
-      thickness={1.5}
-      spotlight={220}
-      className="rounded-sm"
-    >
+    <div className="rounded-sm">
       <section
         className="relative overflow-hidden rounded-sm border border-white/20"
         style={{
           background:
-            'linear-gradient(180deg, rgba(56,189,248,0.06) 0%, rgba(255,255,255,0.01) 60%)',
+            'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 60%)',
           backdropFilter: 'blur(18px) saturate(170%)',
           WebkitBackdropFilter: 'blur(18px) saturate(170%)',
         }}
@@ -779,12 +768,12 @@ function ClimbChart({
             points={sparkline}
             width={580}
             height={56}
-            stroke="rgba(56,189,248,0.95)"
-            fill="rgba(56,189,248,0.18)"
+            stroke="rgba(255,255,255,0.95)"
+            fill="rgba(255,255,255,0.18)"
           />
         </div>
       </section>
-    </SpectralRim>
+    </div>
   );
 }
 
@@ -797,17 +786,12 @@ function BattleActivity({
 }) {
   const ordered = [...battles].reverse();
   return (
-    <SpectralRim
-      accent="rgba(244,63,94,0.85)"
-      thickness={1.5}
-      spotlight={220}
-      className="rounded-sm"
-    >
+    <div className="rounded-sm">
       <section
         className="relative overflow-hidden rounded-sm border border-white/20"
         style={{
           background:
-            'linear-gradient(180deg, rgba(244,63,94,0.04) 0%, rgba(255,255,255,0.01) 60%)',
+            'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 60%)',
           backdropFilter: 'blur(18px) saturate(170%)',
           WebkitBackdropFilter: 'blur(18px) saturate(170%)',
         }}
@@ -890,7 +874,7 @@ function BattleActivity({
           </ul>
         </div>
       </section>
-    </SpectralRim>
+    </div>
   );
 }
 
@@ -902,17 +886,12 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
   if (ownedFrames.length === 0 && ownedBadges.length === 0) return null;
 
   return (
-    <SpectralRim
-      accent="rgba(16,185,129,0.85)"
-      thickness={1.5}
-      spotlight={220}
-      className="rounded-sm"
-    >
+    <div className="rounded-sm">
       <section
         className="relative overflow-hidden rounded-sm border border-white/20"
         style={{
           background:
-            'linear-gradient(180deg, rgba(16,185,129,0.04) 0%, rgba(255,255,255,0.01) 60%)',
+            'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 60%)',
           backdropFilter: 'blur(18px) saturate(170%)',
           WebkitBackdropFilter: 'blur(18px) saturate(170%)',
         }}
@@ -977,7 +956,7 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
           )}
         </div>
       </section>
-    </SpectralRim>
+    </div>
   );
 }
 
