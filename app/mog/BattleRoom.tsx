@@ -481,7 +481,7 @@ function BattleInterior({
             <div
               key={rowIdx}
               className={`flex min-h-0 flex-1 ${
-                isLastRow ? '' : 'border-b border-sky-500/30'
+                isLastRow ? '' : 'border-b border-white/30'
               }`}
             >
               {rowCells.map((trackRef, colIdx) => {
@@ -494,7 +494,7 @@ function BattleInterior({
                     <div
                       key={key}
                       className={`relative min-w-0 flex-1 overflow-hidden bg-black ${
-                        isLastCell ? '' : 'border-r border-sky-500/30'
+                        isLastCell ? '' : 'border-r border-white/30'
                       }`}
                     >
                       <WaitingTile />
@@ -508,7 +508,7 @@ function BattleInterior({
                   <div
                     key={key}
                     className={`relative min-w-0 flex-1 overflow-hidden bg-black transition-opacity duration-300 ${
-                      isLastCell ? '' : 'border-r border-sky-500/30'
+                      isLastCell ? '' : 'border-r border-white/30'
                     }`}
                     style={{ opacity: hasLeft ? 0.35 : 1 }}
                   >
@@ -618,8 +618,8 @@ function WaitingTile() {
         aria-hidden
         className="relative inline-flex h-4 w-4"
       >
-        <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/60" />
-        <span className="relative h-4 w-4 rounded-full bg-sky-400/85" />
+        <span className="absolute inset-0 animate-ping rounded-full bg-white/60" />
+        <span className="relative h-4 w-4 rounded-full bg-white/85" />
       </span>
       <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
         waiting for opponent
@@ -756,11 +756,11 @@ function userStatsFromMeta(meta: ParticipantMeta): UserStats {
   };
 }
 
-function countdownColor(n: number): string {
-  // 3 → red, 2 → amber, 1 → emerald. Anything else falls back to white.
-  if (n >= 3) return '#ef4444';
-  if (n === 2) return '#f59e0b';
-  if (n === 1) return '#10b981';
+function countdownColor(_n: number): string {
+  // Brutalist redesign: countdown stays pure white regardless of digit;
+  // the animation (scale-pop on swap, exit launch toward camera) carries
+  // urgency without an RGB ramp. Param kept for API stability — call
+  // sites still pass `n` so future re-introduction is a one-line change.
   return '#ffffff';
 }
 
@@ -838,66 +838,15 @@ function ScoreOverlay({
     <Link
       href={`/@${displayName}`}
       onClick={(e) => e.stopPropagation()}
-      className="group absolute left-3 top-3 z-10 flex w-[180px] flex-col gap-3 overflow-hidden rounded-2xl px-3.5 py-3 transition-transform hover:scale-[1.01]"
+      className="group absolute left-3 top-3 z-10 flex w-[180px] flex-col gap-3 bg-black px-3.5 py-3 transition-colors hover:bg-black/95"
       style={{
-        background: 'rgba(0,0,0,0.32)',
-        backdropFilter: `url(#${TILE_LIQUID_FILTER_ID}) blur(30px) saturate(1.9) brightness(0.92)`,
-        WebkitBackdropFilter: 'blur(30px) saturate(1.9) brightness(0.92)',
-        boxShadow: `
-          0 22px 60px rgba(0,0,0,0.55),
-          0 4px 16px rgba(0,0,0,0.30),
-          0 0 0 0.5px rgba(255,255,255,0.18),
-          0 0 0 2px ${color}1d,
-          0 0 36px ${color}33,
-          inset 0 1.5px 0 rgba(255,255,255,0.30),
-          inset 0 -1px 0 rgba(0,0,0,0.45)
-        `,
+        border: `2px solid ${color}`,
+        borderRadius: 2,
       }}
     >
-      {/* Top rim-light */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[24%]"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.05) 60%, transparent 100%)',
-          mixBlendMode: 'screen',
-        }}
-      />
-      {/* Corner lensing */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(120% 100% at 10% 8%, rgba(255,255,255,0.10) 0%, transparent 40%)',
-          mixBlendMode: 'overlay',
-        }}
-      />
-      {/* Top edge shimmer */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{
-          background:
-            'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)',
-        }}
-      />
-      {/* Tier-color tinted ambient sweep */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -inset-10 blur-3xl"
-        style={{
-          background: `radial-gradient(circle at 30% 0%, ${color}30 0%, transparent 55%)`,
-        }}
-      />
-
-      {/* Header: LIVE pip + peak */}
+      {/* Header: LIVE pip */}
       <div className="relative flex items-center justify-between">
-        <span
-          className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-white/80"
-          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}
-        >
+        <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-white">
           <span aria-hidden className="relative inline-flex h-1.5 w-1.5">
             <span
               className="absolute inset-0 animate-ping rounded-full"
@@ -908,7 +857,7 @@ function ScoreOverlay({
               style={{ background: color }}
             />
           </span>
-          live score
+          LIVE SCORE
         </span>
       </div>
 
@@ -920,7 +869,6 @@ function ScoreOverlay({
             color,
             fontSize: 48,
             lineHeight: 0.92,
-            textShadow: `0 0 24px ${color}aa, 0 2px 6px rgba(0,0,0,0.7)`,
           }}
         >
           {score?.overall ?? '—'}
@@ -935,79 +883,52 @@ function ScoreOverlay({
         )}
       </div>
 
-      {/* Score-as-bar visualisation */}
-      <div className="relative h-1 w-full overflow-hidden rounded-full bg-white/10">
+      {/* Score-as-bar visualisation — square, no glow */}
+      <div className="relative h-1 w-full bg-white/10">
         <span
-          className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
+          className="absolute left-0 top-0 h-full transition-all duration-500"
           style={{
             width: score ? `${Math.max(0, Math.min(100, score.overall))}%` : '0%',
             background: color,
-            boxShadow: `0 0 8px ${color}aa`,
           }}
         />
       </div>
 
       {/* PEAK row */}
       <div className="relative flex items-baseline justify-between">
-        <span
-          className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/55"
-          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
-        >
-          peak
+        <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/50">
+          PEAK
         </span>
         <span
           className="font-num text-base font-bold tabular-nums"
-          style={{
-            color: peakColor,
-            textShadow: `0 0 10px ${peakColor}88`,
-          }}
+          style={{ color: peakColor }}
         >
           {score?.peak ?? '—'}
         </span>
       </div>
 
       {/* Divider hair */}
-      <span
-        aria-hidden
-        className="relative h-px w-full"
-        style={{
-          background:
-            'linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent)',
-        }}
-      />
+      <span aria-hidden className="relative h-px w-full bg-white/15" />
 
       {/* Player handle */}
       <div className="relative flex flex-col gap-0.5">
-        <span
-          className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/55"
-          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
-        >
-          player
+        <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/50">
+          PLAYER
         </span>
-        <span
-          className="truncate text-[14px] font-bold leading-tight text-white"
-          style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}
-        >
+        <span className="truncate text-[14px] font-bold uppercase leading-tight text-white">
           <NameFx slug={meta.equippedNameFx ?? null} userStats={userStats}>
             {displayName}
           </NameFx>
         </span>
       </div>
 
-      {/* Improvement (flaw) — only when we have a score, otherwise the
-          row is empty and we skip it to avoid showing a blank "—". */}
+      {/* Improvement (flaw) */}
       {score?.improvement && (
         <div className="relative flex items-baseline justify-between">
-          <span
-            className="text-[9px] font-semibold uppercase tracking-[0.22em] text-amber-300/80"
-            style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
-          >
-            flaw
+          <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/50">
+            FLAW
           </span>
-          <span
-            className="text-[12px] font-bold uppercase tracking-[0.10em] text-amber-100"
-            style={{ textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}
-          >
+          <span className="text-[12px] font-bold uppercase tracking-[0.18em] text-white">
             {score.improvement}
           </span>
         </div>
