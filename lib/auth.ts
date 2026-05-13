@@ -4,21 +4,76 @@ import Google from 'next-auth/providers/google';
 import Apple from 'next-auth/providers/apple';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import PostgresAdapter from '@auth/pg-adapter';
+import type { Pool } from 'pg';
 import { getPool } from './db';
 import { magicLinkEmail } from './auth-email';
 import { recordAudit } from './audit';
 import { recordEmailSent } from './emailVolume';
+import { isReservedUsername } from './reservedUsernames';
 
 const MAX_NAME_LEN = 24;
+const MIN_NAME_LEN = 3;
+const FALLBACK_BASE = 'player';
+const MAX_SUFFIX_ATTEMPTS = 10000;
 
-function deriveDisplayName(input: {
+/**
+ * Derive a username-shaped display_name from an OAuth/email signup
+ * and guarantee it's unique at insert time.
+ *
+ * Pipeline:
+ *   1. Pick the source string: provider-supplied name, else
+ *      email local-part, else FALLBACK_BASE.
+ *   2. Lowercase and strip anything outside [a-z0-9_-] — same charset
+ *      the DisplayName Zod schema enforces. So "Brian Gao" → "briangao",
+ *      "Alice O'Connor" → "aliceoconnor".
+ *   3. If the result is shorter than MIN_NAME_LEN (3 chars), fall back
+ *      to FALLBACK_BASE so we don't insert an unusably short name.
+ *   4. Try the base name first. If taken or reserved, append "1", "2",
+ *      ... up to "9999" until one is free. Truncate the base when the
+ *      suffix would push the total past MAX_NAME_LEN.
+ *   5. Last-resort fallback: 8-digit random suffix. Astronomically
+ *      unlikely to hit after the 10k linear sweep.
+ *
+ * Race-condition posture: there's no DB-level unique constraint on
+ * profiles.display_name (multiple accounts can intentionally share a
+ * name today). Two simultaneous signups with the same base name could
+ * both pick the same suffix and both succeed — the worst case is a
+ * pair of accidental duplicates, which is identical to the existing
+ * behaviour. If we ever tighten with a UNIQUE constraint, this loop
+ * naturally retries on conflict.
+ */
+async function deriveUniqueDisplayName(input: {
   name?: string | null;
   email?: string | null;
-}): string {
+  pool: Pool;
+}): Promise<string> {
   const fromName = (input.name ?? '').trim();
   const fromEmail = (input.email ?? '').split('@')[0] ?? '';
-  const raw = fromName || fromEmail || 'player';
-  return raw.toLowerCase().slice(0, MAX_NAME_LEN) || 'player';
+  const raw = fromName || fromEmail || FALLBACK_BASE;
+  const stripped = raw.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  const base =
+    stripped.length >= MIN_NAME_LEN
+      ? stripped.slice(0, MAX_NAME_LEN)
+      : FALLBACK_BASE;
+
+  for (let i = 0; i < MAX_SUFFIX_ATTEMPTS; i++) {
+    const suffix = i === 0 ? '' : String(i);
+    const baseRoom = MAX_NAME_LEN - suffix.length;
+    const candidate = base.slice(0, baseRoom) + suffix;
+    if (isReservedUsername(candidate)) continue;
+    const { rows } = await input.pool.query<{ taken: boolean }>(
+      `select exists(select 1 from profiles where display_name = $1) as taken`,
+      [candidate],
+    );
+    if (!rows[0]?.taken) return candidate;
+  }
+
+  // 10k same-base collisions is implausible at human signup rates; if it
+  // ever happens, a random 8-digit suffix gives us ~10^8 fresh keyspace.
+  const rand = Math.floor(Math.random() * 1e8)
+    .toString()
+    .padStart(8, '0');
+  return `${FALLBACK_BASE}${rand}`.slice(0, MAX_NAME_LEN);
 }
 
 /**
@@ -160,11 +215,12 @@ const config: NextAuthConfig = {
      */
     async createUser({ user }) {
       if (!user.id) return;
-      const displayName = deriveDisplayName({
+      const pool = getPool();
+      const displayName = await deriveUniqueDisplayName({
         name: user.name ?? null,
         email: user.email ?? null,
+        pool,
       });
-      const pool = getPool();
       await pool.query(
         `insert into profiles (user_id, display_name)
          values ($1, $2)
