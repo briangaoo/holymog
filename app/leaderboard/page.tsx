@@ -94,11 +94,11 @@ export default function LeaderboardPage() {
       <AppHeader authNext="/leaderboard" />
 
       <main className="mx-auto w-full max-w-md px-5 pb-12 pt-4">
-        <h1 className="mb-1 text-2xl font-bold text-white">Leaderboard</h1>
-        <p className="mb-4 text-sm text-zinc-400">
+        <h1 className="mb-1 text-2xl font-bold uppercase tracking-tight text-white">LEADERBOARD</h1>
+        <p className="mb-4 text-[10px] uppercase tracking-[0.18em] text-white/50">
           {tab === 'scans'
-            ? 'Top scan scores. Sorted by overall.'
-            : 'Top 1v1 battles. Sorted by ELO.'}
+            ? 'TOP SCAN SCORES · SORTED BY OVERALL'
+            : 'TOP 1V1 BATTLES · SORTED BY ELO'}
         </p>
 
         <TabBar tab={tab} onChange={setTab} />
@@ -121,18 +121,18 @@ function TabBar({
   onChange: (next: Tab) => void;
 }) {
   return (
-    <div className="mb-5 grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/[0.02] p-1">
+    <div className="mb-5 grid grid-cols-2 gap-0 border-2 border-white/20 bg-black p-0" style={{ borderRadius: 2 }}>
       <TabButton
         active={tab === 'scans'}
         onClick={() => onChange('scans')}
         icon={<Camera size={14} aria-hidden />}
-        label="scans"
+        label="SCANS"
       />
       <TabButton
         active={tab === 'battles'}
         onClick={() => onChange('battles')}
         icon={<Swords size={14} aria-hidden />}
-        label="battles"
+        label="BATTLES"
       />
     </div>
   );
@@ -154,10 +154,10 @@ function TabButton({
       type="button"
       onClick={onClick}
       style={{ touchAction: 'manipulation' }}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
+      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.18em] transition-colors ${
         active
           ? 'bg-white text-black'
-          : 'text-zinc-400 hover:text-white'
+          : 'bg-black text-white/50 hover:text-white'
       }`}
     >
       {icon}
@@ -234,26 +234,26 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
 
   if (status === 'unconfigured') {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
-        <p className="text-sm text-white">leaderboard not yet available</p>
-        <p className="mt-2 text-xs text-zinc-500">
-          the supabase backend hasn&apos;t been configured for this deployment
+      <div className="border-2 border-white/20 bg-black p-6 text-center" style={{ borderRadius: 2 }}>
+        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white">LEADERBOARD NOT YET AVAILABLE</p>
+        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/50">
+          THE SUPABASE BACKEND HASN&apos;T BEEN CONFIGURED FOR THIS DEPLOYMENT
         </p>
       </div>
     );
   }
   if (status === 'error') {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+      <div className="border-2 border-red-500/40 bg-red-500/[0.06] p-4 text-sm uppercase tracking-[0.14em] text-red-200" style={{ borderRadius: 2 }}>
         {errorMsg}
       </div>
     );
   }
   if (entries.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
-        <p className="text-sm text-white">no entries yet</p>
-        <p className="mt-2 text-xs text-zinc-500">be the first</p>
+      <div className="border-2 border-white/20 bg-black p-6 text-center" style={{ borderRadius: 2 }}>
+        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white">NO ENTRIES YET</p>
+        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/50">BE THE FIRST</p>
       </div>
     );
   }
@@ -270,14 +270,14 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
           ref={sentinelRef}
           className="flex items-center justify-center pt-6 pb-2"
         >
-          <span className="text-xs text-zinc-500">
-            {loadingMore ? 'loading more…' : 'scroll for more'}
+          <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+            {loadingMore ? 'LOADING MORE…' : 'SCROLL FOR MORE'}
           </span>
         </div>
       )}
       {!hasMore && (
-        <p className="pt-6 pb-2 text-center text-xs text-zinc-600">
-          end of leaderboard
+        <p className="pt-6 pb-2 text-center text-[10px] uppercase tracking-[0.22em] text-white/30">
+          END OF LEADERBOARD
         </p>
       )}
     </>
@@ -346,16 +346,16 @@ function BattlesTab({ initial }: { initial: BattleApiResponse | null }) {
 
   if (status === 'error') {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+      <div className="border-2 border-red-500/40 bg-red-500/[0.06] p-4 text-sm uppercase tracking-[0.14em] text-red-200" style={{ borderRadius: 2 }}>
         {errorMsg}
       </div>
     );
   }
   if (entries.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
-        <p className="text-sm text-white">no battles yet</p>
-        <p className="mt-2 text-xs text-zinc-500">queue up to climb the ladder</p>
+      <div className="border-2 border-white/20 bg-black p-6 text-center" style={{ borderRadius: 2 }}>
+        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white">NO BATTLES YET</p>
+        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/50">QUEUE UP TO CLIMB THE LADDER</p>
       </div>
     );
   }
@@ -372,14 +372,14 @@ function BattlesTab({ initial }: { initial: BattleApiResponse | null }) {
           ref={sentinelRef}
           className="flex items-center justify-center pt-6 pb-2"
         >
-          <span className="text-xs text-zinc-500">
-            {loadingMore ? 'loading more…' : 'scroll for more'}
+          <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+            {loadingMore ? 'LOADING MORE…' : 'SCROLL FOR MORE'}
           </span>
         </div>
       )}
       {!hasMore && (
-        <p className="pt-6 pb-2 text-center text-xs text-zinc-600">
-          end of leaderboard
+        <p className="pt-6 pb-2 text-center text-[10px] uppercase tracking-[0.22em] text-white/30">
+          END OF LEADERBOARD
         </p>
       )}
     </>
@@ -439,9 +439,10 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
     <li>
       <Link
         href={`/@${row.name}`}
-        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]"
+        className="flex items-center gap-3 border border-white/20 bg-black p-3 transition-colors hover:border-white/50 hover:bg-white/[0.03]"
+        style={{ borderRadius: 2 }}
       >
-        <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
+        <div className="w-7 text-right font-num text-sm font-semibold tabular-nums text-white/50">
           {rank}
         </div>
         <Frame slug={row.equipped_frame ?? null} size={40} userStats={userStats}>
@@ -506,9 +507,10 @@ function BattleRow({ row, rank }: { row: BattleRow; rank: number }) {
     <li>
       <Link
         href={`/@${row.display_name}`}
-        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]"
+        className="flex items-center gap-3 border border-white/20 bg-black p-3 transition-colors hover:border-white/50 hover:bg-white/[0.03]"
+        style={{ borderRadius: 2 }}
       >
-        <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
+        <div className="w-7 text-right font-num text-sm font-semibold tabular-nums text-white/50">
           {rank}
         </div>
         <Frame slug={row.equipped_frame ?? null} size={40} userStats={userStats}>
