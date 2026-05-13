@@ -18,7 +18,7 @@ import { useCallback, useRef } from 'react';
  *   - `padding` controls rim thickness (1.5px here); `mask-composite:
  *     exclude` carves out the inner area so only the rim is painted.
  *   - the inner `border-radius: inherit` keeps the rim curvature in sync
- *     with whatever radius the wrapper picks (cards use rounded-none).
+ *     with whatever radius the wrapper picks (cards use rounded-3xl).
  *
  * `accent` is the gradient's centre colour; outer fades to transparent.
  * Pass the brand colour for each card (emerald for scan, amber for battle).

@@ -24,6 +24,7 @@ import { Badge } from './customization/Badge';
 import { NameFx } from './customization/NameFx';
 import { ThemeAmbient } from './customization/ThemeAmbient';
 import { Sparkline } from './Sparkline';
+import { SpectralRim } from './SpectralRim';
 import type { PublicProfileData } from '@/lib/publicProfile';
 
 type SocialKey = 'instagram' | 'x' | 'snapchat' | 'tiktok' | 'discord';
@@ -121,7 +122,7 @@ function ProfileHeader({
 
   return (
     <section
-      className="relative overflow-hidden rounded-none border border-white/10"
+      className="relative overflow-hidden rounded-3xl border border-white/10"
       style={{
         background:
           'linear-gradient(180deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.015) 100%)',
@@ -207,8 +208,8 @@ function ProfileHeader({
                 className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white"
                 style={{
                   background:
-                    'linear-gradient(135deg, rgba(255,255,255,0.30), rgba(255,255,255,0.30))',
-                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.50)',
+                    'linear-gradient(135deg, rgba(34,211,238,0.30), rgba(168,85,247,0.30))',
+                  boxShadow: 'inset 0 0 0 1px rgba(168,85,247,0.50)',
                 }}
               >
                 <Sparkles size={10} aria-hidden /> elite
@@ -243,7 +244,7 @@ function ProfileHeader({
                   aria-hidden
                   className={`h-1.5 w-1.5 rounded-full ${
                     isActive(data.last_active_at)
-                      ? 'animate-pulse bg-white/10'
+                      ? 'animate-pulse bg-emerald-400'
                       : 'bg-zinc-600'
                   }`}
                 />
@@ -346,7 +347,7 @@ function FollowButton({
       style={{ touchAction: 'manipulation' }}
       className={
         following
-          ? 'inline-flex h-9 items-center rounded-full border border-white/15 bg-transparent px-4 text-[14px] font-semibold text-foreground transition-colors hover:border-white/50 hover:bg-white/10/[0.06] hover:text-white disabled:opacity-50'
+          ? 'inline-flex h-9 items-center rounded-full border border-white/15 bg-transparent px-4 text-[14px] font-semibold text-foreground transition-colors hover:border-rose-500/50 hover:bg-rose-500/[0.06] hover:text-rose-200 disabled:opacity-50'
           : 'inline-flex h-9 items-center rounded-full bg-foreground px-4 text-[14px] font-semibold text-[#0a0a0a] transition-transform hover:scale-[1.03] disabled:opacity-50'
       }
     >
@@ -428,7 +429,7 @@ function MogStats({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <SectionLabel icon={Swords}>
+      <SectionLabel icon={Swords} accent="rose">
         mog stats
       </SectionLabel>
 
@@ -464,7 +465,7 @@ function SectionLabel({
   accent: 'rose' | 'sky';
   children: React.ReactNode;
 }) {
-  const color = accent === 'rose' ? 'text-white' : 'text-white';
+  const color = accent === 'rose' ? 'text-rose-200' : 'text-sky-200';
   return (
     <div className="flex items-center gap-2 px-1">
       <Icon size={15} aria-hidden className={color} />
@@ -490,13 +491,14 @@ function TierCard({ data }: { data: PublicProfileData }) {
     : (tier?.color ?? 'rgba(245,245,245,0.20)');
 
   return (
-    <div
-      accent={isElite ? 'rgba(255,255,255,0.85)' : `${accentColor}d0`}
+    <SpectralRim
+      accent={isElite ? 'rgba(168,85,247,0.85)' : `${accentColor}d0`}
       thickness={1.5}
-      className="rounded-none"
+      spotlight={240}
+      className="rounded-3xl"
     >
       <section
-        className="relative overflow-hidden rounded-none border"
+        className="relative overflow-hidden rounded-3xl border"
         style={{
           borderColor: `${accentColor}40`,
           background:
@@ -510,14 +512,14 @@ function TierCard({ data }: { data: PublicProfileData }) {
           className="pointer-events-none absolute -right-32 -top-32 h-[28rem] w-[28rem] rounded-full blur-3xl"
           style={{
             background: isElite
-              ? 'radial-gradient(circle, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.20) 40%, transparent 70%)'
+              ? 'radial-gradient(circle, rgba(168,85,247,0.45) 0%, rgba(34,211,238,0.20) 40%, transparent 70%)'
               : `radial-gradient(circle, ${accentColor}80 0%, ${accentColor}30 40%, transparent 70%)`,
           }}
         />
         <div className="relative grid gap-5 p-5 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-6 sm:p-7">
           {data.best_scan_photo ? (
             <div
-              className="relative mx-auto h-32 w-32 flex-shrink-0 overflow-hidden rounded-sm sm:mx-0 sm:h-36 sm:w-36"
+              className="relative mx-auto h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl sm:mx-0 sm:h-36 sm:w-36"
               style={{
                 boxShadow: `0 0 0 2px ${accentColor}60, 0 0 32px ${accentColor}50`,
               }}
@@ -537,7 +539,7 @@ function TierCard({ data }: { data: PublicProfileData }) {
               />
             </div>
           ) : (
-            <div className="mx-auto flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-sm border border-white/10 bg-white/[0.02] sm:mx-0 sm:h-36 sm:w-36">
+            <div className="mx-auto flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-2xl border border-white/10 bg-white/[0.02] sm:mx-0 sm:h-36 sm:w-36">
               <Scan size={20} className="text-zinc-500" aria-hidden />
               <span className="text-[11px] text-zinc-500">no scan yet</span>
             </div>
@@ -593,7 +595,7 @@ function TierCard({ data }: { data: PublicProfileData }) {
           </div>
         </div>
       </section>
-    </div>
+    </SpectralRim>
   );
 }
 
@@ -645,10 +647,12 @@ function StatStrip({
       <StatChip
         label="scans"
         value={String(data.total_scans)}
+        accent="zinc"
       />
       <StatChip
         label="battles"
         value={String(data.matches_played)}
+        accent="zinc"
       />
     </div>
   );
@@ -667,13 +671,13 @@ function StatChip({
 }) {
   const valueColor =
     accent === 'sky'
-      ? 'text-white'
+      ? 'text-sky-300'
       : accent === 'emerald'
-        ? 'text-white'
+        ? 'text-emerald-300'
         : 'text-foreground';
   return (
     <div
-      className="overflow-hidden rounded-sm border border-white/10 px-3 py-3"
+      className="overflow-hidden rounded-2xl border border-white/10 px-3 py-3"
       style={{
         background:
           'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)',
@@ -713,15 +717,17 @@ function ClimbChart({
   const max = Math.max(...sparkline);
   const trend = sparkline[sparkline.length - 1] - sparkline[0];
   return (
-    <div
+    <SpectralRim
+      accent="rgba(56,189,248,0.85)"
       thickness={1.5}
-      className="rounded-none"
+      spotlight={220}
+      className="rounded-3xl"
     >
       <section
-        className="relative overflow-hidden rounded-none border border-white/20"
+        className="relative overflow-hidden rounded-3xl border border-sky-500/20"
         style={{
           background:
-            'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 60%)',
+            'linear-gradient(180deg, rgba(56,189,248,0.06) 0%, rgba(255,255,255,0.01) 60%)',
           backdropFilter: 'blur(18px) saturate(170%)',
           WebkitBackdropFilter: 'blur(18px) saturate(170%)',
         }}
@@ -729,8 +735,8 @@ function ClimbChart({
         <div className="flex flex-col gap-3 p-5">
           <header className="flex items-baseline justify-between gap-3">
             <div className="flex items-center gap-2">
-              <TrendingUp size={15} className="text-white" aria-hidden />
-              <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white">
+              <TrendingUp size={15} className="text-sky-300" aria-hidden />
+              <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sky-200">
                 elo climb
               </span>
             </div>
@@ -747,7 +753,7 @@ function ClimbChart({
               {trend !== 0 && (
                 <span
                   className={`font-num text-[14px] font-semibold tabular-nums ${
-                    trend > 0 ? 'text-white' : 'text-white'
+                    trend > 0 ? 'text-emerald-300' : 'text-rose-300'
                   }`}
                 >
                   {trend > 0 ? '+' : ''}
@@ -772,12 +778,12 @@ function ClimbChart({
             points={sparkline}
             width={580}
             height={56}
-            stroke="rgba(255,255,255,0.95)"
-            fill="rgba(255,255,255,0.18)"
+            stroke="rgba(56,189,248,0.95)"
+            fill="rgba(56,189,248,0.18)"
           />
         </div>
       </section>
-    </div>
+    </SpectralRim>
   );
 }
 
@@ -790,23 +796,25 @@ function BattleActivity({
 }) {
   const ordered = [...battles].reverse();
   return (
-    <div
+    <SpectralRim
+      accent="rgba(244,63,94,0.85)"
       thickness={1.5}
-      className="rounded-none"
+      spotlight={220}
+      className="rounded-3xl"
     >
       <section
-        className="relative overflow-hidden rounded-none border border-white/20"
+        className="relative overflow-hidden rounded-3xl border border-rose-500/20"
         style={{
           background:
-            'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 60%)',
+            'linear-gradient(180deg, rgba(244,63,94,0.04) 0%, rgba(255,255,255,0.01) 60%)',
           backdropFilter: 'blur(18px) saturate(170%)',
           WebkitBackdropFilter: 'blur(18px) saturate(170%)',
         }}
       >
         <div className="flex flex-col gap-3 p-5">
           <header className="flex items-center gap-2">
-            <Swords size={15} className="text-white" aria-hidden />
-            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white">
+            <Swords size={15} className="text-rose-300" aria-hidden />
+            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-rose-200">
               recent battles
             </span>
           </header>
@@ -824,7 +832,7 @@ function BattleActivity({
                 key={b.battle_id}
                 title={b.is_winner ? 'win' : 'loss'}
                 className={`h-2.5 flex-1 rounded-sm ${
-                  b.is_winner ? 'bg-white/85' : 'bg-white/70'
+                  b.is_winner ? 'bg-emerald-400/85' : 'bg-rose-500/70'
                 }`}
               />
             ))}
@@ -834,13 +842,13 @@ function BattleActivity({
             {battles.map((b) => (
               <li
                 key={b.battle_id}
-                className="flex items-center gap-3 rounded-sm border border-white/[0.04] bg-white/[0.01] px-3 py-2.5 text-[14px] transition-colors hover:bg-white/[0.025]"
+                className="flex items-center gap-3 rounded-lg border border-white/[0.04] bg-white/[0.01] px-3 py-2.5 text-[14px] transition-colors hover:bg-white/[0.025]"
               >
                 <span
-                  className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-sm text-[12px] font-bold uppercase ${
+                  className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[12px] font-bold uppercase ${
                     b.is_winner
-                      ? 'bg-white/20 text-white'
-                      : 'bg-white/15 text-white'
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'bg-rose-500/15 text-rose-300'
                   }`}
                 >
                   {b.is_winner ? 'W' : 'L'}
@@ -881,7 +889,7 @@ function BattleActivity({
           </ul>
         </div>
       </section>
-    </div>
+    </SpectralRim>
   );
 }
 
@@ -893,23 +901,25 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
   if (ownedFrames.length === 0 && ownedBadges.length === 0) return null;
 
   return (
-    <div
+    <SpectralRim
+      accent="rgba(16,185,129,0.85)"
       thickness={1.5}
-      className="rounded-none"
+      spotlight={220}
+      className="rounded-3xl"
     >
       <section
-        className="relative overflow-hidden rounded-none border border-white/20"
+        className="relative overflow-hidden rounded-3xl border border-emerald-500/20"
         style={{
           background:
-            'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 60%)',
+            'linear-gradient(180deg, rgba(16,185,129,0.04) 0%, rgba(255,255,255,0.01) 60%)',
           backdropFilter: 'blur(18px) saturate(170%)',
           WebkitBackdropFilter: 'blur(18px) saturate(170%)',
         }}
       >
         <div className="flex flex-col gap-4 p-5">
           <header className="flex items-center gap-2">
-            <Sparkles size={15} className="text-white" aria-hidden />
-            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white">
+            <Sparkles size={15} className="text-emerald-300" aria-hidden />
+            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
               collection
             </span>
             <span className="ml-auto font-num text-[12px] tabular-nums text-zinc-400">
@@ -966,7 +976,7 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
           )}
         </div>
       </section>
-    </div>
+    </SpectralRim>
   );
 }
 

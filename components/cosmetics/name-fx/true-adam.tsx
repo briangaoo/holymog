@@ -44,8 +44,8 @@ export default function NameTrueAdam({ children }: { children: ReactNode }) {
           color: transparent;
           font-weight: 900;
           letter-spacing: -0.015em;
-          filter: drop-shadow(0 0 8px rgba(255,255,255,0.45))
-                  drop-shadow(0 0 20px rgba(255,255,255,0.30));
+          filter: drop-shadow(0 0 8px rgba(168,85,247,0.45))
+                  drop-shadow(0 0 20px rgba(34,211,238,0.30));
         }
         @media (prefers-reduced-motion: no-preference) {
           .name-fx-true-adam-text {

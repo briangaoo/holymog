@@ -481,7 +481,7 @@ function BattleInterior({
             <div
               key={rowIdx}
               className={`flex min-h-0 flex-1 ${
-                isLastRow ? '' : 'border-b border-white/30'
+                isLastRow ? '' : 'border-b border-sky-500/30'
               }`}
             >
               {rowCells.map((trackRef, colIdx) => {
@@ -494,7 +494,7 @@ function BattleInterior({
                     <div
                       key={key}
                       className={`relative min-w-0 flex-1 overflow-hidden bg-black ${
-                        isLastCell ? '' : 'border-r border-white/30'
+                        isLastCell ? '' : 'border-r border-sky-500/30'
                       }`}
                     >
                       <WaitingTile />
@@ -508,7 +508,7 @@ function BattleInterior({
                   <div
                     key={key}
                     className={`relative min-w-0 flex-1 overflow-hidden bg-black transition-opacity duration-300 ${
-                      isLastCell ? '' : 'border-r border-white/30'
+                      isLastCell ? '' : 'border-r border-sky-500/30'
                     }`}
                     style={{ opacity: hasLeft ? 0.35 : 1 }}
                   >
@@ -618,8 +618,8 @@ function WaitingTile() {
         aria-hidden
         className="relative inline-flex h-4 w-4"
       >
-        <span className="absolute inset-0 animate-ping rounded-full bg-white/60" />
-        <span className="relative h-4 w-4 rounded-full bg-white/85" />
+        <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/60" />
+        <span className="relative h-4 w-4 rounded-full bg-sky-400/85" />
       </span>
       <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
         waiting for opponent
@@ -838,7 +838,7 @@ function ScoreOverlay({
     <Link
       href={`/@${displayName}`}
       onClick={(e) => e.stopPropagation()}
-      className="group absolute left-3 top-3 z-10 flex w-[180px] flex-col gap-3 overflow-hidden rounded-sm px-3.5 py-3 transition-transform hover:scale-[1.01]"
+      className="group absolute left-3 top-3 z-10 flex w-[180px] flex-col gap-3 overflow-hidden rounded-2xl px-3.5 py-3 transition-transform hover:scale-[1.01]"
       style={{
         background: 'rgba(0,0,0,0.32)',
         backdropFilter: `url(#${TILE_LIQUID_FILTER_ID}) blur(30px) saturate(1.9) brightness(0.92)`,
@@ -999,13 +999,13 @@ function ScoreOverlay({
       {score?.improvement && (
         <div className="relative flex items-baseline justify-between">
           <span
-            className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/80"
+            className="text-[9px] font-semibold uppercase tracking-[0.22em] text-amber-300/80"
             style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
           >
             flaw
           </span>
           <span
-            className="text-[12px] font-bold uppercase tracking-[0.10em] text-white"
+            className="text-[12px] font-bold uppercase tracking-[0.10em] text-amber-100"
             style={{ textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}
           >
             {score.improvement}
@@ -1094,7 +1094,7 @@ function tierTextStyleInline(
       WebkitBackgroundClip: 'text',
       backgroundClip: 'text',
       color: 'transparent',
-      textShadow: '0 0 18px rgba(255,255,255,0.4)',
+      textShadow: '0 0 18px rgba(168,85,247,0.4)',
       textTransform: 'uppercase',
     };
   }

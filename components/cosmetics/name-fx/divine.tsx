@@ -68,7 +68,7 @@ export default function NameDivine({ children }: { children: ReactNode }) {
           text-shadow:
             0 0 4px rgba(253,224,71,0.85),
             0 0 14px rgba(253,224,71,0.45),
-            0 0 28px rgba(255,255,255,0.30);
+            0 0 28px rgba(251,191,36,0.30);
         }
         @media (prefers-reduced-motion: no-preference) {
           .name-fx-divine-text {
@@ -80,13 +80,13 @@ export default function NameDivine({ children }: { children: ReactNode }) {
             text-shadow:
               0 0 4px rgba(253,224,71,0.85),
               0 0 14px rgba(253,224,71,0.45),
-              0 0 28px rgba(255,255,255,0.30);
+              0 0 28px rgba(251,191,36,0.30);
           }
           50% {
             text-shadow:
               0 0 6px rgba(253,224,71,1),
               0 0 22px rgba(253,224,71,0.65),
-              0 0 40px rgba(255,255,255,0.45);
+              0 0 40px rgba(251,191,36,0.45);
           }
         }
       `}</style>

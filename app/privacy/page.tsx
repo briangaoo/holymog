@@ -22,7 +22,7 @@ export default function PrivacyPage() {
         className="pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full blur-3xl"
         style={{
           background:
-            'radial-gradient(circle, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.18) 35%, transparent 65%)',
+            'radial-gradient(circle, rgba(34,211,238,0.30) 0%, rgba(16,185,129,0.18) 35%, transparent 65%)',
         }}
       />
       <span
@@ -62,10 +62,10 @@ export default function PrivacyPage() {
             initial={{ y: 12, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
-            className="mt-10 overflow-hidden rounded-none border border-white/10 bg-white/[0.025] p-6 backdrop-blur sm:p-8"
+            className="mt-10 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.025] p-6 backdrop-blur sm:p-8"
             style={{
               boxShadow:
-                'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.10)',
+                'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(34,211,238,0.10)',
             }}
           >
             <p className="text-sm leading-relaxed text-white/75">
@@ -558,7 +558,7 @@ export default function PrivacyPage() {
               provide the Service and meet legal obligations. The
               following table summarises our retention schedule:
             </p>
-            <div className="mt-3 overflow-hidden rounded-sm border border-white/10">
+            <div className="mt-3 overflow-hidden rounded-2xl border border-white/10">
               <table className="w-full text-left text-xs leading-relaxed text-white/70">
                 <thead>
                   <tr className="border-b border-white/10 bg-white/[0.03] text-[10px] uppercase tracking-[0.16em] text-white/55">

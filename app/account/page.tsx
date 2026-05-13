@@ -246,7 +246,7 @@ function AccountPageInner() {
         className="pointer-events-none fixed -top-32 -right-32 h-[36rem] w-[36rem] rounded-full blur-3xl"
         style={{
           background:
-            'radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)',
+            'radial-gradient(circle, rgba(56,189,248,0.10) 0%, rgba(14,165,233,0.04) 40%, transparent 70%)',
         }}
       />
       <span
@@ -254,7 +254,7 @@ function AccountPageInner() {
         className="pointer-events-none fixed -bottom-40 -left-40 h-[32rem] w-[32rem] rounded-full blur-3xl"
         style={{
           background:
-            'radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)',
+            'radial-gradient(circle, rgba(168,85,247,0.10) 0%, rgba(139,92,246,0.04) 40%, transparent 70%)',
         }}
       />
       <span
@@ -262,7 +262,7 @@ function AccountPageInner() {
         className="pointer-events-none fixed bottom-1/3 -right-40 h-[28rem] w-[28rem] rounded-full blur-3xl"
         style={{
           background:
-            'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 60%)',
+            'radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 60%)',
         }}
       />
 

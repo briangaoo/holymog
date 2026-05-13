@@ -168,7 +168,7 @@ export function AccountStatsTab({
   if (!user || !loaded) return null;
   if (!profile) {
     return (
-      <div className="rounded-sm border border-white/10 bg-white/[0.02] p-4 text-center text-sm text-zinc-400">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center text-sm text-zinc-400">
         could not load profile
       </div>
     );
@@ -357,7 +357,7 @@ function MultiplayerSection(props: {
             <span className="font-num text-[12px] text-zinc-500 tabular-nums">
               peak {peakElo}
               {eloDelta < 0 && (
-                <span className="ml-1 text-white/80">{eloDelta}</span>
+                <span className="ml-1 text-rose-400/80">{eloDelta}</span>
               )}
             </span>
           </span>
@@ -371,8 +371,8 @@ function MultiplayerSection(props: {
               points={sparklinePoints}
               width={140}
               height={32}
-              stroke="rgba(255,255,255,0.85)"
-              fill="rgba(255,255,255,0.10)"
+              stroke="rgba(244,63,94,0.85)"
+              fill="rgba(244,63,94,0.10)"
             />
           }
         />
@@ -400,7 +400,7 @@ function MultiplayerSection(props: {
           <span className="flex items-center gap-2">
             <span
               className={`font-num text-[14px] font-semibold tabular-nums ${
-                currentStreak >= 3 ? 'text-white' : 'text-white'
+                currentStreak >= 3 ? 'text-emerald-300' : 'text-white'
               }`}
             >
               {currentStreak}
@@ -455,10 +455,10 @@ function RecentBattlesSection({
                 r === null
                   ? 'bg-white/[0.04]'
                   : r === 'win'
-                    ? 'bg-white/85'
+                    ? 'bg-emerald-400/85'
                     : r === 'tie'
                       ? 'bg-zinc-400/70'
-                      : 'bg-white/70'
+                      : 'bg-rose-500/70'
               }`}
             />
           ))}
@@ -514,7 +514,7 @@ function SwingCard({
       }}
     >
       <div
-        className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${isWin ? 'text-white' : 'text-white'}`}
+        className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${isWin ? 'text-emerald-300' : 'text-rose-300'}`}
       >
         <Icon size={11} aria-hidden /> {isWin ? 'biggest win' : 'biggest loss'}
       </div>
@@ -522,7 +522,7 @@ function SwingCard({
         <>
           <div
             className={`font-num text-2xl font-bold tabular-nums ${
-              isWin ? 'text-white' : 'text-white'
+              isWin ? 'text-emerald-300' : 'text-rose-300'
             }`}
           >
             {entry.delta > 0 ? `+${entry.delta}` : entry.delta} elo
@@ -601,7 +601,7 @@ function BestScanSection({
           <img
             src={leaderboardPhoto}
             alt=""
-            className="h-16 w-16 flex-shrink-0 rounded-sm border border-white/15 object-cover"
+            className="h-16 w-16 flex-shrink-0 rounded-xl border border-white/15 object-cover"
           />
           <div className="flex flex-1 items-center gap-3">
             <span
@@ -739,7 +739,7 @@ function TierDistributionSection({ scans }: { scans: number[] }) {
                 style={{
                   width: `${w}%`,
                   background:
-                    'linear-gradient(90deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.85) 100%)',
+                    'linear-gradient(90deg, rgba(34,211,238,0.45) 0%, rgba(34,211,238,0.85) 100%)',
                 }}
               />
             </span>
@@ -800,7 +800,7 @@ function WeaknessSection({ counts }: { counts: Record<string, number> }) {
               </span>
               <span
                 className={`font-num w-8 text-right text-[13px] font-semibold tabular-nums ${
-                  isTop ? 'text-white' : 'text-zinc-400'
+                  isTop ? 'text-violet-300' : 'text-zinc-400'
                 }`}
               >
                 {count}
@@ -828,10 +828,10 @@ function MostImprovedSection({
       accent="emerald"
     >
       <div className="flex items-center gap-3 border-t border-white/5 px-4 py-4">
-        <Sparkles size={18} className="text-white" aria-hidden />
+        <Sparkles size={18} className="text-emerald-300" aria-hidden />
         <span className="text-[14px] text-white">
           your <span className="font-semibold">{most.metric}</span> score is up{' '}
-          <span className="font-num font-semibold tabular-nums text-white">
+          <span className="font-num font-semibold tabular-nums text-emerald-300">
             +{most.delta} pts
           </span>
         </span>

@@ -441,7 +441,7 @@ function PublicMatchmaking({
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.18)',
+            boxShadow: 'inset 0 0 0 1px rgba(56,189,248,0.18)',
           }}
         />
         {/* Identity pill */}
@@ -460,7 +460,7 @@ function PublicMatchmaking({
               className="h-4 w-4 rounded-full object-cover"
             />
           ) : (
-            <span className="h-1.5 w-1.5 rounded-full bg-white/10" />
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           )}
           <span className="truncate max-w-[12rem]">
             you{displayName ? ` · ${displayName}` : ''}
@@ -475,7 +475,7 @@ function PublicMatchmaking({
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06), transparent 60%)',
+              'radial-gradient(circle at 50% 50%, rgba(56,189,248,0.06), transparent 60%)',
           }}
         />
         <span
@@ -497,7 +497,7 @@ function PublicMatchmaking({
         >
           <span
             className={`h-1.5 w-1.5 rounded-full ${
-              status === 'finding' ? 'animate-pulse bg-zinc-500' : 'bg-white/10'
+              status === 'finding' ? 'animate-pulse bg-zinc-500' : 'bg-sky-400'
             }`}
           />
           <span>
@@ -519,7 +519,7 @@ function PublicMatchmaking({
         className="pointer-events-none absolute left-1/2 top-0 bottom-0 hidden w-px -translate-x-1/2 md:block"
         style={{
           background:
-            'linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)',
+            'linear-gradient(180deg, transparent 0%, rgba(56,189,248,0.45) 50%, transparent 100%)',
         }}
       />
       <span
@@ -527,7 +527,7 @@ function PublicMatchmaking({
         className="pointer-events-none absolute top-1/2 left-0 right-0 h-px -translate-y-1/2 md:hidden"
         style={{
           background:
-            'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)',
+            'linear-gradient(90deg, transparent 0%, rgba(56,189,248,0.45) 50%, transparent 100%)',
         }}
       />
 
@@ -574,7 +574,7 @@ function OpponentSlot({ status }: { status: MatchStatus }) {
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         className="relative flex flex-col items-center gap-4 px-6 text-center"
       >
-        <Swords size={48} className="text-white" aria-hidden />
+        <Swords size={48} className="text-sky-400" aria-hidden />
         <div className="flex flex-col gap-1">
           <p className="text-lg font-semibold text-white">opponent found</p>
           <p className="text-xs text-zinc-500">getting ready…</p>
@@ -584,7 +584,7 @@ function OpponentSlot({ status }: { status: MatchStatus }) {
   }
   return (
     <div className="relative flex flex-col items-center gap-4 px-6 text-center">
-      <Loader2 size={48} className="animate-spin text-white" aria-hidden />
+      <Loader2 size={48} className="animate-spin text-sky-400" aria-hidden />
       <p className="text-lg font-semibold text-white">connecting…</p>
     </div>
   );

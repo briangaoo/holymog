@@ -14,8 +14,8 @@ export function Sparkline({
   points,
   width = 160,
   height = 40,
-  stroke = 'rgba(255,255,255,0.85)',
-  fill = 'rgba(255,255,255,0.10)',
+  stroke = 'rgba(56,189,248,0.85)',
+  fill = 'rgba(56,189,248,0.10)',
   dot = true,
 }: {
   points: number[];

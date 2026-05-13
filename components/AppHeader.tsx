@@ -28,7 +28,7 @@ export function AppHeader({ authNext, authContext }: Props) {
           width={120}
           height={29}
           priority
-          className="h-6 w-auto rounded-sm"
+          className="h-6 w-auto rounded-md"
         />
       </Link>
       <AccountAvatar next={authNext} context={authContext} />

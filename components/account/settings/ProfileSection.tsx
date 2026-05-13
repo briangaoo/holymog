@@ -280,7 +280,7 @@ export function ProfileSection({
             shown at the top of your profile
           </span>
         </div>
-        <div className="group relative aspect-[3/1] w-full overflow-hidden rounded-sm border border-white/10 bg-white/[0.02]">
+        <div className="group relative aspect-[3/1] w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.02]">
           {bannerUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -294,7 +294,7 @@ export function ProfileSection({
               className="absolute inset-0"
               style={{
                 background:
-                  'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(167,139,250,0.18) 50%, rgba(255,255,255,0.16) 100%)',
+                  'linear-gradient(135deg, rgba(56,189,248,0.18) 0%, rgba(167,139,250,0.18) 50%, rgba(244,63,94,0.16) 100%)',
               }}
             />
           )}
@@ -381,7 +381,7 @@ export function ProfileSection({
           {usernameEditing ? (
             <>
               <div className="flex min-w-0 items-stretch gap-2">
-                <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-sm border border-white/40 bg-white/[0.04] focus-within:border-white/60 focus-within:ring-2 focus-within:ring-white/15">
+                <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-md border border-sky-500/40 bg-white/[0.04] focus-within:border-sky-500/60 focus-within:ring-2 focus-within:ring-sky-500/15">
                   <span
                     aria-hidden
                     className="flex select-none items-center pl-2 pr-1 text-zinc-500"
@@ -418,7 +418,7 @@ export function ProfileSection({
                   onClick={onUsernameCancel}
                   disabled={usernameSaving}
                   aria-label="cancel"
-                  className="inline-flex w-10 shrink-0 items-center justify-center rounded-sm border border-white/10 bg-white/[0.03] text-zinc-300 transition-colors hover:bg-white/[0.07] disabled:opacity-50"
+                  className="inline-flex w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-zinc-300 transition-colors hover:bg-white/[0.07] disabled:opacity-50"
                 >
                   <X size={14} aria-hidden />
                 </button>
@@ -426,7 +426,7 @@ export function ProfileSection({
                   type="button"
                   onClick={onUsernameSave}
                   disabled={usernameSaving || !usernameDraft.trim()}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-foreground px-3 text-[13px] font-semibold text-background transition-all hover:opacity-90 hover:shadow-[0_0_0_2px_rgba(255,255,255,0.20)] disabled:opacity-50 disabled:hover:shadow-none"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-foreground px-3 text-[13px] font-semibold text-background transition-all hover:opacity-90 hover:shadow-[0_0_0_2px_rgba(56,189,248,0.20)] disabled:opacity-50 disabled:hover:shadow-none"
                 >
                   {usernameSaving ? (
                     <>
@@ -465,7 +465,7 @@ export function ProfileSection({
                 type="button"
                 onClick={onUsernameEnter}
                 aria-label="change username"
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-zinc-200 transition-colors hover:bg-white/[0.07] hover:text-foreground"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-zinc-200 transition-colors hover:bg-white/[0.07] hover:text-foreground"
               >
                 <Pencil size={13} aria-hidden /> change
               </button>
@@ -485,7 +485,7 @@ export function ProfileSection({
           value={bio}
           onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO_LEN))}
           placeholder="tell people who you are"
-          className="w-full resize-none rounded-sm border border-white/10 bg-white/[0.02] px-3.5 py-3 text-[14px] leading-relaxed text-foreground placeholder:text-zinc-600 focus:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/15"
+          className="w-full resize-none rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-3 text-[14px] leading-relaxed text-foreground placeholder:text-zinc-600 focus:border-sky-500/40 focus:outline-none focus:ring-2 focus:ring-sky-500/15"
         />
         <span className="self-end text-[12px] tabular-nums text-zinc-600">
           {bio.length} / {MAX_BIO_LEN}
@@ -500,7 +500,7 @@ export function ProfileSection({
         >
           location
         </label>
-        <div className="flex items-stretch overflow-hidden rounded-sm border border-white/10 bg-white/[0.02] focus-within:border-white/40 focus-within:ring-2 focus-within:ring-white/15">
+        <div className="flex items-stretch overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] focus-within:border-sky-500/40 focus-within:ring-2 focus-within:ring-sky-500/15">
           <span className="flex items-center pl-3 pr-1.5 text-zinc-500">
             <MapPin size={14} aria-hidden />
           </span>
@@ -536,7 +536,7 @@ export function ProfileSection({
                 >
                   {SOCIAL_LABELS[k]}
                 </label>
-                <div className="flex items-stretch overflow-hidden rounded-sm border border-white/10 bg-white/[0.02] focus-within:border-white/40 focus-within:ring-2 focus-within:ring-white/15">
+                <div className="flex items-stretch overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] focus-within:border-sky-500/40 focus-within:ring-2 focus-within:ring-sky-500/15">
                   <span className="flex items-center pl-3 pr-1.5 text-zinc-500">
                     <PrefixIcon size={14} aria-hidden />
                   </span>
@@ -572,7 +572,7 @@ export function ProfileSection({
           onClick={onSave}
           disabled={!dirty || state.kind === 'pending'}
           style={{ touchAction: 'manipulation' }}
-          className="rounded-sm bg-foreground px-5 py-2.5 text-[13px] font-semibold text-background transition-all hover:opacity-90 hover:shadow-[0_0_0_2px_rgba(255,255,255,0.2)] disabled:opacity-40 disabled:hover:shadow-none"
+          className="rounded-lg bg-foreground px-5 py-2.5 text-[13px] font-semibold text-background transition-all hover:opacity-90 hover:shadow-[0_0_0_2px_rgba(56,189,248,0.2)] disabled:opacity-40 disabled:hover:shadow-none"
         >
           {state.kind === 'pending' ? 'saving…' : 'save'}
         </button>

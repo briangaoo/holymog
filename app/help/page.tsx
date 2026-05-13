@@ -570,7 +570,7 @@ export default function HelpPage() {
         </header>
 
         {/* Search */}
-        <div className="mb-5 flex items-stretch overflow-hidden rounded-sm border border-white/10 bg-white/[0.02] focus-within:border-white/25">
+        <div className="mb-5 flex items-stretch overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] focus-within:border-white/25">
           <span className="flex items-center pl-3 pr-2 text-zinc-500">
             <Search size={14} aria-hidden />
           </span>
@@ -586,7 +586,7 @@ export default function HelpPage() {
 
         {/* FAQ — grouped by category */}
         {filtered.length === 0 && (
-          <div className="mb-8 rounded-sm border border-white/10 bg-white/[0.02] p-5 text-center text-[13px] text-zinc-400">
+          <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.02] p-5 text-center text-[13px] text-zinc-400">
             no matches for &ldquo;{query}&rdquo;. try a different keyword or
             send us a message.
           </div>
@@ -595,7 +595,7 @@ export default function HelpPage() {
         {filtered.map((category) => (
           <section
             key={category.label}
-            className="mb-5 overflow-hidden rounded-none border border-white/10 bg-white/[0.02]"
+            className="mb-5 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]"
           >
             <header className="border-b border-white/10 bg-white/[0.015] px-4 py-2.5">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
@@ -640,7 +640,7 @@ export default function HelpPage() {
         ))}
 
         {/* Contact form */}
-        <section className="mt-6 overflow-hidden rounded-none border border-white/10 bg-white/[0.02]">
+        <section className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]">
           <header className="border-b border-white/10 bg-white/[0.015] px-4 py-2.5">
             <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
               still stuck? send us a note
@@ -658,7 +658,7 @@ export default function HelpPage() {
                 id="topic"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                className="rounded-sm border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white focus:border-white/25 focus:outline-none"
+                className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white focus:border-white/25 focus:outline-none"
               >
                 {TOPICS.map((t) => (
                   <option key={t} value={t} className="bg-black">
@@ -681,7 +681,7 @@ export default function HelpPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="rounded-sm border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
+                  className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
                 />
               </div>
             )}
@@ -698,14 +698,14 @@ export default function HelpPage() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value.slice(0, 4000))}
                 placeholder="tell us what's going on. screenshots are helpful — paste a link or describe what you see…"
-                className="resize-none rounded-sm border border-white/10 bg-white/[0.02] px-3 py-2.5 text-[13px] leading-relaxed text-white placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
+                className="resize-none rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-[13px] leading-relaxed text-white placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
               />
               <span className="self-end text-[10px] tabular-nums text-zinc-600">
                 {message.length} / 4000
               </span>
             </div>
             {status.kind === 'sent' && (
-              <p className="text-[12px] text-white">
+              <p className="text-[12px] text-emerald-400">
                 sent. we usually reply within a day.
               </p>
             )}
