@@ -168,8 +168,8 @@ export function AccountStatsTab({
   if (!user || !loaded) return null;
   if (!profile) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center text-sm text-zinc-400">
-        could not load profile
+      <div className="border-2 border-white/20 bg-black p-4 text-center text-[11px] uppercase tracking-[0.18em] text-white/50" style={{ borderRadius: 2 }}>
+        COULD NOT LOAD PROFILE
       </div>
     );
   }
@@ -357,7 +357,7 @@ function MultiplayerSection(props: {
             <span className="font-num text-[12px] text-zinc-500 tabular-nums">
               peak {peakElo}
               {eloDelta < 0 && (
-                <span className="ml-1 text-rose-400/80">{eloDelta}</span>
+                <span className="ml-1 text-white/60">{eloDelta}</span>
               )}
             </span>
           </span>
@@ -371,8 +371,8 @@ function MultiplayerSection(props: {
               points={sparklinePoints}
               width={140}
               height={32}
-              stroke="rgba(244,63,94,0.85)"
-              fill="rgba(244,63,94,0.10)"
+              stroke="rgba(255,255,255,0.85)"
+              fill="rgba(255,255,255,0.10)"
             />
           }
         />
@@ -398,11 +398,7 @@ function MultiplayerSection(props: {
         label="streak"
         value={
           <span className="flex items-center gap-2">
-            <span
-              className={`font-num text-[14px] font-semibold tabular-nums ${
-                currentStreak >= 3 ? 'text-emerald-300' : 'text-white'
-              }`}
-            >
+            <span className="font-num text-[14px] font-semibold tabular-nums text-white">
               {currentStreak}
             </span>
             <span className="font-num text-[12px] tabular-nums text-zinc-500">
@@ -451,15 +447,16 @@ function RecentBattlesSection({
             <span
               key={i}
               aria-label={r === null ? 'no battle' : r}
-              className={`h-3 flex-1 rounded ${
+              className={`h-3 flex-1 ${
                 r === null
-                  ? 'bg-white/[0.04]'
+                  ? 'bg-white/[0.06]'
                   : r === 'win'
-                    ? 'bg-emerald-400/85'
+                    ? 'bg-white'
                     : r === 'tie'
-                      ? 'bg-zinc-400/70'
-                      : 'bg-rose-500/70'
+                      ? 'bg-white/40'
+                      : 'bg-white/15'
               }`}
+              style={{ borderRadius: 1 }}
             />
           ))}
         </div>
@@ -513,18 +510,12 @@ function SwingCard({
         borderLeftColor: 'rgba(255,255,255,0.06)',
       }}
     >
-      <div
-        className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${isWin ? 'text-emerald-300' : 'text-rose-300'}`}
-      >
-        <Icon size={11} aria-hidden /> {isWin ? 'biggest win' : 'biggest loss'}
+      <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+        <Icon size={11} aria-hidden /> {isWin ? 'BIGGEST WIN' : 'BIGGEST LOSS'}
       </div>
       {entry ? (
         <>
-          <div
-            className={`font-num text-2xl font-bold tabular-nums ${
-              isWin ? 'text-emerald-300' : 'text-rose-300'
-            }`}
-          >
+          <div className="font-num text-2xl font-bold tabular-nums text-white">
             {entry.delta > 0 ? `+${entry.delta}` : entry.delta} elo
           </div>
           <div className="text-[12px] text-zinc-400">
@@ -601,7 +592,8 @@ function BestScanSection({
           <img
             src={leaderboardPhoto}
             alt=""
-            className="h-16 w-16 flex-shrink-0 rounded-xl border border-white/15 object-cover"
+            className="h-16 w-16 flex-shrink-0 border-2 border-white/30 object-cover"
+            style={{ borderRadius: 2 }}
           />
           <div className="flex flex-1 items-center gap-3">
             <span
@@ -800,7 +792,7 @@ function WeaknessSection({ counts }: { counts: Record<string, number> }) {
               </span>
               <span
                 className={`font-num w-8 text-right text-[13px] font-semibold tabular-nums ${
-                  isTop ? 'text-violet-300' : 'text-zinc-400'
+                  isTop ? 'text-white' : 'text-white/50'
                 }`}
               >
                 {count}
@@ -827,11 +819,11 @@ function MostImprovedSection({
       icon={Sparkles}
       accent="emerald"
     >
-      <div className="flex items-center gap-3 border-t border-white/5 px-4 py-4">
-        <Sparkles size={18} className="text-emerald-300" aria-hidden />
+      <div className="flex items-center gap-3 border-t border-white/15 px-4 py-4">
+        <Sparkles size={18} className="text-white" aria-hidden />
         <span className="text-[14px] text-white">
           your <span className="font-semibold">{most.metric}</span> score is up{' '}
-          <span className="font-num font-semibold tabular-nums text-emerald-300">
+          <span className="font-num font-semibold tabular-nums text-white">
             +{most.delta} pts
           </span>
         </span>
