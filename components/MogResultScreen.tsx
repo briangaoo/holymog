@@ -285,7 +285,8 @@ export function MogResultScreen({
               type="button"
               onClick={() => setReportOpen(true)}
               style={{ touchAction: 'manipulation' }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3.5 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors hover:border-rose-500/40 hover:bg-rose-500/[0.06] hover:text-rose-200"
+              className="inline-flex items-center gap-1.5 border border-white/20 bg-black px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50 transition-colors hover:border-white hover:bg-white/[0.04] hover:text-white"
+              style={{ borderRadius: 2 }}
             >
               <Flag size={11} aria-hidden />
               report @{opponent.display_name}
@@ -379,11 +380,14 @@ function ResultAmbient({
   tied: boolean;
   myScore: number;
 }) {
+  // Brutalist: ambient glow blobs muted across all states. Win still
+  // pulls the tier colour (the single brand exception); tied + loss
+  // collapse to monochrome.
   const accent = tied
-    ? 'rgba(161,161,170,0.35)'
+    ? 'rgba(255,255,255,0.18)'
     : won
       ? getScoreColor(myScore)
-      : 'rgba(168,85,247,0.35)';
+      : 'rgba(255,255,255,0.10)';
   return (
     <>
       <motion.span
@@ -404,10 +408,10 @@ function ResultAmbient({
         className="pointer-events-none absolute -left-40 bottom-1/3 h-[32rem] w-[32rem] rounded-full blur-3xl"
         style={{
           background: tied
-            ? 'radial-gradient(circle, rgba(113,113,122,0.18) 0%, transparent 70%)'
+            ? 'radial-gradient(circle, rgba(255,255,255,0.10) 0%, transparent 70%)'
             : won
-              ? 'radial-gradient(circle, rgba(34,211,238,0.25) 0%, transparent 70%)'
-              : 'radial-gradient(circle, rgba(244,63,94,0.18) 0%, transparent 70%)',
+              ? 'radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%)'
+              : 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)',
         }}
       />
       <motion.span
@@ -501,16 +505,15 @@ function ResultHeadline({
   // name fx (handwritten signature, gradient text, etc.) doesn't get
   // butchered by an uppercase transform.
   const headline = tied ? 'TIED' : won ? 'YOU MOGGED' : 'GOT MOGGED';
-  const headlineColor = tied
-    ? '#d4d4d8'
-    : won
-      ? getScoreColor(myScore)
-      : '#fda4af';
+  // Brutalist: only the WIN headline retains tier colour (brand exception);
+  // tie + loss collapse to pure white / muted white so colour reads as
+  // celebration, not coding for win/loss state.
+  const headlineColor = tied ? '#ffffff' : won ? getScoreColor(myScore) : '#ffffff';
   const subColor = tied
-    ? 'text-zinc-400'
+    ? 'text-white/60'
     : won
-      ? 'text-emerald-300/85'
-      : 'text-rose-300/85';
+      ? 'text-white'
+      : 'text-white/60';
 
   // Wrap the opponent's @handle in <NameFx> so their equipped name
   // treatment shows everywhere their name appears — same posture as
@@ -541,10 +544,10 @@ function ResultHeadline({
         style={{
           color: headlineColor,
           textShadow: tied
-            ? '0 0 48px rgba(161,161,170,0.25), 0 4px 24px rgba(0,0,0,0.6)'
+            ? '0 0 48px rgba(255,255,255,0.25), 0 4px 24px rgba(0,0,0,0.6)'
             : won
               ? `0 0 64px ${headlineColor}55, 0 0 32px ${headlineColor}40, 0 4px 24px rgba(0,0,0,0.6)`
-              : '0 0 48px rgba(244,63,94,0.35), 0 4px 24px rgba(0,0,0,0.6)',
+              : '0 0 48px rgba(255,255,255,0.20), 0 4px 24px rgba(0,0,0,0.6)',
         }}
       >
         {headline}
@@ -717,29 +720,27 @@ function ResultPlayer({
         delay: side === 'left' ? 0.2 : 0.32,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className={`relative flex flex-col gap-3 overflow-hidden rounded-3xl border px-5 py-6 backdrop-blur-md transition-shadow ${
+      className={`relative flex flex-col gap-3 overflow-hidden border-2 px-5 py-6 transition-shadow ${
         won
-          ? 'border-emerald-500/40 bg-emerald-500/[0.08] shadow-[0_0_40px_-12px_rgba(16,185,129,0.55)]'
+          ? 'border-white bg-white/[0.04]'
           : tied
-            ? 'border-white/15 bg-zinc-500/[0.06]'
-            : 'border-white/10 bg-white/[0.02]'
+            ? 'border-white/30 bg-white/[0.02]'
+            : 'border-white/20 bg-black'
       }`}
-      style={
-        won
-          ? {
-              boxShadow: `0 0 48px -12px ${color}55, inset 0 0 0 1px ${color}33`,
-            }
-          : undefined
-      }
+      style={{
+        borderRadius: 2,
+        boxShadow: won ? `0 0 48px -12px ${color}55, inset 0 0 0 1px ${color}33` : undefined,
+      }}
     >
       {won && (
         <motion.span
           initial={{ scale: 0, rotate: -10 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ duration: 0.4, delay: 0.7, type: 'spring', stiffness: 280 }}
-          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200"
+          className="absolute right-3 top-3 inline-flex items-center gap-1 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-black"
+          style={{ borderRadius: 2 }}
         >
-          ✦ winner
+          ✦ WINNER
         </motion.span>
       )}
       {tied && (
@@ -830,10 +831,10 @@ function ResultDelta({
       <span
         className={`font-num text-base font-bold tabular-nums ${
           tied
-            ? 'text-zinc-300'
+            ? 'text-white/70'
             : youWon
-              ? 'text-emerald-300'
-              : 'text-rose-300'
+              ? 'text-white'
+              : 'text-white/50'
         }`}
       >
         {tied ? '±0' : (youWon ? '+' : '−') + delta}

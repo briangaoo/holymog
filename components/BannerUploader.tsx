@@ -151,7 +151,7 @@ export function BannerUploader({ open, onClose, onSaved }: Props) {
         initial={{ y: 16, opacity: 0, scale: 0.97 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-        className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/15 bg-[#0c0c0c] p-6"
+        className="relative w-full max-w-lg overflow-hidden rounded-sm border border-white/15 bg-[#0c0c0c] p-6"
         style={{
           boxShadow:
             'inset 0 1px 0 rgba(255,255,255,0.08), 0 30px 80px -20px rgba(0,0,0,0.7)',
@@ -174,7 +174,7 @@ export function BannerUploader({ open, onClose, onSaved }: Props) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/15 bg-white/[0.02] text-sm text-white/70 transition-colors hover:border-white/25 hover:bg-white/[0.04]"
+              className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-sm border-2 border-dashed border-white/15 bg-white/[0.02] text-sm text-white/70 transition-colors hover:border-white/25 hover:bg-white/[0.04]"
             >
               <ImagePlus size={24} aria-hidden />
               <span>Pick an image</span>
@@ -194,7 +194,7 @@ export function BannerUploader({ open, onClose, onSaved }: Props) {
           </div>
         ) : (
           <div className="flex flex-col items-stretch gap-4">
-            <div className="rounded-xl overflow-hidden bg-black flex items-center justify-center max-h-[60vh]">
+            <div className="rounded-sm overflow-hidden bg-black flex items-center justify-center max-h-[60vh]">
               <ReactCrop
                 crop={crop}
                 onChange={(_pixel, percent) => setCrop(percent)}
