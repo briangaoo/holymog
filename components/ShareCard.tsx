@@ -20,7 +20,7 @@ export function ShareCard({ score }: Props) {
   return (
     <div
       aria-hidden
-      className="relative flex h-[360px] w-[200px] flex-col items-center justify-center overflow-hidden rounded-3xl bg-black"
+      className="relative flex h-[360px] w-[200px] flex-col items-center justify-center overflow-hidden rounded-sm bg-black"
       style={{
         backgroundImage: tier.isGradient
           ? 'radial-gradient(circle at 50% 50%, rgba(168,85,247,0.25), rgba(0,0,0,0) 60%)'
