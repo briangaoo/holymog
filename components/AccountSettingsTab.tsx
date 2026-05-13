@@ -206,8 +206,8 @@ export function AccountSettingsTab({
   if (!user || !loaded) return null;
   if (!profile) {
     return (
-      <div className="rounded-md border border-white/10 bg-white/[0.02] p-3 text-center text-xs text-zinc-400">
-        could not load profile
+      <div className="border-2 border-white/20 bg-black p-3 text-center text-[11px] uppercase tracking-[0.18em] text-white/50" style={{ borderRadius: 2 }}>
+        COULD NOT LOAD PROFILE
       </div>
     );
   }

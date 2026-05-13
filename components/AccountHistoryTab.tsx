@@ -202,7 +202,7 @@ export function AccountHistoryTab({
                 setResultFilter('all');
                 setOpponent('');
               }}
-              className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-zinc-300 hover:bg-white/[0.07] hover:text-white"
+              className="inline-flex items-center gap-1 rounded-sm border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-zinc-300 hover:bg-white/[0.07] hover:text-white"
             >
               <X size={11} aria-hidden /> reset
             </button>
@@ -251,7 +251,7 @@ export function AccountHistoryTab({
               </FilterChip>
             ))}
           </div>
-          <div className="flex items-stretch overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] focus-within:border-purple-500/40 focus-within:ring-2 focus-within:ring-purple-500/15">
+          <div className="flex items-stretch overflow-hidden rounded-sm border border-white/20 bg-white/[0.02] focus-within:border-white focus-within:ring-2 focus-within:ring-white/15">
             <span className="flex items-center pl-3 pr-1 text-zinc-500">
               <Search size={13} aria-hidden />
             </span>
@@ -289,12 +289,12 @@ export function AccountHistoryTab({
                 <SummaryChip
                   label="won"
                   value={String(summary.won)}
-                  color="text-emerald-300"
+                  color="text-white"
                 />
                 <SummaryChip
                   label="lost"
                   value={String(summary.lost)}
-                  color="text-rose-300"
+                  color="text-white/60"
                 />
                 {summary.win_rate !== null && (
                   <SummaryChip
@@ -302,7 +302,7 @@ export function AccountHistoryTab({
                     value={`${summary.win_rate}%`}
                     color={
                       summary.win_rate >= 50
-                        ? 'text-emerald-300'
+                        ? 'text-white'
                         : 'text-zinc-200'
                     }
                   />
@@ -311,7 +311,7 @@ export function AccountHistoryTab({
                   <SummaryChip
                     label="best peak"
                     value={String(summary.peak)}
-                    color="text-sky-300"
+                    color="text-white"
                   />
                 )}
               </>
@@ -333,7 +333,7 @@ export function AccountHistoryTab({
           </div>
         </Section>
       ) : status === 'error' ? (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.04] p-3 text-[13px] text-red-300">
+        <div className="border-2 border-red-500/40 bg-red-500/[0.06] p-3 text-[11px] uppercase tracking-[0.14em] text-red-200" style={{ borderRadius: 2 }}>
           {errorMsg}
         </div>
       ) : entries.length === 0 ? (
@@ -400,21 +400,20 @@ function FilterChip({
   accent: 'purple' | 'emerald' | 'rose';
   children: React.ReactNode;
 }) {
-  const activeStyles =
-    accent === 'emerald'
-      ? 'border-emerald-500/40 bg-emerald-500/[0.10] text-emerald-200'
-      : accent === 'rose'
-        ? 'border-rose-500/40 bg-rose-500/[0.10] text-rose-200'
-        : 'border-purple-500/40 bg-purple-500/[0.10] text-purple-200';
+  // The accent prop is preserved on the type for callsite compatibility,
+  // but the brutalist redesign collapses all variants to white-on-black
+  // (active) vs muted-white (inactive). Colour-coded filter states are
+  // not part of the new aesthetic.
+  void accent;
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{ touchAction: 'manipulation' }}
-      className={`rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
+      style={{ touchAction: 'manipulation', borderRadius: 2 }}
+      className={`border-2 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] transition-colors ${
         active
-          ? activeStyles
-          : 'border-white/10 bg-white/[0.02] text-zinc-300 hover:bg-white/[0.05] hover:text-white'
+          ? 'border-white bg-white text-black'
+          : 'border-white/25 bg-black text-white/60 hover:border-white/50 hover:text-white'
       }`}
     >
       {children}
@@ -432,7 +431,7 @@ function SummaryChip({
   color: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.025] px-2 py-1">
+    <span className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/[0.025] px-2 py-1">
       <span className="text-[10px] text-zinc-500">{label}</span>
       <span className={`font-num text-[12px] font-semibold tabular-nums ${color}`}>
         {value}
@@ -474,20 +473,21 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   return (
     <li className="flex items-center gap-3 border-t border-white/5 px-4 py-3 text-[13px] transition-colors hover:bg-white/[0.015]">
       <span
-        className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-bold uppercase ${
+        className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center text-[11px] font-bold uppercase ${
           entry.is_winner
-            ? 'bg-emerald-500/20 text-emerald-300'
-            : 'bg-rose-500/15 text-rose-300'
+            ? 'bg-white text-black'
+            : 'bg-white/15 text-white/60'
         }`}
+        style={{ borderRadius: 2 }}
       >
         {entry.is_winner ? 'W' : 'L'}
       </span>
       <span
-        className={`text-[10px] uppercase tracking-[0.12em] ${
-          entry.kind === 'private' ? 'text-amber-300/80' : 'text-zinc-500'
+        className={`text-[10px] uppercase tracking-[0.16em] ${
+          entry.kind === 'private' ? 'text-white/70' : 'text-white/40'
         } w-12`}
       >
-        {entry.kind === 'private' ? 'priv' : '1v1'}
+        {entry.kind === 'private' ? 'PRIV' : '1V1'}
       </span>
       <span className="flex-1 truncate text-zinc-300">vs {opponentNode}</span>
       <span className="flex items-center gap-1 text-right">
