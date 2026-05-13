@@ -2,10 +2,8 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Camera, Swords, Trophy } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
-import { Starfield } from '@/components/Starfield';
-import { SpectralRim } from '@/components/SpectralRim';
 
 export default function HomePage() {
   // Lock browser-level scroll while the home page is mounted. Just
@@ -25,79 +23,74 @@ export default function HomePage() {
     };
   }, []);
 
-
   return (
     <div className="relative h-dvh overflow-hidden bg-black">
-      <Starfield />
       <div className="relative z-10 flex h-dvh flex-col">
         <AppHeader />
         <main
           className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-12 pt-6 sm:max-w-2xl"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 48px)' }}
         >
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <SpectralRim accent="rgba(16,185,129,0.95)" className="rounded-3xl">
-              <ScanCard />
-            </SpectralRim>
-            <SpectralRim accent="rgba(56,189,248,0.95)" className="rounded-3xl">
-              <BattleCard />
-            </SpectralRim>
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <HomeCard
+              href="/scan"
+              index="01"
+              title="SCAN"
+              subtitle="RATE YOUR FACE"
+              meta="F- → S+"
+            />
+            <HomeCard
+              href="/mog"
+              index="02"
+              title="BATTLES"
+              subtitle="LIVE FACE-OFFS"
+              meta="1V1 OR UP TO 10"
+            />
           </div>
 
-          <div className="my-6 h-px bg-white/10" />
+          <div className="my-5 h-px bg-white/15" />
 
-          <SpectralRim
-            accent="rgba(250,204,21,0.7)"
-            spotlight={80}
-            className="rounded-2xl"
+          <Link
+            href="/leaderboard"
+            className="group flex items-center justify-between border-2 border-white/30 bg-black px-5 py-4 text-sm uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
+            style={{ touchAction: 'manipulation', borderRadius: 2 }}
           >
-            <Link
-              href="/leaderboard"
-              className="group flex items-center justify-between rounded-2xl border border-white/10 bg-black/60 px-5 py-4 backdrop-blur transition-colors hover:bg-white/[0.05]"
-              style={{ touchAction: 'manipulation' }}
-            >
-              <span className="inline-flex items-center gap-3 text-sm font-medium text-white">
-                <Trophy size={16} aria-hidden className="text-zinc-400" />
-                leaderboard
-              </span>
-              <ArrowRight
-                size={14}
-                aria-hidden
-                className="text-zinc-500 transition-transform group-hover:translate-x-0.5"
-              />
-            </Link>
-          </SpectralRim>
+            <span className="font-medium">LEADERBOARD</span>
+            <ArrowUpRight
+              size={16}
+              aria-hidden
+              className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+            />
+          </Link>
 
-          <footer className="mt-10 flex flex-col items-center gap-2 text-[11px] text-zinc-600">
+          <footer className="mt-8 flex flex-col items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/40">
             <div className="flex items-center justify-center gap-3">
-              <Link href="/account" className="hover:text-zinc-400">
-                account
+              <Link href="/account" className="hover:text-white">
+                ACCOUNT
               </Link>
-              <span aria-hidden>·</span>
-              <Link href="/terms" className="hover:text-zinc-400">
-                terms
+              <span aria-hidden className="text-white/20">·</span>
+              <Link href="/terms" className="hover:text-white">
+                TERMS
               </Link>
-              <span aria-hidden>·</span>
-              <Link href="/privacy" className="hover:text-zinc-400">
-                privacy
+              <span aria-hidden className="text-white/20">·</span>
+              <Link href="/privacy" className="hover:text-white">
+                PRIVACY
               </Link>
-              <span aria-hidden>·</span>
-              <Link href="/help" className="hover:text-zinc-400">
-                help
+              <span aria-hidden className="text-white/20">·</span>
+              <Link href="/help" className="hover:text-white">
+                HELP
               </Link>
-              <span aria-hidden>·</span>
+              <span aria-hidden className="text-white/20">·</span>
               <a
                 href="https://github.com/holymog/holymog"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-zinc-400"
+                className="hover:text-white"
               >
-                github
+                GITHUB
               </a>
             </div>
-            <span className="text-[10px] text-zinc-700">
-              © 2026 holymog
-            </span>
+            <span className="text-[10px] text-white/25">© 2026 HOLYMOG</span>
           </footer>
         </main>
       </div>
@@ -105,114 +98,54 @@ export default function HomePage() {
   );
 }
 
-function ScanCard() {
+/**
+ * Single brutalist tile on the home grid. Numbered (01, 02) up top,
+ * uppercase title + subtitle, meta line at the bottom, arrow pulls
+ * up-right on hover. No accent colours, no gradients, no glow — the
+ * full brand commits to "the type IS the design" here.
+ */
+function HomeCard({
+  href,
+  index,
+  title,
+  subtitle,
+  meta,
+}: {
+  href: string;
+  index: string;
+  title: string;
+  subtitle: string;
+  meta: string;
+}) {
   return (
     <Link
-      href="/scan"
-      className="group relative flex min-h-[340px] flex-col overflow-hidden rounded-3xl border border-white/10 p-8 transition-all hover:border-white/25"
-      style={{
-        backgroundColor: '#0a0a0a',
-        // Emerald rim — scan's official accent.
-        boxShadow:
-          'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(16,185,129,0.22)',
-        touchAction: 'manipulation',
-      }}
+      href={href}
+      className="group relative flex min-h-[300px] flex-col justify-between border-2 border-white/30 bg-black p-6 transition-colors hover:border-white hover:bg-white/[0.03] sm:min-h-[360px] sm:p-7"
+      style={{ touchAction: 'manipulation', borderRadius: 2 }}
     >
-      {/* Off-frame green radial — the spot light behind the frosted glass. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-24 -top-24 h-[26rem] w-[26rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(16,185,129,0.95) 0%, rgba(34,197,94,0.45) 35%, transparent 65%)',
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 backdrop-blur-2xl"
-        style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 35%)',
-        }}
-      />
-
-      <div className="relative flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-3">
-          <Camera size={44} aria-hidden className="text-white drop-shadow-lg" />
-          <h2 className="text-5xl font-bold leading-none tracking-tight text-white">
-            scan
-          </h2>
-          <p className="text-base text-white/85">
-            rate your face{' '}
-            <span className="font-semibold normal-case">F- → S+</span>
-          </p>
-        </div>
-        <ArrowRight
-          size={22}
+      <div className="flex items-start justify-between">
+        <span className="font-mono text-[11px] font-medium tracking-[0.2em] text-white/50">
+          {index}
+        </span>
+        <ArrowUpRight
+          size={18}
           aria-hidden
-          className="text-white/80 transition-transform group-hover:translate-x-1"
+          className="text-white/60 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white"
         />
       </div>
-    </Link>
-  );
-}
 
-function BattleCard() {
-  return (
-    <Link
-      href="/mog"
-      className="group relative flex min-h-[340px] flex-col overflow-hidden rounded-3xl border border-white/10 p-8 transition-all hover:border-white/25"
-      style={{
-        backgroundColor: '#0a0a0a',
-        // Sky-blue rim — mog battles' official accent.
-        boxShadow:
-          'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(56,189,248,0.22)',
-        touchAction: 'manipulation',
-      }}
-    >
-      {/* Off-frame sky radial — light-blue glow from the bottom-left. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -bottom-24 -left-24 h-[26rem] w-[26rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(56,189,248,0.95) 0%, rgba(14,165,233,0.45) 35%, transparent 65%)',
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 backdrop-blur-2xl"
-        style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 35%)',
-        }}
-      />
-
-      <div className="relative flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-3">
-          <Swords size={44} aria-hidden className="text-white drop-shadow-lg" />
-          <h2 className="text-5xl font-bold leading-none tracking-tight text-white">
-            battles
-          </h2>
-          <p className="text-base text-white/85">
-            live face-offs <span className="text-white/50">·</span> 1v1 or up to 10
+      <div className="flex flex-col gap-3">
+        <h2 className="text-5xl font-bold uppercase leading-[0.92] tracking-tight text-white sm:text-6xl">
+          {title}
+        </h2>
+        <div className="flex flex-col gap-1">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/70">
+            {subtitle}
+          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+            {meta}
           </p>
         </div>
-        <ArrowRight
-          size={22}
-          aria-hidden
-          className="text-white/80 transition-transform group-hover:translate-x-1"
-        />
       </div>
     </Link>
   );

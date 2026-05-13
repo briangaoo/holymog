@@ -1,22 +1,43 @@
 import type { Metadata, Viewport } from 'next';
-import { Space_Grotesk, DM_Sans, IBM_Plex_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
+import { IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/Providers';
 
-const spaceGrotesk = Space_Grotesk({
-  variable: '--font-space-grotesk',
-  subsets: ['latin'],
+// PolySans (Pangram Pangram) — brand display + body. Self-hosted from
+// app/fonts/ via next/font/local. Four weights, all upright; no italics
+// shipped in the licensed bundle. Slim 300 / Neutral 400 / Median 500 /
+// Bulky 700 covers everything from caption to display-size headlines.
+const polySans = localFont({
+  src: [
+    {
+      path: './fonts/PolySans-Slim.ttf',
+      weight: '300',
+      style: 'normal',
+    },
+    {
+      path: './fonts/PolySans-Neutral.ttf',
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      path: './fonts/PolySans-Median.ttf',
+      weight: '500',
+      style: 'normal',
+    },
+    {
+      path: './fonts/PolySans-Bulky.ttf',
+      weight: '700',
+      style: 'normal',
+    },
+  ],
+  variable: '--font-polysans',
   display: 'swap',
-  weight: ['400', '500', '600', '700'],
 });
 
-const dmSans = DM_Sans({
-  variable: '--font-dm-sans',
-  subsets: ['latin'],
-  display: 'swap',
-  weight: ['400', '500', '600', '700', '800', '900'],
-});
-
+// IBM Plex Mono — numerics + tabular figures. Kept from the previous
+// stack because it pairs cleanly with PolySans and tabular-nums
+// rendering is hard to match in a non-mono font.
 const plexMono = IBM_Plex_Mono({
   variable: '--font-mono-numeric',
   weight: ['400', '500', '600', '700'],
@@ -80,7 +101,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${dmSans.variable} ${plexMono.variable} h-full bg-black`}
+      className={`${polySans.variable} ${plexMono.variable} h-full bg-black`}
       suppressHydrationWarning
     >
       <body

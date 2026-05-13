@@ -1,29 +1,30 @@
 @import "tailwindcss";
 
-/* Site-wide near-black/near-white tokens. Pure #000 + pure #fff is
- * harsh contrast that fatigues the eyes (true OLED black is also too
- * stark for soft brand vibe). We override Tailwind's `black` and `white`
- * colour tokens so every `bg-black` / `text-white` utility, plus our
- * own components, resolve to these softened values automatically.
+/* Brutalist token set — pure black ground, pure white foreground, no
+ * softened greys at the base. The whole brand commits to maximum
+ * contrast. Soft mid-tones can still be opted into per-component via
+ * Tailwind's neutral / zinc utilities; this file just sets the floor
+ * and ceiling.
  *
- *   --color-black: #0a0a0a (zinc-950 territory) — ambient page bg
- *   --color-white: #f5f5f5 (zinc-100) — body text + foregrounds
+ *   --color-black: #000000 — every page background
+ *   --color-white: #ffffff — body text + foregrounds
  *
- * Pure #000 / #fff are still available via `text-[#000]` /
- * `bg-[#000]` arbitrary values when needed (e.g. inside black
- * pill buttons).
+ * The lowercase global was removed: PolySans + uppercase is the new
+ * default voice. Components can still opt-in to lowercase via tailwind
+ * `lowercase` utility when the copy calls for it (casual body text,
+ * descriptors, etc.).
  */
 :root {
-  --background: #0a0a0a;
-  --foreground: #f5f5f5;
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-black: #0a0a0a;
-  --color-white: #f5f5f5;
-  --font-sans: var(--font-space-grotesk);
+  --color-black: #000000;
+  --color-white: #ffffff;
+  --font-sans: var(--font-polysans);
   --font-mono: var(--font-mono-numeric);
 }
 
@@ -42,11 +43,10 @@ body {
 }
 
 body {
-  font-family: var(--font-space-grotesk), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-polysans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
-  text-transform: lowercase;
 }
 
 @keyframes pulse-soft {

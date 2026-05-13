@@ -722,86 +722,64 @@ export default function Home() {
         />
       )}
 
-      {/* Full-screen camera, fixed inset-0 covers the entire viewport on every device */}
+      {/* Camera + overlays live inside an inset frame so a ~1 inch black
+          margin shows on every edge. Keeps every page (including this
+          one — which fundamentally needs to show your camera feed) on
+          the same brutalist black ground. The LivePageBorder + Spiderweb
+          components are still imported and kept alive in the codebase
+          for a future live-scan visualisation; just not rendered here.
+
+          Margin scales with viewport: 48px on mobile (a hair under 1/2"),
+          96px on sm+ (a clean 1") so phones don't shrink the camera to
+          unusable. Safe-area insets are layered on top via max() so
+          notches + bottom home-bar don't crop into the inset. */}
       {showCamera && (
-        <div className="fixed inset-0 z-10 overflow-hidden bg-black">
-          <Camera
-            ref={cameraHandleRef}
-            videoRef={videoRef}
-            enabled
-            onReady={handleCameraReady}
-            onError={handleCameraError}
-            onDimensions={handleVideoDimensions}
-          />
+        <div className="fixed inset-0 z-10 bg-black">
+          <div
+            className="absolute overflow-hidden bg-black"
+            style={{
+              top: 'max(env(safe-area-inset-top), 48px)',
+              bottom: 'max(env(safe-area-inset-bottom), 48px)',
+              left: 'max(env(safe-area-inset-left), 48px)',
+              right: 'max(env(safe-area-inset-right), 48px)',
+            }}
+          >
+            <Camera
+              ref={cameraHandleRef}
+              videoRef={videoRef}
+              enabled
+              onReady={handleCameraReady}
+              onError={handleCameraError}
+              onDimensions={handleVideoDimensions}
+            />
 
-          <FaceDetectedPill visible={state.type === 'detected'} />
+            <FaceDetectedPill visible={state.type === 'detected'} />
 
-          {state.type === 'detected' && !scanPhase && (
-            <Countdown durationMs={COUNTDOWN_MS} />
-          )}
-
-          {/* Ambient page-edge rim is the sole live-score indicator —
-              tier-coloured glow breathes during the scan phase and
-              through the mapping phase until the reveal page appears.
-              No on-screen number; user feels the score climb via colour
-              + intensity, then sees the actual value on the result page. */}
-          <LivePageBorder
-            color={
-              (scanPhase || state.type === 'mapping') &&
-              liveScore !== null &&
-              !liveError
-                ? getScoreColor(liveScore)
-                : null
-            }
-          />
-
-          {/* Spiderweb runs alongside the live bar (5 seconds during scan
-              phase) and stays visible into the mapping phase while the heavy
-              call resolves. */}
-          {(scanPhase || state.type === 'mapping') &&
-            screenSize.width > 0 &&
-            (landmarks ||
-              (state.type === 'mapping' &&
-                state.frames[state.frames.length - 1]?.landmarks)) && (
-              <SpiderwebOverlay
-                landmarks={
-                  (landmarks as Landmark[] | null) ??
-                  ((state.type === 'mapping'
-                    ? state.frames[state.frames.length - 1]?.landmarks
-                    : null) as Landmark[])
-                }
-                containerWidth={screenSize.width}
-                containerHeight={screenSize.height}
-                videoWidth={videoSize.width}
-                videoHeight={videoSize.height}
-                visible
-              />
+            {state.type === 'detected' && !scanPhase && (
+              <Countdown durationMs={COUNTDOWN_MS} />
             )}
 
-          <AnimatePresence>
-            {showHint && (
-              <motion.p
-                key="hint"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
-                className="absolute inset-x-0 z-20 text-center text-sm text-white/70"
-                style={{ bottom: 'max(env(safe-area-inset-bottom), 32px)' }}
-              >
-                look at the camera
-              </motion.p>
-            )}
-          </AnimatePresence>
+            <AnimatePresence>
+              {showHint && (
+                <motion.p
+                  key="hint"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="absolute inset-x-0 bottom-6 z-20 text-center text-sm text-white/70"
+                >
+                  look at the camera
+                </motion.p>
+              )}
+            </AnimatePresence>
 
-          {showFaceCountWarning && (
-            <div
-              className="absolute inset-x-6 z-20 rounded-xl bg-black/70 px-3 py-2 text-center text-xs text-white"
-              style={{ bottom: 'max(env(safe-area-inset-bottom), 32px)' }}
-            >
-              one face at a time
-            </div>
-          )}
+            {showFaceCountWarning && (
+              <div className="absolute inset-x-6 bottom-6 z-20 bg-black/70 px-3 py-2 text-center text-xs text-white">
+                one face at a time
+              </div>
+            )}
+          </div>
         </div>
       )}
 
