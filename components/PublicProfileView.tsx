@@ -122,7 +122,7 @@ function ProfileHeader({
 
   return (
     <section
-      className="relative overflow-hidden rounded-3xl border border-white/10"
+      className="relative overflow-hidden rounded-sm border border-white/10"
       style={{
         background:
           'linear-gradient(180deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.015) 100%)',
@@ -244,7 +244,7 @@ function ProfileHeader({
                   aria-hidden
                   className={`h-1.5 w-1.5 rounded-full ${
                     isActive(data.last_active_at)
-                      ? 'animate-pulse bg-emerald-400'
+                      ? 'animate-pulse bg-white'
                       : 'bg-zinc-600'
                   }`}
                 />
@@ -347,7 +347,7 @@ function FollowButton({
       style={{ touchAction: 'manipulation' }}
       className={
         following
-          ? 'inline-flex h-9 items-center rounded-full border border-white/15 bg-transparent px-4 text-[14px] font-semibold text-foreground transition-colors hover:border-rose-500/50 hover:bg-rose-500/[0.06] hover:text-rose-200 disabled:opacity-50'
+          ? 'inline-flex h-9 items-center rounded-full border border-white/15 bg-transparent px-4 text-[14px] font-semibold text-foreground transition-colors hover:border-white hover:bg-white/[0.06] hover:text-white disabled:opacity-50'
           : 'inline-flex h-9 items-center rounded-full bg-foreground px-4 text-[14px] font-semibold text-[#0a0a0a] transition-transform hover:scale-[1.03] disabled:opacity-50'
       }
     >
@@ -465,7 +465,10 @@ function SectionLabel({
   accent: 'rose' | 'sky';
   children: React.ReactNode;
 }) {
-  const color = accent === 'rose' ? 'text-rose-200' : 'text-sky-200';
+  // Brutalist: accent prop preserved at the type level but all variants
+  // render identical monochrome treatment.
+  void accent;
+  const color = 'text-white';
   return (
     <div className="flex items-center gap-2 px-1">
       <Icon size={15} aria-hidden className={color} />
@@ -495,10 +498,10 @@ function TierCard({ data }: { data: PublicProfileData }) {
       accent={isElite ? 'rgba(168,85,247,0.85)' : `${accentColor}d0`}
       thickness={1.5}
       spotlight={240}
-      className="rounded-3xl"
+      className="rounded-sm"
     >
       <section
-        className="relative overflow-hidden rounded-3xl border"
+        className="relative overflow-hidden rounded-sm border"
         style={{
           borderColor: `${accentColor}40`,
           background:
@@ -519,7 +522,7 @@ function TierCard({ data }: { data: PublicProfileData }) {
         <div className="relative grid gap-5 p-5 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-6 sm:p-7">
           {data.best_scan_photo ? (
             <div
-              className="relative mx-auto h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl sm:mx-0 sm:h-36 sm:w-36"
+              className="relative mx-auto h-32 w-32 flex-shrink-0 overflow-hidden rounded-sm sm:mx-0 sm:h-36 sm:w-36"
               style={{
                 boxShadow: `0 0 0 2px ${accentColor}60, 0 0 32px ${accentColor}50`,
               }}
@@ -539,7 +542,7 @@ function TierCard({ data }: { data: PublicProfileData }) {
               />
             </div>
           ) : (
-            <div className="mx-auto flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-2xl border border-white/10 bg-white/[0.02] sm:mx-0 sm:h-36 sm:w-36">
+            <div className="mx-auto flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-sm border border-white/10 bg-white/[0.02] sm:mx-0 sm:h-36 sm:w-36">
               <Scan size={20} className="text-zinc-500" aria-hidden />
               <span className="text-[11px] text-zinc-500">no scan yet</span>
             </div>
@@ -669,15 +672,13 @@ function StatChip({
   sub?: string | null;
   accent: 'sky' | 'emerald' | 'zinc';
 }) {
-  const valueColor =
-    accent === 'sky'
-      ? 'text-sky-300'
-      : accent === 'emerald'
-        ? 'text-emerald-300'
-        : 'text-foreground';
+  // Brutalist: accent kept on the type for callsite compat; all variants
+  // resolve to white.
+  void accent;
+  const valueColor = 'text-white';
   return (
     <div
-      className="overflow-hidden rounded-2xl border border-white/10 px-3 py-3"
+      className="overflow-hidden rounded-sm border border-white/10 px-3 py-3"
       style={{
         background:
           'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)',
@@ -721,10 +722,10 @@ function ClimbChart({
       accent="rgba(56,189,248,0.85)"
       thickness={1.5}
       spotlight={220}
-      className="rounded-3xl"
+      className="rounded-sm"
     >
       <section
-        className="relative overflow-hidden rounded-3xl border border-sky-500/20"
+        className="relative overflow-hidden rounded-sm border border-white/20"
         style={{
           background:
             'linear-gradient(180deg, rgba(56,189,248,0.06) 0%, rgba(255,255,255,0.01) 60%)',
@@ -735,8 +736,8 @@ function ClimbChart({
         <div className="flex flex-col gap-3 p-5">
           <header className="flex items-baseline justify-between gap-3">
             <div className="flex items-center gap-2">
-              <TrendingUp size={15} className="text-sky-300" aria-hidden />
-              <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sky-200">
+              <TrendingUp size={15} className="text-white" aria-hidden />
+              <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white">
                 elo climb
               </span>
             </div>
@@ -753,7 +754,7 @@ function ClimbChart({
               {trend !== 0 && (
                 <span
                   className={`font-num text-[14px] font-semibold tabular-nums ${
-                    trend > 0 ? 'text-emerald-300' : 'text-rose-300'
+                    trend > 0 ? 'text-white' : 'text-white/60'
                   }`}
                 >
                   {trend > 0 ? '+' : ''}
@@ -800,10 +801,10 @@ function BattleActivity({
       accent="rgba(244,63,94,0.85)"
       thickness={1.5}
       spotlight={220}
-      className="rounded-3xl"
+      className="rounded-sm"
     >
       <section
-        className="relative overflow-hidden rounded-3xl border border-rose-500/20"
+        className="relative overflow-hidden rounded-sm border border-white/20"
         style={{
           background:
             'linear-gradient(180deg, rgba(244,63,94,0.04) 0%, rgba(255,255,255,0.01) 60%)',
@@ -813,8 +814,8 @@ function BattleActivity({
       >
         <div className="flex flex-col gap-3 p-5">
           <header className="flex items-center gap-2">
-            <Swords size={15} className="text-rose-300" aria-hidden />
-            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-rose-200">
+            <Swords size={15} className="text-white/60" aria-hidden />
+            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white/60">
               recent battles
             </span>
           </header>
@@ -832,7 +833,7 @@ function BattleActivity({
                 key={b.battle_id}
                 title={b.is_winner ? 'win' : 'loss'}
                 className={`h-2.5 flex-1 rounded-sm ${
-                  b.is_winner ? 'bg-emerald-400/85' : 'bg-rose-500/70'
+                  b.is_winner ? 'bg-white/85' : 'bg-white/15'
                 }`}
               />
             ))}
@@ -842,13 +843,13 @@ function BattleActivity({
             {battles.map((b) => (
               <li
                 key={b.battle_id}
-                className="flex items-center gap-3 rounded-lg border border-white/[0.04] bg-white/[0.01] px-3 py-2.5 text-[14px] transition-colors hover:bg-white/[0.025]"
+                className="flex items-center gap-3 rounded-sm border border-white/[0.04] bg-white/[0.01] px-3 py-2.5 text-[14px] transition-colors hover:bg-white/[0.025]"
               >
                 <span
-                  className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[12px] font-bold uppercase ${
+                  className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-sm text-[12px] font-bold uppercase ${
                     b.is_winner
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-rose-500/15 text-rose-300'
+                      ? 'bg-white text-white'
+                      : 'bg-white/15 text-white/60'
                   }`}
                 >
                   {b.is_winner ? 'W' : 'L'}
@@ -905,10 +906,10 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
       accent="rgba(16,185,129,0.85)"
       thickness={1.5}
       spotlight={220}
-      className="rounded-3xl"
+      className="rounded-sm"
     >
       <section
-        className="relative overflow-hidden rounded-3xl border border-emerald-500/20"
+        className="relative overflow-hidden rounded-sm border border-white/20"
         style={{
           background:
             'linear-gradient(180deg, rgba(16,185,129,0.04) 0%, rgba(255,255,255,0.01) 60%)',
@@ -918,8 +919,8 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
       >
         <div className="flex flex-col gap-4 p-5">
           <header className="flex items-center gap-2">
-            <Sparkles size={15} className="text-emerald-300" aria-hidden />
-            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+            <Sparkles size={15} className="text-white" aria-hidden />
+            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white">
               collection
             </span>
             <span className="ml-auto font-num text-[12px] tabular-nums text-zinc-400">
