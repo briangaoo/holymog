@@ -17,20 +17,6 @@ const LAST_UPDATED = 'May 11, 2026';
 export default function PrivacyPage() {
   return (
     <div className="relative min-h-dvh overflow-hidden bg-black">
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(34,211,238,0.30) 0%, rgba(16,185,129,0.18) 35%, transparent 65%)',
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 backdrop-blur-3xl"
-        style={{ backgroundColor: 'rgba(255,255,255,0.015)' }}
-      />
-
       <div className="relative z-10">
         <main
           className="mx-auto w-full max-w-2xl px-5 pb-16 pt-8 normal-case"

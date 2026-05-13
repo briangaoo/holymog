@@ -143,7 +143,7 @@ function SharePlatformPageInner() {
             animate={{ scale: 1.45, opacity: 0 }}
             transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
             className="absolute inset-0 rounded-full"
-            style={{ border: '2px solid rgba(16,185,129,0.6)' }}
+            style={{ border: '2px solid rgba(255,255,255,0.6)' }}
           />
           <motion.div
             initial={{ scale: 0.4, opacity: 0 }}

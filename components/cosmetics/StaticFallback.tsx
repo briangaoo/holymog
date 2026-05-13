@@ -59,7 +59,7 @@ export function StaticFallback({
   // inline-square
   return (
     <span
-      className={`pointer-events-none absolute inset-0 rounded-xl ${className}`}
+      className={`pointer-events-none absolute inset-0 rounded-sm ${className}`}
       aria-hidden
       style={{
         background: `radial-gradient(circle, ${color} 0%, rgba(10,10,10,0.0) 70%)`,

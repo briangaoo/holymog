@@ -645,22 +645,6 @@ export default function Home() {
           visible at the page edges (paywall view, the brief idle gap)
           without competing with tier-tinted result colours which paint
           their own backdrop on top. */}
-      <span
-        aria-hidden
-        className="pointer-events-none fixed -top-32 -left-32 h-[40rem] w-[40rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(16,185,129,0.14) 0%, rgba(34,197,94,0.05) 35%, transparent 70%)',
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none fixed -bottom-40 -right-40 h-[32rem] w-[32rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(5,150,105,0.10) 0%, transparent 60%)',
-        }}
-      />
 
       <PrivacyModal
         open={privacyChecked && !privacyAcknowledged}
