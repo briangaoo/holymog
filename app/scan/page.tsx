@@ -678,7 +678,7 @@ export default function Home() {
           width={120}
           height={29}
           priority
-          className="h-5 w-auto rounded-md drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+          className="h-5 w-auto rounded-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
         />
       </header>
 
@@ -696,18 +696,21 @@ export default function Home() {
             style={{ top: 'calc(max(env(safe-area-inset-top), 14px) + 36px)' }}
             role="status"
           >
-            <div className="flex items-center gap-2.5 rounded-full border border-amber-400/30 bg-amber-500/[0.10] px-3.5 py-2 text-[12px] text-amber-100 backdrop-blur">
-              <Lock size={12} aria-hidden className="text-amber-200" />
+            <div
+              className="flex items-center gap-2.5 border-2 border-white/40 bg-black px-3.5 py-2 text-[11px] uppercase tracking-[0.14em] text-white"
+              style={{ borderRadius: 2 }}
+            >
+              <Lock size={12} aria-hidden className="text-white" />
               <span>
-                {scanLimit.limit - scanLimit.used} scan
-                {scanLimit.limit - scanLimit.used === 1 ? '' : 's'} left today
+                {scanLimit.limit - scanLimit.used} SCAN
+                {scanLimit.limit - scanLimit.used === 1 ? '' : 'S'} LEFT TODAY
               </span>
               <button
                 type="button"
                 onClick={dismissWarning}
                 aria-label="dismiss"
                 style={{ touchAction: 'manipulation' }}
-                className="-mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-amber-200/80 transition-colors hover:bg-amber-400/10 hover:text-amber-100"
+                className="-mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <span aria-hidden className="text-sm leading-none">×</span>
               </button>

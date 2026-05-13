@@ -64,7 +64,7 @@ export default function TermsPage() {
             initial={{ y: 12, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
-            className="mt-10 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.025] p-6 backdrop-blur sm:p-8"
+            className="mt-10 overflow-hidden rounded-sm border-2 border-white/20 bg-black p-6 sm:p-8"
             style={{
               boxShadow:
                 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(168,85,247,0.10)',

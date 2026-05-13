@@ -153,13 +153,13 @@ function SharePlatformPageInner() {
               ease: [0.34, 1.56, 0.64, 1],
               delay: 0.05,
             }}
-            className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/20"
+            className="flex h-20 w-20 items-center justify-center bg-white"
             style={{
-              boxShadow:
-                '0 0 0 1px rgba(16,185,129,0.5), 0 0 50px rgba(16,185,129,0.45)',
+              borderRadius: 2,
+              boxShadow: '0 0 0 1px rgba(255,255,255,0.5), 0 0 50px rgba(255,255,255,0.30)',
             }}
           >
-            <Check size={40} className="text-emerald-300" strokeWidth={3} />
+            <Check size={40} className="text-black" strokeWidth={3} />
           </motion.div>
         </div>
 
@@ -175,7 +175,7 @@ function SharePlatformPageInner() {
                 <img
                   src={logoSrc}
                   alt={label}
-                  className="h-6 w-6 rounded-md object-contain"
+                  className="h-6 w-6 rounded-sm object-contain"
                 />
                 <span className="text-sm font-semibold normal-case text-white">
                   {label}

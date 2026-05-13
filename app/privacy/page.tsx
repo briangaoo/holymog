@@ -62,7 +62,7 @@ export default function PrivacyPage() {
             initial={{ y: 12, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
-            className="mt-10 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.025] p-6 backdrop-blur sm:p-8"
+            className="mt-10 overflow-hidden rounded-sm border-2 border-white/20 bg-black p-6 sm:p-8"
             style={{
               boxShadow:
                 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(34,211,238,0.10)',
@@ -558,7 +558,7 @@ export default function PrivacyPage() {
               provide the Service and meet legal obligations. The
               following table summarises our retention schedule:
             </p>
-            <div className="mt-3 overflow-hidden rounded-2xl border border-white/10">
+            <div className="mt-3 overflow-hidden rounded-sm border border-white/20">
               <table className="w-full text-left text-xs leading-relaxed text-white/70">
                 <thead>
                   <tr className="border-b border-white/10 bg-white/[0.03] text-[10px] uppercase tracking-[0.16em] text-white/55">
