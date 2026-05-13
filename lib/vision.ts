@@ -255,6 +255,14 @@ const SURFACE_KEYS = [
   'overall_attractiveness',
 ] as const;
 
+const CONDITIONS_KEYS = [
+  'lighting_quality',
+  'outfit_quality',
+  'background_quality',
+  'framing_composition',
+  'mood_aura',
+] as const;
+
 const SURFACE_PROMPT = `You are a strict facial-aesthetic analyzer focused ONLY on SKIN, HAIR, POSE, and HOLISTIC quality.
 
 ${ANCHOR_RUBRIC}
@@ -295,6 +303,56 @@ Output ONLY this JSON (no prose, no markdown):
   "symmetry": <int>,
   "feature_harmony": <int>,
   "overall_attractiveness": <int>
+}`;
+
+const CONDITIONS_PROMPT = `You are scoring the PHOTO CONDITIONS — the environment and presentation
+around the subject, NOT the face itself. These five fields exist to make scans
+sensitive to lighting, outfit, background, framing, and overall vibe so the
+same person photographed differently gets meaningfully different scores.
+
+Score honestly: a great-looking person in a poorly-lit cluttered selfie should
+still score lower here than the same person in a well-composed shot. A weak
+face in a stunning editorial setup should still score high HERE (the face is
+scored separately, not your job).
+
+Score each (integer 0-100):
+  lighting_quality       quality of light on the subject
+                         100 = soft, diffused, even, flattering, well-balanced
+                         70  = decent natural / studio light, no real issues
+                         40  = harsh or flat, color cast, uneven shadows
+                         10  = severe over/under-exposure, deep shadows, colour disaster
+  outfit_quality         visible clothing aesthetic + grooming statement
+                         100 = sharp, styled, intentional, fits well, photo-aware
+                         70  = clean and presentable, neutral
+                         40  = plain or unstyled, low effort
+                         10  = sloppy, mismatched, no effort visible
+                         If no clothing is visible at all (face-only crop), score 70.
+  background_quality     what's behind the subject
+                         100 = clean, intentional, aesthetic, on-brand backdrop
+                         70  = neutral wall / unremarkable but not bad
+                         40  = cluttered or distracting
+                         10  = chaotic, ugly, actively undermines the subject
+  framing_composition    how the photo is framed
+                         100 = ideal head position, well-cropped, balanced composition
+                         70  = centered and unremarkable
+                         40  = awkward crop, head too small / too large, off-balance
+                         10  = forehead / chin chopped off, weird angle, no thought to composition
+  mood_aura              the overall vibe the photo radiates
+                         100 = striking, captivating, photogenic energy, "model shot"
+                         70  = neutral snapshot, no energy either way
+                         40  = uninspired, low-effort selfie energy
+                         10  = dead-eye, vibeless, mood-killer
+
+Each axis is independent — score them honestly even if it means low across the
+board (genuinely bad photo) or high across the board (genuinely great photo).
+
+Output ONLY this JSON (no prose, no markdown):
+{
+  "lighting_quality": <int>,
+  "outfit_quality": <int>,
+  "background_quality": <int>,
+  "framing_composition": <int>,
+  "mood_aura": <int>
 }`;
 
 /* ----------------------------- helpers ------------------------------------ */
@@ -407,7 +465,11 @@ async function callGemini(
         },
       ],
       generationConfig: {
-        temperature: 0.2,
+        // 0.5 gives Gemini enough sampling latitude to actually vary
+        // scores across re-scans (was 0.2 — near-deterministic), without
+        // drifting so far from the JSON schema that parsing falls over.
+        // The strict-prefix retry path covers the occasional 0.5 drift.
+        temperature: 0.5,
         responseMimeType: 'application/json',
       },
     }),
@@ -459,7 +521,12 @@ function neutralFor<K extends string>(keys: readonly K[]): Record<K, number> {
 
 /* ------------------------------- public API ------------------------------- */
 
-const ALL_KEYS = [...STRUCTURE_KEYS, ...FEATURES_KEYS, ...SURFACE_KEYS] as const;
+const ALL_KEYS = [
+  ...STRUCTURE_KEYS,
+  ...FEATURES_KEYS,
+  ...SURFACE_KEYS,
+  ...CONDITIONS_KEYS,
+] as const;
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
   const ab = await blob.arrayBuffer();
@@ -471,22 +538,28 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 export async function analyzeFace(blob: Blob): Promise<{ vision: VisionScore; tokens: TokenUsage }> {
   const dataUrl = await blobToDataUrl(blob);
 
-  const [structure, features, surface] = await Promise.all([
+  const [structure, features, surface, conditions] = await Promise.all([
     callCategory(dataUrl, STRUCTURE_PROMPT, STRUCTURE_KEYS),
     callCategory(dataUrl, FEATURES_PROMPT, FEATURES_KEYS),
     callCategory(dataUrl, SURFACE_PROMPT, SURFACE_KEYS),
+    callCategory(dataUrl, CONDITIONS_PROMPT, CONDITIONS_KEYS),
   ]);
 
-  const tokens = [structure, features, surface].reduce(
+  const tokens = [structure, features, surface, conditions].reduce(
     (acc, c) => addTokens(acc, c.tokens),
     emptyTokens(),
   );
-  const anyFailed = !structure.result || !features.result || !surface.result;
+  const anyFailed =
+    !structure.result ||
+    !features.result ||
+    !surface.result ||
+    !conditions.result;
 
   const vision = {
     ...(structure.result ?? neutralFor(STRUCTURE_KEYS)),
     ...(features.result ?? neutralFor(FEATURES_KEYS)),
     ...(surface.result ?? neutralFor(SURFACE_KEYS)),
+    ...(conditions.result ?? neutralFor(CONDITIONS_KEYS)),
     ...(anyFailed ? { fallback: true } : {}),
   } as VisionScore;
 

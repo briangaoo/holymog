@@ -97,6 +97,22 @@ export function combineScores(vision: VisionScore): FinalScores {
   // Defer entirely to the holistic in that band.
   if (vision.overall_attractiveness <= 15) {
     finalOverall = vision.overall_attractiveness;
+  } else {
+    // Photo conditions modifier: lighting, outfit, background, framing, vibe.
+    // Averaged across the five condition fields, shifted to a -50..+50 range,
+    // weighted at 0.10 so perfect conditions add up to +5 and terrible
+    // conditions subtract up to -5. The clamp band above explicitly skips
+    // this — a structurally grotesque face shouldn't get rescued by great
+    // lighting. Final clamp keeps the result in 0..100.
+    const conditionsAvg =
+      (vision.lighting_quality +
+        vision.outfit_quality +
+        vision.background_quality +
+        vision.framing_composition +
+        vision.mood_aura) /
+      5;
+    finalOverall += 0.1 * (conditionsAvg - 50);
+    finalOverall = Math.max(0, Math.min(100, finalOverall));
   }
 
   return {
@@ -146,5 +162,10 @@ export function mockVisionScore(): VisionScore {
     symmetry: r(),
     feature_harmony: r(),
     overall_attractiveness: r(),
+    lighting_quality: r(),
+    outfit_quality: r(),
+    background_quality: r(),
+    framing_composition: r(),
+    mood_aura: r(),
   };
 }

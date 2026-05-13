@@ -44,6 +44,15 @@ export type VisionScore = {
   feature_harmony: number;
   overall_attractiveness: number;
 
+  // Conditions (call 4), photo environment — not the face itself.
+  // Scored separately so good lighting / outfit / framing can lift a
+  // scan and bad conditions can drag it, giving real per-shot variance.
+  lighting_quality: number;
+  outfit_quality: number;
+  background_quality: number;
+  framing_composition: number;
+  mood_aura: number;
+
   fallback?: boolean;
 };
 

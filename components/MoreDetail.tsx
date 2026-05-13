@@ -67,6 +67,16 @@ const SECTIONS: Section[] = [
       ['tone', 'skin_tone'],
     ],
   },
+  {
+    title: 'Conditions',
+    items: [
+      ['lighting', 'lighting_quality'],
+      ['outfit', 'outfit_quality'],
+      ['background', 'background_quality'],
+      ['framing', 'framing_composition'],
+      ['mood / aura', 'mood_aura'],
+    ],
+  },
 ];
 
 export type TokenSummary = {

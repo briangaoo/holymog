@@ -9,7 +9,10 @@ export const dynamic = 'force-dynamic';
 
 type Body = { vision?: unknown };
 
-const VISION_KEYS: ReadonlyArray<keyof VisionScore> = [
+// Fields present on every scan since launch. Migration rejects an
+// entry that's missing any of these — the core score breakdown
+// fundamentally depends on them.
+const REQUIRED_VISION_KEYS: ReadonlyArray<keyof VisionScore> = [
   'jawline_definition',
   'chin_definition',
   'cheekbone_prominence',
@@ -42,16 +45,35 @@ const VISION_KEYS: ReadonlyArray<keyof VisionScore> = [
   'overall_attractiveness',
 ];
 
+// Fields added in the conditions rollout. Old anon-scan localStorage
+// entries from before this change won't have them — accept the migration
+// and default to neutral 50 so the user doesn't lose their scan.
+const OPTIONAL_VISION_KEYS: ReadonlyArray<keyof VisionScore> = [
+  'lighting_quality',
+  'outfit_quality',
+  'background_quality',
+  'framing_composition',
+  'mood_aura',
+];
+
 function validateVision(input: unknown): VisionScore | null {
   if (!input || typeof input !== 'object') return null;
   const obj = input as Record<string, unknown>;
   const out = {} as Record<string, number>;
-  for (const k of VISION_KEYS) {
+  for (const k of REQUIRED_VISION_KEYS) {
     const v = obj[k];
     if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 100) {
       return null;
     }
     out[k] = Math.round(v);
+  }
+  for (const k of OPTIONAL_VISION_KEYS) {
+    const v = obj[k];
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100) {
+      out[k] = Math.round(v);
+    } else {
+      out[k] = 50;
+    }
   }
   return out as unknown as VisionScore;
 }
