@@ -109,9 +109,13 @@ body {
   animation: glow-soft 2.4s ease-in-out infinite;
 }
 
-/* Display digits + tier letter, DM Sans Extra Bold with tabular numerics */
+/* Display digits + tier letter — PolySans Bulky with tabular-nums.
+ * Same family as body / display copy, just locked to tabular figures
+ * + lining-nums so score numbers and ELO read cleanly. The previous
+ * stack used DM Sans for the numeric class; that font is no longer
+ * loaded, so the class now points back to the polysans variable. */
 .font-num {
-  font-family: var(--font-dm-sans), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-polysans), system-ui, -apple-system, sans-serif;
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" on, "lnum" on;
   letter-spacing: -0.02em;

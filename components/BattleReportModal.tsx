@@ -174,7 +174,7 @@ export function BattleReportModal({
             exit={{ y: 8, opacity: 0, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 320, damping: 28 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/15 bg-[#0c0c0c] p-6"
+            className="relative w-full max-w-sm overflow-hidden rounded-none border border-white/15 bg-[#0c0c0c] p-6"
             style={{
               boxShadow:
                 'inset 0 1px 0 rgba(255,255,255,0.08), 0 30px 80px -20px rgba(0,0,0,0.7)',
@@ -185,7 +185,7 @@ export function BattleReportModal({
                 id="report-title"
                 className="inline-flex items-center gap-2 text-base font-semibold text-white"
               >
-                <Flag size={14} className="text-rose-400" aria-hidden />
+                <Flag size={14} className="text-white" aria-hidden />
                 report @{reportedDisplayName}
               </h2>
               <button
@@ -200,8 +200,8 @@ export function BattleReportModal({
 
             {status === 'sent' ? (
               <div className="flex flex-col items-center gap-3 py-4 text-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15">
-                  <Check size={22} className="text-emerald-300" />
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15">
+                  <Check size={22} className="text-white" />
                 </span>
                 <p className="text-sm font-medium text-white">
                   report submitted
@@ -223,9 +223,9 @@ export function BattleReportModal({
                   {REASONS.map((r) => (
                     <label
                       key={r.value}
-                      className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+                      className={`flex cursor-pointer items-start gap-3 rounded-sm border px-3 py-2.5 transition-colors ${
                         reason === r.value
-                          ? 'border-rose-500/50 bg-rose-500/[0.08]'
+                          ? 'border-white/50 bg-white/10/[0.08]'
                           : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'
                       }`}
                     >
@@ -241,12 +241,12 @@ export function BattleReportModal({
                         aria-hidden
                         className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
                           reason === r.value
-                            ? 'border-rose-400 bg-rose-400/30'
+                            ? 'border-white bg-white/30'
                             : 'border-white/30'
                         }`}
                       >
                         {reason === r.value && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-rose-300" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-white/10" />
                         )}
                       </span>
                       <span className="flex flex-col gap-0.5">
@@ -266,7 +266,7 @@ export function BattleReportModal({
                   >
                     details{' '}
                     {reason === 'other' && (
-                      <span className="text-rose-300">(required)</span>
+                      <span className="text-white">(required)</span>
                     )}
                   </label>
                   <textarea
@@ -277,7 +277,7 @@ export function BattleReportModal({
                     }
                     rows={3}
                     placeholder="anything we should know"
-                    className="resize-none rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white placeholder:text-zinc-600 focus:border-rose-500/40 focus:outline-none focus:ring-2 focus:ring-rose-500/15"
+                    className="resize-none rounded-sm border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white placeholder:text-zinc-600 focus:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/15"
                   />
                   <span className="self-end text-[10px] tabular-nums text-zinc-600">
                     {details.length} / 1000
@@ -304,7 +304,7 @@ export function BattleReportModal({
                     onClick={submit}
                     disabled={!canSubmit || status === 'sending'}
                     style={{ touchAction: 'manipulation' }}
-                    className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-rose-500 text-sm font-semibold text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-rose-500"
+                    className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-white/10 text-sm font-semibold text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/10"
                   >
                     {status === 'sending' ? (
                       <>

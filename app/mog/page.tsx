@@ -24,7 +24,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AppHeader } from '@/components/AppHeader';
 import { AuthModal } from '@/components/AuthModal';
 import { AvatarFallback } from '@/components/AvatarFallback';
-import { SpectralRim } from '@/components/SpectralRim';
 import { useUser } from '@/hooks/useUser';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import {
@@ -282,7 +281,7 @@ export default function MogPage() {
         className="pointer-events-none absolute -right-32 -top-32 h-[40rem] w-[40rem] rounded-full blur-3xl"
         style={{
           background:
-            'radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(14,165,233,0.06) 35%, transparent 70%)',
+            'radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 35%, transparent 70%)',
         }}
       />
       <span
@@ -428,12 +427,12 @@ function ModeSelect({
       {/* Hero "find a battle" — sky-blue spectral rim + off-frame radial,
           mirrors the home-page battle card so the brand identity
           carries through. */}
-      <SpectralRim accent="rgba(56,189,248,0.95)" className="rounded-3xl">
+      <div className="rounded-none">
         <button
           type="button"
           onClick={findBattle}
           style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
-          className="group relative flex w-full flex-col overflow-hidden rounded-3xl border border-white/10 p-7 text-left transition-all hover:border-white/20"
+          className="group relative flex w-full flex-col overflow-hidden rounded-none border border-white/10 p-7 text-left transition-all hover:border-white/20"
         >
           {/* Sky radial glow off-frame on the bottom-right */}
           <span
@@ -441,7 +440,7 @@ function ModeSelect({
             className="pointer-events-none absolute -bottom-24 -right-24 h-[22rem] w-[22rem] rounded-full blur-3xl"
             style={{
               background:
-                'radial-gradient(circle, rgba(56,189,248,0.55) 0%, rgba(14,165,233,0.22) 35%, transparent 65%)',
+                'radial-gradient(circle, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.22) 35%, transparent 65%)',
             }}
           />
           <span
@@ -461,10 +460,10 @@ function ModeSelect({
           {/* Inner sky rim, matches the home card */}
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-3xl"
+            className="pointer-events-none absolute inset-0 rounded-none"
             style={{
               boxShadow:
-                'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(56,189,248,0.22)',
+                'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.22)',
             }}
           />
 
@@ -475,10 +474,10 @@ function ModeSelect({
                   aria-hidden
                   className="relative flex h-2 w-2"
                 >
-                  <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/70" />
-                  <span className="relative h-2 w-2 rounded-full bg-sky-400" />
+                  <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
+                  <span className="relative h-2 w-2 rounded-full bg-white/10" />
                 </span>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-300">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
                   ranked · live
                 </span>
               </div>
@@ -503,7 +502,7 @@ function ModeSelect({
             />
           </div>
         </button>
-      </SpectralRim>
+      </div>
 
       {/* Section divider — small label so the parties block reads as
           "alternative" and the hero clearly dominates. */}
@@ -518,34 +517,32 @@ function ModeSelect({
         {/* Create — rose accent. Warm host vibe, distinct from the
             cool sky-blue hero so the secondary row has its own
             personality. (Green is reserved for the scan brand.) */}
-        <SpectralRim
-          accent="rgba(244,63,94,0.6)"
-          spotlight={140}
-          className="rounded-3xl"
+        <div
+          className="rounded-none"
         >
           <button
             type="button"
             onClick={onCreate}
             style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
-            className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-3xl border border-white/10 p-5 text-left transition-all hover:border-white/20"
+            className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-none border border-white/10 p-5 text-left transition-all hover:border-white/20"
           >
             <span
               aria-hidden
               className="pointer-events-none absolute -top-16 -left-16 h-44 w-44 rounded-full blur-3xl"
               style={{
                 background:
-                  'radial-gradient(circle, rgba(244,63,94,0.30) 0%, transparent 65%)',
+                  'radial-gradient(circle, rgba(255,255,255,0.30) 0%, transparent 65%)',
               }}
             />
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-0 rounded-3xl"
+              className="pointer-events-none absolute inset-0 rounded-none"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(244,63,94,0.10)',
+                  'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(255,255,255,0.10)',
               }}
             />
-            <Users size={20} aria-hidden className="relative text-rose-200" />
+            <Users size={20} aria-hidden className="relative text-white" />
             <span className="relative text-base font-semibold text-white">
               create party
             </span>
@@ -553,38 +550,36 @@ function ModeSelect({
               share a code · up to 10
             </span>
           </button>
-        </SpectralRim>
+        </div>
 
         {/* Join — violet accent. Cool but distinctly different from the
             sky-blue primary; "portal / enter" reads electric-purple. */}
-        <SpectralRim
-          accent="rgba(168,85,247,0.6)"
-          spotlight={140}
-          className="rounded-3xl"
+        <div
+          className="rounded-none"
         >
           <button
             type="button"
             onClick={onJoin}
             style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
-            className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-3xl border border-white/10 p-5 text-left transition-all hover:border-white/20"
+            className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-none border border-white/10 p-5 text-left transition-all hover:border-white/20"
           >
             <span
               aria-hidden
               className="pointer-events-none absolute -bottom-16 -right-16 h-44 w-44 rounded-full blur-3xl"
               style={{
                 background:
-                  'radial-gradient(circle, rgba(168,85,247,0.30) 0%, transparent 65%)',
+                  'radial-gradient(circle, rgba(255,255,255,0.30) 0%, transparent 65%)',
               }}
             />
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-0 rounded-3xl"
+              className="pointer-events-none absolute inset-0 rounded-none"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(168,85,247,0.10)',
+                  'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(255,255,255,0.10)',
               }}
             />
-            <Search size={20} aria-hidden className="relative text-violet-200" />
+            <Search size={20} aria-hidden className="relative text-white" />
             <span className="relative text-base font-semibold text-white">
               join party
             </span>
@@ -592,7 +587,7 @@ function ModeSelect({
               enter a 6-char code
             </span>
           </button>
-        </SpectralRim>
+        </div>
       </div>
     </div>
   );
@@ -664,7 +659,7 @@ function BattleStats() {
 
   if (!loaded) {
     return (
-      <section className="mt-6 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+      <section className="mt-6 rounded-none border border-white/10 bg-white/[0.02] p-5">
         <div className="h-3 w-24 rounded bg-white/[0.06]" />
         <div className="mt-4 grid grid-cols-3 gap-x-4 gap-y-5">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -696,13 +691,13 @@ function BattleStats() {
   const streakHot = profile.current_streak >= 3;
 
   return (
-    <section className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+    <section className="mt-6 overflow-hidden rounded-none border border-white/10 bg-white/[0.02] p-5">
       <header className="mb-5 flex items-baseline justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
           your battles
         </span>
         {unranked ? (
-          <span className="text-[10px] uppercase tracking-[0.16em] text-sky-300/80">
+          <span className="text-[10px] uppercase tracking-[0.16em] text-white/80">
             unranked
           </span>
         ) : (
@@ -716,16 +711,15 @@ function BattleStats() {
         <Stat
           label="elo"
           value={profile.elo}
-          accent="sky"
           sub={
             eloDelta < 0 ? (
-              <span className="text-sky-400/80">{eloDelta}</span>
+              <span className="text-white/80">{eloDelta}</span>
             ) : eloDelta > 0 ? (
-              <span className="text-emerald-400/80">+{eloDelta}</span>
+              <span className="text-white/80">+{eloDelta}</span>
             ) : null
           }
         />
-        <Stat label="peak" value={profile.peak_elo} accent="purple" />
+        <Stat label="peak" value={profile.peak_elo} />
         <Stat
           label="streak"
           value={profile.current_streak}
@@ -807,8 +801,8 @@ function BattleStats() {
               const cls = tied
                 ? 'bg-zinc-400/70'
                 : r.is_winner
-                  ? 'bg-emerald-400/85'
-                  : 'bg-rose-500/70';
+                  ? 'bg-white/85'
+                  : 'bg-white/70';
               return (
                 <span
                   key={r.battle_id}
@@ -828,7 +822,7 @@ function BattleStats() {
       )}
 
       {unranked && recent.length === 0 && (
-        <p className="mt-4 rounded-2xl border border-sky-500/15 bg-sky-500/[0.04] px-3 py-2.5 text-[11px] text-sky-200/85">
+        <p className="mt-4 rounded-sm border border-white/15 bg-white/10/[0.04] px-3 py-2.5 text-[11px] text-white/85">
           play your first battle to start ranking. you&apos;re placed
           provisionally for your first 30 matches (k=32) before settling.
         </p>
@@ -850,13 +844,13 @@ function Stat({
 }) {
   const valueColor =
     accent === 'sky'
-      ? 'text-sky-300'
+      ? 'text-white'
       : accent === 'emerald'
-        ? 'text-emerald-300'
+        ? 'text-white'
         : accent === 'cyan'
-          ? 'text-cyan-300'
+          ? 'text-white'
           : accent === 'purple'
-            ? 'text-purple-300'
+            ? 'text-white'
             : 'text-white';
   return (
     <div className="flex flex-col gap-1">
@@ -1052,17 +1046,17 @@ function JoinInput({
       {/* Hero violet halo behind the cells to keep the brand accent
           consistent with the "join party" card on the mode-select
           screen. Subtle — the cells themselves are the focus. */}
-      <div className="relative flex flex-col items-center gap-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] px-5 py-9">
+      <div className="relative flex flex-col items-center gap-6 overflow-hidden rounded-none border border-white/10 bg-white/[0.02] px-5 py-9">
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 -z-10"
           style={{
             background:
-              'radial-gradient(circle at 50% 0%, rgba(168,85,247,0.22) 0%, transparent 55%)',
+              'radial-gradient(circle at 50% 0%, rgba(255,255,255,0.22) 0%, transparent 55%)',
           }}
         />
         <div className="flex flex-col items-center gap-1.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/30 bg-violet-500/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
             <Search size={11} aria-hidden /> enter code
           </span>
           <p className="text-[13px] text-zinc-400">
@@ -1093,10 +1087,10 @@ function JoinInput({
               onPaste={(e) => handlePaste(idx, e)}
               onFocus={(e) => e.currentTarget.select()}
               aria-label={`code character ${idx + 1}`}
-              className={`font-num h-14 w-11 rounded-2xl border bg-black/40 text-center text-3xl font-extrabold uppercase tabular-nums text-white caret-transparent transition-all sm:h-16 sm:w-12 sm:text-[2rem] ${
+              className={`font-num h-14 w-11 rounded-sm border bg-black/40 text-center text-3xl font-extrabold uppercase tabular-nums text-white caret-transparent transition-all sm:h-16 sm:w-12 sm:text-[2rem] ${
                 ch
-                  ? 'border-violet-400/55 shadow-[0_0_0_3px_rgba(168,85,247,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]'
-                  : 'border-white/10 hover:border-white/20 focus:border-violet-400/55 focus:shadow-[0_0_0_3px_rgba(168,85,247,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  ? 'border-white/55 shadow-[0_0_0_3px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  : 'border-white/10 hover:border-white/20 focus:border-white/55 focus:shadow-[0_0_0_3px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]'
               } focus:outline-none`}
               style={{ textTransform: 'uppercase' }}
             />
@@ -1171,7 +1165,7 @@ function Joining_PrivateLoader({
 
   if (errMessage) {
     return (
-      <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
+      <div className="rounded-none border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
         {prettyJoinError(errMessage)}
       </div>
     );
@@ -1333,29 +1327,29 @@ function Lobby({
           mode-select. Big chunky cells, copy + (when available)
           native share, and a centered "share this with friends" CTA
           replace the cramped row + tiny copy button. */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] px-5 py-7">
+      <div className="relative overflow-hidden rounded-none border border-white/10 bg-white/[0.02] px-5 py-7">
         <span
           aria-hidden
           className="pointer-events-none absolute -top-32 left-1/2 -z-10 h-72 w-72 -translate-x-1/2 rounded-full blur-3xl"
           style={{
             background:
-              'radial-gradient(circle, rgba(244,63,94,0.30) 0%, rgba(244,63,94,0.10) 35%, transparent 65%)',
+              'radial-gradient(circle, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.10) 35%, transparent 65%)',
           }}
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 rounded-3xl"
+          className="pointer-events-none absolute inset-0 -z-10 rounded-none"
           style={{
             boxShadow:
-              'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(244,63,94,0.10)',
+              'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(255,255,255,0.10)',
           }}
         />
 
         <div className="flex flex-col items-center gap-1.5 text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-200">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-rose-400/70" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-rose-400" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
+              <span className="relative h-1.5 w-1.5 rounded-full bg-white/10" />
             </span>
             party code
           </span>
@@ -1374,7 +1368,7 @@ function Lobby({
           {cells.map((ch, idx) => (
             <span
               key={idx}
-              className="font-num inline-flex h-14 w-11 items-center justify-center rounded-2xl border border-rose-400/40 bg-black/40 text-3xl font-extrabold uppercase tabular-nums text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_3px_rgba(244,63,94,0.05)] transition-all group-hover:border-rose-300/65 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_3px_rgba(244,63,94,0.12)] sm:h-16 sm:w-12 sm:text-[2rem]"
+              className="font-num inline-flex h-14 w-11 items-center justify-center rounded-sm border border-white/40 bg-black/40 text-3xl font-extrabold uppercase tabular-nums text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_3px_rgba(255,255,255,0.05)] transition-all group-hover:border-white/65 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_3px_rgba(255,255,255,0.12)] sm:h-16 sm:w-12 sm:text-[2rem]"
               style={{ textTransform: 'uppercase' }}
             >
               {ch}
@@ -1404,7 +1398,7 @@ function Lobby({
               type="button"
               onClick={onShare}
               style={{ touchAction: 'manipulation' }}
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/[0.10] px-4 text-sm font-medium text-rose-100 transition-colors hover:bg-rose-500/[0.16]"
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-white/30 bg-white/10/[0.10] px-4 text-sm font-medium text-white transition-colors hover:bg-white/10/[0.16]"
             >
               <Share2 size={14} aria-hidden /> share
             </button>
@@ -1412,13 +1406,13 @@ function Lobby({
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+      <div className="rounded-none border border-white/10 bg-white/[0.02] p-5">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">
             in lobby · {participants.length}/10
           </span>
           {participants.length < 2 && (
-            <span className="text-[10px] uppercase tracking-[0.16em] text-amber-400">
+            <span className="text-[10px] uppercase tracking-[0.16em] text-white">
               need ≥ 2 to start
             </span>
           )}
@@ -1435,7 +1429,7 @@ function Lobby({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2"
+                className="flex items-center gap-3 rounded-sm border border-white/5 bg-white/[0.02] px-3 py-2"
               >
                 <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10">
                   <AvatarFallback
@@ -1451,7 +1445,7 @@ function Lobby({
                 </Link>
                 <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
                   {isHostRow && (
-                    <span className="rounded-full border border-rose-400/30 bg-rose-500/[0.08] px-1.5 py-0.5 text-rose-200">
+                    <span className="rounded-full border border-white/30 bg-white/10/[0.08] px-1.5 py-0.5 text-white">
                       host
                     </span>
                   )}
@@ -1464,7 +1458,7 @@ function Lobby({
               shape before the first opponent joins — better than the
               previous bare "loading…" text. */}
           {participants.length > 0 && participants.length < 2 && (
-            <li className="flex items-center gap-3 rounded-xl border border-dashed border-white/10 bg-white/[0.01] px-3 py-2 text-sm text-zinc-500">
+            <li className="flex items-center gap-3 rounded-sm border border-dashed border-white/10 bg-white/[0.01] px-3 py-2 text-sm text-zinc-500">
               <span
                 aria-hidden
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/10"
@@ -1573,7 +1567,7 @@ function Joining({
     })();
   }, [battleId, onReady, onError]);
 
-  return <CenteredSpinner label="opponent found · joining…" iconClassName="text-emerald-400" />;
+  return <CenteredSpinner label="opponent found · joining…" iconClassName="text-white" />;
 }
 
 function CenteredSpinner({
@@ -1584,7 +1578,7 @@ function CenteredSpinner({
   iconClassName?: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.02] p-8 text-center">
+    <div className="flex flex-col items-center gap-3 rounded-none border border-white/10 bg-white/[0.02] p-8 text-center">
       <motion.div
         animate={{ scale: [1, 1.06, 1] }}
         transition={{ duration: 0.9, repeat: Infinity }}

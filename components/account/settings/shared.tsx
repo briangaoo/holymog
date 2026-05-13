@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, Loader2 } from 'lucide-react';
-import { SpectralRim } from '@/components/SpectralRim';
-
 // ---- Types ----------------------------------------------------------------
 
 export type SaveState =
@@ -81,12 +79,12 @@ const ACCENT_STYLES: Record<
   }
 > = {
   sky: {
-    iconBg: 'rgba(56,189,248,0.14)',
+    iconBg: 'rgba(255,255,255,0.14)',
     iconColor: '#7dd3fc',
-    border: 'rgba(56,189,248,0.18)',
-    glow: 'rgba(56,189,248,0.10)',
+    border: 'rgba(255,255,255,0.18)',
+    glow: 'rgba(255,255,255,0.10)',
     title: '#e0f2fe',
-    spectral: 'rgba(56,189,248,0.85)',
+    spectral: 'rgba(255,255,255,0.85)',
   },
   violet: {
     iconBg: 'rgba(167,139,250,0.14)',
@@ -97,44 +95,44 @@ const ACCENT_STYLES: Record<
     spectral: 'rgba(167,139,250,0.85)',
   },
   amber: {
-    iconBg: 'rgba(251,191,36,0.16)',
+    iconBg: 'rgba(255,255,255,0.16)',
     iconColor: '#fcd34d',
-    border: 'rgba(251,191,36,0.20)',
-    glow: 'rgba(251,191,36,0.10)',
+    border: 'rgba(255,255,255,0.20)',
+    glow: 'rgba(255,255,255,0.10)',
     title: '#fef3c7',
-    spectral: 'rgba(251,191,36,0.85)',
+    spectral: 'rgba(255,255,255,0.85)',
   },
   rose: {
-    iconBg: 'rgba(244,63,94,0.14)',
+    iconBg: 'rgba(255,255,255,0.14)',
     iconColor: '#fda4af',
-    border: 'rgba(244,63,94,0.18)',
-    glow: 'rgba(244,63,94,0.10)',
+    border: 'rgba(255,255,255,0.18)',
+    glow: 'rgba(255,255,255,0.10)',
     title: '#ffe4e6',
-    spectral: 'rgba(244,63,94,0.85)',
+    spectral: 'rgba(255,255,255,0.85)',
   },
   cyan: {
-    iconBg: 'rgba(34,211,238,0.14)',
+    iconBg: 'rgba(255,255,255,0.14)',
     iconColor: '#67e8f9',
-    border: 'rgba(34,211,238,0.18)',
-    glow: 'rgba(34,211,238,0.10)',
+    border: 'rgba(255,255,255,0.18)',
+    glow: 'rgba(255,255,255,0.10)',
     title: '#cffafe',
-    spectral: 'rgba(34,211,238,0.85)',
+    spectral: 'rgba(255,255,255,0.85)',
   },
   emerald: {
-    iconBg: 'rgba(16,185,129,0.14)',
+    iconBg: 'rgba(255,255,255,0.14)',
     iconColor: '#6ee7b7',
-    border: 'rgba(16,185,129,0.18)',
-    glow: 'rgba(16,185,129,0.10)',
+    border: 'rgba(255,255,255,0.18)',
+    glow: 'rgba(255,255,255,0.10)',
     title: '#d1fae5',
-    spectral: 'rgba(16,185,129,0.85)',
+    spectral: 'rgba(255,255,255,0.85)',
   },
   purple: {
-    iconBg: 'rgba(168,85,247,0.14)',
+    iconBg: 'rgba(255,255,255,0.14)',
     iconColor: '#d8b4fe',
-    border: 'rgba(168,85,247,0.18)',
-    glow: 'rgba(168,85,247,0.10)',
+    border: 'rgba(255,255,255,0.18)',
+    glow: 'rgba(255,255,255,0.10)',
     title: '#f3e8ff',
-    spectral: 'rgba(168,85,247,0.85)',
+    spectral: 'rgba(255,255,255,0.85)',
   },
   red: {
     iconBg: 'rgba(239,68,68,0.16)',
@@ -226,15 +224,14 @@ export function Section({
 }) {
   const palette = ACCENT_STYLES[accent];
   return (
-    <SpectralRim
+    <div
       accent={palette.spectral}
       thickness={1.5}
-      spotlight={220}
-      className="rounded-2xl"
+      className="rounded-sm"
     >
       <section
         id={id}
-        className="relative overflow-hidden rounded-2xl border"
+        className="relative overflow-hidden rounded-sm border"
         style={{
           borderColor: palette.border,
           // Liquid-glass body: layered translucent gradient + heavy
@@ -271,7 +268,7 @@ export function Section({
           {Icon && (
             <span
               aria-hidden
-              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sm"
               style={{
                 background: palette.iconBg,
                 boxShadow: `inset 0 0 0 1px ${palette.border}`,
@@ -301,7 +298,7 @@ export function Section({
         </header>
         <div className="relative flex flex-col">{children}</div>
       </section>
-    </SpectralRim>
+    </div>
   );
 }
 
@@ -316,7 +313,7 @@ export function SaveIndicator({ state }: { state: SaveState }) {
   }
   if (state.kind === 'saved') {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
+      <span className="inline-flex items-center gap-1 text-[11px] text-white">
         <Check size={11} aria-hidden /> saved
       </span>
     );
@@ -355,7 +352,7 @@ export function Toggle({
       style={{ touchAction: 'manipulation' }}
       className={`relative inline-flex h-7 w-[52px] flex-shrink-0 items-center rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
         on
-          ? 'bg-sky-500 shadow-[0_0_0_2px_rgba(56,189,248,0.22)]'
+          ? 'bg-white/10 shadow-[0_0_0_2px_rgba(255,255,255,0.22)]'
           : 'bg-white/10 hover:bg-white/15'
       }`}
     >

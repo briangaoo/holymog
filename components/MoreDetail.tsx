@@ -157,7 +157,7 @@ export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }:
           >
             <div className="flex flex-col gap-4 pt-3">
               {tokens && (
-                <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5 text-[12px]">
+                <section className="rounded-sm border border-white/10 bg-white/[0.02] p-3.5 text-[12px]">
                   <header className="mb-2">
                     <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
                       Token usage (this scan)
@@ -188,7 +188,7 @@ export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }:
               {SECTIONS.map((section, idx) => (
                 <section
                   key={section.title}
-                  className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5"
+                  className="rounded-sm border border-white/10 bg-white/[0.02] p-3.5"
                 >
                   <header className="mb-2 flex items-baseline justify-between">
                     <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
@@ -239,7 +239,7 @@ export function MoreDetail({ vision, presentation, tokens, signedIn, onSignIn }:
 function MoreDetailLocked({ onSignIn }: { onSignIn?: () => void }) {
   return (
     <div className="w-full pt-2">
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+      <div className="relative overflow-hidden rounded-sm border border-white/10 bg-white/[0.02] p-5">
         {/* Decorative blurred placeholder rows so the locked card feels like
             content sitting behind frosted glass, not an empty box. */}
         <div

@@ -20,7 +20,7 @@ export default function NameNeon({ children }: { children: ReactNode }) {
             0 0 2px #67e8f9,
             0 0 4px #22d3ee,
             0 0 10px #0ea5e9,
-            0 0 22px rgba(14,165,233,0.6);
+            0 0 22px rgba(255,255,255,0.6);
         }
         @media (prefers-reduced-motion: no-preference) {
           .name-fx-neon {
@@ -34,7 +34,7 @@ export default function NameNeon({ children }: { children: ReactNode }) {
               0 0 2px #67e8f9,
               0 0 4px #22d3ee,
               0 0 10px #0ea5e9,
-              0 0 22px rgba(14,165,233,0.6);
+              0 0 22px rgba(255,255,255,0.6);
           }
           23% {
             opacity: 0.55;

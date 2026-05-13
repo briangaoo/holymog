@@ -97,12 +97,12 @@ export default function NameFounder({ children }: { children: ReactNode }) {
           letter-spacing: -0.01em;
           filter:
             drop-shadow(0 1px 0 rgba(120, 53, 15, 0.5))
-            drop-shadow(0 0 12px rgba(251, 191, 36, 0.25));
+            drop-shadow(0 0 12px rgba(255,255,255, 0.25));
         }
         .name-fx-founder-spark {
           display: inline-flex;
           align-items: center;
-          filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.65));
+          filter: drop-shadow(0 0 6px rgba(255,255,255, 0.65));
         }
         @media (prefers-reduced-motion: no-preference) {
           .name-fx-founder-text {
@@ -138,11 +138,11 @@ export default function NameFounder({ children }: { children: ReactNode }) {
         @keyframes name-fx-founder-pulse {
           0%, 100% {
             transform: scale(1);
-            filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.55));
+            filter: drop-shadow(0 0 5px rgba(255,255,255, 0.55));
           }
           50% {
             transform: scale(1.15);
-            filter: drop-shadow(0 0 11px rgba(251, 191, 36, 0.95));
+            filter: drop-shadow(0 0 11px rgba(255,255,255, 0.95));
           }
         }
       `}</style>

@@ -234,7 +234,7 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
 
   if (status === 'unconfigured') {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+      <div className="rounded-sm border border-white/10 bg-white/[0.03] p-6 text-center">
         <p className="text-sm text-white">leaderboard not yet available</p>
         <p className="mt-2 text-xs text-zinc-500">
           the supabase backend hasn&apos;t been configured for this deployment
@@ -244,14 +244,14 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
   }
   if (status === 'error') {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+      <div className="rounded-sm border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
         {errorMsg}
       </div>
     );
   }
   if (entries.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+      <div className="rounded-sm border border-white/10 bg-white/[0.03] p-6 text-center">
         <p className="text-sm text-white">no entries yet</p>
         <p className="mt-2 text-xs text-zinc-500">be the first</p>
       </div>
@@ -346,14 +346,14 @@ function BattlesTab({ initial }: { initial: BattleApiResponse | null }) {
 
   if (status === 'error') {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+      <div className="rounded-sm border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
         {errorMsg}
       </div>
     );
   }
   if (entries.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+      <div className="rounded-sm border border-white/10 bg-white/[0.03] p-6 text-center">
         <p className="text-sm text-white">no battles yet</p>
         <p className="mt-2 text-xs text-zinc-500">queue up to climb the ladder</p>
       </div>
@@ -439,7 +439,7 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
     <li>
       <Link
         href={`/@${row.name}`}
-        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]"
+        className="flex items-center gap-3 rounded-sm border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]"
       >
         <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
           {rank}
@@ -506,7 +506,7 @@ function BattleRow({ row, rank }: { row: BattleRow; rank: number }) {
     <li>
       <Link
         href={`/@${row.display_name}`}
-        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]"
+        className="flex items-center gap-3 rounded-sm border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]"
       >
         <div className="w-7 text-right font-num text-sm font-semibold text-zinc-500 tabular-nums">
           {rank}

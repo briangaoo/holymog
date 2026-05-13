@@ -105,7 +105,7 @@ export function FollowList({
 
   if (entries.length === 0) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-white/[0.02] px-5 py-12 text-center">
+      <div className="rounded-none border border-white/10 bg-white/[0.02] px-5 py-12 text-center">
         <p className="text-[15px] text-foreground">
           {kind === 'followers' ? 'no followers yet' : 'not following anyone yet'}
         </p>
@@ -119,7 +119,7 @@ export function FollowList({
   }
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]">
+    <div className="overflow-hidden rounded-none border border-white/10 bg-white/[0.02]">
       <ul className="flex flex-col">
         {entries.map((e) => (
           <FollowRow
@@ -250,7 +250,7 @@ function FollowRow({
           style={{ touchAction: 'manipulation' }}
           className={
             following
-              ? 'inline-flex h-9 flex-shrink-0 items-center rounded-full border border-white/15 px-4 text-[13px] font-semibold text-foreground transition-colors hover:border-rose-500/50 hover:bg-rose-500/[0.06] hover:text-rose-200 disabled:opacity-50'
+              ? 'inline-flex h-9 flex-shrink-0 items-center rounded-full border border-white/15 px-4 text-[13px] font-semibold text-foreground transition-colors hover:border-white/50 hover:bg-white/10/[0.06] hover:text-white disabled:opacity-50'
               : 'inline-flex h-9 flex-shrink-0 items-center rounded-full bg-foreground px-4 text-[13px] font-semibold text-[#0a0a0a] transition-transform hover:scale-[1.03] disabled:opacity-50'
           }
         >

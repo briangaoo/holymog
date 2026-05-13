@@ -202,7 +202,7 @@ export function AccountHistoryTab({
                 setResultFilter('all');
                 setOpponent('');
               }}
-              className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-zinc-300 hover:bg-white/[0.07] hover:text-white"
+              className="inline-flex items-center gap-1 rounded-sm border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-zinc-300 hover:bg-white/[0.07] hover:text-white"
             >
               <X size={11} aria-hidden /> reset
             </button>
@@ -251,7 +251,7 @@ export function AccountHistoryTab({
               </FilterChip>
             ))}
           </div>
-          <div className="flex items-stretch overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] focus-within:border-purple-500/40 focus-within:ring-2 focus-within:ring-purple-500/15">
+          <div className="flex items-stretch overflow-hidden rounded-sm border border-white/10 bg-white/[0.02] focus-within:border-white/40 focus-within:ring-2 focus-within:ring-white/15">
             <span className="flex items-center pl-3 pr-1 text-zinc-500">
               <Search size={13} aria-hidden />
             </span>
@@ -289,12 +289,12 @@ export function AccountHistoryTab({
                 <SummaryChip
                   label="won"
                   value={String(summary.won)}
-                  color="text-emerald-300"
+                  color="text-white"
                 />
                 <SummaryChip
                   label="lost"
                   value={String(summary.lost)}
-                  color="text-rose-300"
+                  color="text-white"
                 />
                 {summary.win_rate !== null && (
                   <SummaryChip
@@ -302,7 +302,7 @@ export function AccountHistoryTab({
                     value={`${summary.win_rate}%`}
                     color={
                       summary.win_rate >= 50
-                        ? 'text-emerald-300'
+                        ? 'text-white'
                         : 'text-zinc-200'
                     }
                   />
@@ -311,7 +311,7 @@ export function AccountHistoryTab({
                   <SummaryChip
                     label="best peak"
                     value={String(summary.peak)}
-                    color="text-sky-300"
+                    color="text-white"
                   />
                 )}
               </>
@@ -333,7 +333,7 @@ export function AccountHistoryTab({
           </div>
         </Section>
       ) : status === 'error' ? (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.04] p-3 text-[13px] text-red-300">
+        <div className="rounded-sm border border-red-500/30 bg-red-500/[0.04] p-3 text-[13px] text-red-300">
           {errorMsg}
         </div>
       ) : entries.length === 0 ? (
@@ -402,10 +402,10 @@ function FilterChip({
 }) {
   const activeStyles =
     accent === 'emerald'
-      ? 'border-emerald-500/40 bg-emerald-500/[0.10] text-emerald-200'
+      ? 'border-white/40 bg-white/10/[0.10] text-white'
       : accent === 'rose'
-        ? 'border-rose-500/40 bg-rose-500/[0.10] text-rose-200'
-        : 'border-purple-500/40 bg-purple-500/[0.10] text-purple-200';
+        ? 'border-white/40 bg-white/10/[0.10] text-white'
+        : 'border-white/40 bg-white/10/[0.10] text-white';
   return (
     <button
       type="button"
@@ -432,7 +432,7 @@ function SummaryChip({
   color: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.025] px-2 py-1">
+    <span className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/[0.025] px-2 py-1">
       <span className="text-[10px] text-zinc-500">{label}</span>
       <span className={`font-num text-[12px] font-semibold tabular-nums ${color}`}>
         {value}
@@ -474,17 +474,17 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   return (
     <li className="flex items-center gap-3 border-t border-white/5 px-4 py-3 text-[13px] transition-colors hover:bg-white/[0.015]">
       <span
-        className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-bold uppercase ${
+        className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-sm text-[11px] font-bold uppercase ${
           entry.is_winner
-            ? 'bg-emerald-500/20 text-emerald-300'
-            : 'bg-rose-500/15 text-rose-300'
+            ? 'bg-white/20 text-white'
+            : 'bg-white/15 text-white'
         }`}
       >
         {entry.is_winner ? 'W' : 'L'}
       </span>
       <span
         className={`text-[10px] uppercase tracking-[0.12em] ${
-          entry.kind === 'private' ? 'text-amber-300/80' : 'text-zinc-500'
+          entry.kind === 'private' ? 'text-white/80' : 'text-zinc-500'
         } w-12`}
       >
         {entry.kind === 'private' ? 'priv' : '1v1'}

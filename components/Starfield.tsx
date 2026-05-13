@@ -411,7 +411,7 @@ export function Starfield() {
         bodyGradient="radial-gradient(circle at 30% 28%, #c4b5fd 0%, #8b5cf6 38%, #4c1d95 78%, #1e1b4b 100%)"
         ringColor="rgba(196,181,253,0.65)"
         ringTilt={-22}
-        glow="rgba(139,92,246,0.30)"
+        glow="rgba(255,255,255,0.30)"
       />
 
       {/* Planet 3 — small amber sun, top-right. mass = 3 (lightest planet). */}
@@ -421,7 +421,7 @@ export function Starfield() {
         right="8%"
         size="clamp(56px, 6vw, 96px)"
         gradient="radial-gradient(circle at 32% 32%, #fde68a 0%, #f59e0b 36%, #b45309 76%, #451a03 100%)"
-        glow="rgba(245,158,11,0.30)"
+        glow="rgba(255,255,255,0.30)"
       />
 
       {/* Planet 4 — magenta nebula-glob, bottom-left. mass = 8 (heaviest). */}
@@ -442,7 +442,7 @@ export function Starfield() {
         className="absolute -bottom-40 -right-40 h-[36rem] w-[36rem] rounded-full blur-3xl"
         style={{
           background:
-            'radial-gradient(circle, rgba(34,211,238,0.18) 0%, rgba(168,85,247,0.10) 40%, transparent 70%)',
+            'radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.10) 40%, transparent 70%)',
         }}
       />
     </div>

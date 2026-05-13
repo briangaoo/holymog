@@ -70,8 +70,8 @@ export function ScoreReveal({ scores, capturedImage, onRevealDone }: Props) {
           WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
           color: 'transparent',
-          textShadow: tier.glow ? '0 0 60px rgba(168,85,247,0.55)' : undefined,
-          filter: tier.glow ? 'drop-shadow(0 0 36px rgba(34,211,238,0.45))' : undefined,
+          textShadow: tier.glow ? '0 0 60px rgba(255,255,255,0.55)' : undefined,
+          filter: tier.glow ? 'drop-shadow(0 0 36px rgba(255,255,255,0.45))' : undefined,
           textTransform: 'uppercase',
         }
       : { color: tier.color, textTransform: 'uppercase' };

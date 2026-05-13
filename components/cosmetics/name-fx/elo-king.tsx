@@ -29,7 +29,7 @@ export default function NameEloKing({
           fontWeight: 800,
           color: '#fbbf24',
           letterSpacing: '0.04em',
-          textShadow: '0 0 6px rgba(251,191,36,0.55)',
+          textShadow: '0 0 6px rgba(255,255,255,0.55)',
         }}
       >
         {elo}

@@ -206,7 +206,7 @@ export function AccountSettingsTab({
   if (!user || !loaded) return null;
   if (!profile) {
     return (
-      <div className="rounded-md border border-white/10 bg-white/[0.02] p-3 text-center text-xs text-zinc-400">
+      <div className="rounded-sm border border-white/10 bg-white/[0.02] p-3 text-center text-xs text-zinc-400">
         could not load profile
       </div>
     );

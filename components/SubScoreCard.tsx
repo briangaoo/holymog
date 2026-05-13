@@ -66,7 +66,7 @@ export function SubScoreCard({
 
   if (fallback) {
     return (
-      <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-col gap-3 rounded-sm border border-white/10 bg-white/[0.03] p-4">
         <div className="flex flex-col gap-1.5">
           <div className="text-sm font-medium text-zinc-300">{label}</div>
           <div
@@ -84,7 +84,7 @@ export function SubScoreCard({
   const fillColor = getScoreColor(displayed);
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="flex flex-col gap-3 rounded-sm border border-white/10 bg-white/[0.03] p-4">
       <div className="flex flex-col gap-1.5">
         <div className="text-sm font-medium text-zinc-300">{label}</div>
         <div className="font-num font-extrabold text-white" style={NUMBER_FONT_STYLE}>

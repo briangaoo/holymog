@@ -650,7 +650,7 @@ export default function Home() {
         className="pointer-events-none fixed -top-32 -left-32 h-[40rem] w-[40rem] rounded-full blur-3xl"
         style={{
           background:
-            'radial-gradient(circle, rgba(16,185,129,0.14) 0%, rgba(34,197,94,0.05) 35%, transparent 70%)',
+            'radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 35%, transparent 70%)',
         }}
       />
       <span
@@ -678,7 +678,7 @@ export default function Home() {
           width={120}
           height={29}
           priority
-          className="h-5 w-auto rounded-md drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+          className="h-5 w-auto rounded-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
         />
       </header>
 
@@ -696,8 +696,8 @@ export default function Home() {
             style={{ top: 'calc(max(env(safe-area-inset-top), 14px) + 36px)' }}
             role="status"
           >
-            <div className="flex items-center gap-2.5 rounded-full border border-amber-400/30 bg-amber-500/[0.10] px-3.5 py-2 text-[12px] text-amber-100 backdrop-blur">
-              <Lock size={12} aria-hidden className="text-amber-200" />
+            <div className="flex items-center gap-2.5 rounded-full border border-white/30 bg-white/10/[0.10] px-3.5 py-2 text-[12px] text-white backdrop-blur">
+              <Lock size={12} aria-hidden className="text-white" />
               <span>
                 {scanLimit.limit - scanLimit.used} scan
                 {scanLimit.limit - scanLimit.used === 1 ? '' : 's'} left today
@@ -707,7 +707,7 @@ export default function Home() {
                 onClick={dismissWarning}
                 aria-label="dismiss"
                 style={{ touchAction: 'manipulation' }}
-                className="-mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-amber-200/80 transition-colors hover:bg-amber-400/10 hover:text-amber-100"
+                className="-mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <span aria-hidden className="text-sm leading-none">×</span>
               </button>
@@ -968,8 +968,8 @@ function CompleteView({
           WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
           color: 'transparent',
-          textShadow: tier.glow ? '0 0 60px rgba(168,85,247,0.55)' : undefined,
-          filter: tier.glow ? 'drop-shadow(0 0 36px rgba(34,211,238,0.45))' : undefined,
+          textShadow: tier.glow ? '0 0 60px rgba(255,255,255,0.55)' : undefined,
+          filter: tier.glow ? 'drop-shadow(0 0 36px rgba(255,255,255,0.45))' : undefined,
           textTransform: 'uppercase',
         }
       : { color: tier.color, textTransform: 'uppercase' };

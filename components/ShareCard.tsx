@@ -12,7 +12,7 @@ export function ShareCard({ score }: Props) {
         WebkitBackgroundClip: 'text',
         backgroundClip: 'text',
         color: 'transparent',
-        textShadow: tier.glow ? '0 0 28px rgba(168,85,247,0.55)' : undefined,
+        textShadow: tier.glow ? '0 0 28px rgba(255,255,255,0.55)' : undefined,
         textTransform: 'uppercase',
       }
     : { color: tier.color, textTransform: 'uppercase' };
@@ -20,10 +20,10 @@ export function ShareCard({ score }: Props) {
   return (
     <div
       aria-hidden
-      className="relative flex h-[360px] w-[200px] flex-col items-center justify-center overflow-hidden rounded-3xl bg-black"
+      className="relative flex h-[360px] w-[200px] flex-col items-center justify-center overflow-hidden rounded-none bg-black"
       style={{
         backgroundImage: tier.isGradient
-          ? 'radial-gradient(circle at 50% 50%, rgba(168,85,247,0.25), rgba(0,0,0,0) 60%)'
+          ? 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.25), rgba(0,0,0,0) 60%)'
           : `radial-gradient(circle at 50% 50%, ${tier.color}33, rgba(0,0,0,0) 60%)`,
       }}
     >

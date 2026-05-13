@@ -285,7 +285,7 @@ export function MogResultScreen({
               type="button"
               onClick={() => setReportOpen(true)}
               style={{ touchAction: 'manipulation' }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3.5 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors hover:border-rose-500/40 hover:bg-rose-500/[0.06] hover:text-rose-200"
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3.5 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors hover:border-white/40 hover:bg-white/10/[0.06] hover:text-white"
             >
               <Flag size={11} aria-hidden />
               report @{opponent.display_name}
@@ -383,7 +383,7 @@ function ResultAmbient({
     ? 'rgba(161,161,170,0.35)'
     : won
       ? getScoreColor(myScore)
-      : 'rgba(168,85,247,0.35)';
+      : 'rgba(255,255,255,0.35)';
   return (
     <>
       <motion.span
@@ -406,8 +406,8 @@ function ResultAmbient({
           background: tied
             ? 'radial-gradient(circle, rgba(113,113,122,0.18) 0%, transparent 70%)'
             : won
-              ? 'radial-gradient(circle, rgba(34,211,238,0.25) 0%, transparent 70%)'
-              : 'radial-gradient(circle, rgba(244,63,94,0.18) 0%, transparent 70%)',
+              ? 'radial-gradient(circle, rgba(255,255,255,0.25) 0%, transparent 70%)'
+              : 'radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%)',
         }}
       />
       <motion.span
@@ -509,8 +509,8 @@ function ResultHeadline({
   const subColor = tied
     ? 'text-zinc-400'
     : won
-      ? 'text-emerald-300/85'
-      : 'text-rose-300/85';
+      ? 'text-white/85'
+      : 'text-white/85';
 
   // Wrap the opponent's @handle in <NameFx> so their equipped name
   // treatment shows everywhere their name appears — same posture as
@@ -544,7 +544,7 @@ function ResultHeadline({
             ? '0 0 48px rgba(161,161,170,0.25), 0 4px 24px rgba(0,0,0,0.6)'
             : won
               ? `0 0 64px ${headlineColor}55, 0 0 32px ${headlineColor}40, 0 4px 24px rgba(0,0,0,0.6)`
-              : '0 0 48px rgba(244,63,94,0.35), 0 4px 24px rgba(0,0,0,0.6)',
+              : '0 0 48px rgba(255,255,255,0.35), 0 4px 24px rgba(0,0,0,0.6)',
         }}
       >
         {headline}
@@ -717,9 +717,9 @@ function ResultPlayer({
         delay: side === 'left' ? 0.2 : 0.32,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className={`relative flex flex-col gap-3 overflow-hidden rounded-3xl border px-5 py-6 backdrop-blur-md transition-shadow ${
+      className={`relative flex flex-col gap-3 overflow-hidden rounded-none border px-5 py-6 backdrop-blur-md transition-shadow ${
         won
-          ? 'border-emerald-500/40 bg-emerald-500/[0.08] shadow-[0_0_40px_-12px_rgba(16,185,129,0.55)]'
+          ? 'border-white/40 bg-white/10/[0.08] shadow-[0_0_40px_-12px_rgba(255,255,255,0.55)]'
           : tied
             ? 'border-white/15 bg-zinc-500/[0.06]'
             : 'border-white/10 bg-white/[0.02]'
@@ -737,7 +737,7 @@ function ResultPlayer({
           initial={{ scale: 0, rotate: -10 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ duration: 0.4, delay: 0.7, type: 'spring', stiffness: 280 }}
-          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200"
+          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white"
         >
           ✦ winner
         </motion.span>
@@ -832,8 +832,8 @@ function ResultDelta({
           tied
             ? 'text-zinc-300'
             : youWon
-              ? 'text-emerald-300'
-              : 'text-rose-300'
+              ? 'text-white'
+              : 'text-white'
         }`}
       >
         {tied ? '±0' : (youWon ? '+' : '−') + delta}

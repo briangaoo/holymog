@@ -112,12 +112,12 @@ export default function FrameFounder({
           );
           /* Soft outer glow that bleeds into the surrounding container. */
           box-shadow:
-            0 0 ${ring * 3}px rgba(251, 191, 36, 0.35),
+            0 0 ${ring * 3}px rgba(255,255,255, 0.35),
             0 0 ${ring * 8}px rgba(153, 27, 27, 0.25),
             inset 0 0 ${ring}px rgba(0, 0, 0, 0.35);
         }
         .frame-founder-spark {
-          filter: drop-shadow(0 0 ${Math.round(sparkSize * 0.4)}px rgba(251, 191, 36, 0.75));
+          filter: drop-shadow(0 0 ${Math.round(sparkSize * 0.4)}px rgba(255,255,255, 0.75));
         }
         @media (prefers-reduced-motion: no-preference) {
           .frame-founder-ring {
