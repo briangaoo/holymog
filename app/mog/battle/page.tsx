@@ -441,15 +441,16 @@ function PublicMatchmaking({
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            boxShadow: 'inset 0 0 0 1px rgba(56,189,248,0.18)',
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.20)',
           }}
         />
         {/* Identity pill */}
         <div
-          className="absolute flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-2.5 py-1 text-[11px] text-white backdrop-blur"
+          className="absolute flex items-center gap-2 border border-white/30 bg-black px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-white"
           style={{
             bottom: 'max(env(safe-area-inset-bottom), 16px)',
             left: 'max(env(safe-area-inset-left), 16px)',
+            borderRadius: 2,
           }}
         >
           {avatarUrl ? (
@@ -460,75 +461,58 @@ function PublicMatchmaking({
               className="h-4 w-4 rounded-full object-cover"
             />
           ) : (
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <span className="h-1.5 w-1.5 rounded-full bg-white" />
           )}
           <span className="truncate max-w-[12rem]">
-            you{displayName ? ` · ${displayName}` : ''}
+            YOU{displayName ? ` · ${displayName.toUpperCase()}` : ''}
           </span>
         </div>
       </div>
 
       {/* Opponent slot. */}
-      <div className="relative flex items-center justify-center overflow-hidden bg-gradient-to-br from-white/[0.015] to-black">
+      <div className="relative flex items-center justify-center overflow-hidden bg-black">
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            background:
-              'radial-gradient(circle at 50% 50%, rgba(56,189,248,0.06), transparent 60%)',
-          }}
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)',
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.20)',
           }}
         />
 
         <OpponentSlot status={status} />
 
         <div
-          className="absolute flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-2.5 py-1 text-[11px] text-zinc-400 backdrop-blur"
+          className="absolute flex items-center gap-2 border border-white/30 bg-black px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70"
           style={{
             bottom: 'max(env(safe-area-inset-bottom), 16px)',
             left: 'max(env(safe-area-inset-left), 16px)',
+            borderRadius: 2,
           }}
         >
           <span
             className={`h-1.5 w-1.5 rounded-full ${
-              status === 'finding' ? 'animate-pulse bg-zinc-500' : 'bg-sky-400'
+              status === 'finding' ? 'animate-pulse bg-white/40' : 'bg-white'
             }`}
           />
           <span>
             {status === 'finding'
-              ? 'searching'
+              ? 'SEARCHING'
               : status === 'found'
-                ? 'opponent found'
-                : 'connecting'}
+                ? 'OPPONENT FOUND'
+                : 'CONNECTING'}
           </span>
         </div>
       </div>
 
-      {/* Sky-blue divider in the exact middle of the viewport. Vertical
-          on desktop, horizontal on mobile. Sits on the seam between the
-          two grid cells (which themselves have no gap, so the tiles
-          fill exactly half). */}
+      {/* Hard white divider in the exact middle of the viewport. Vertical
+          on desktop, horizontal on mobile. Brutalist seam, no fade. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 bottom-0 hidden w-px -translate-x-1/2 md:block"
-        style={{
-          background:
-            'linear-gradient(180deg, transparent 0%, rgba(56,189,248,0.45) 50%, transparent 100%)',
-        }}
+        className="pointer-events-none absolute left-1/2 top-0 bottom-0 hidden w-px -translate-x-1/2 bg-white/40 md:block"
       />
       <span
         aria-hidden
-        className="pointer-events-none absolute top-1/2 left-0 right-0 h-px -translate-y-1/2 md:hidden"
-        style={{
-          background:
-            'linear-gradient(90deg, transparent 0%, rgba(56,189,248,0.45) 50%, transparent 100%)',
-        }}
+        className="pointer-events-none absolute top-1/2 left-0 right-0 h-px -translate-y-1/2 bg-white/40 md:hidden"
       />
 
       {/* Cancel — top-right corner, respects safe-area on phones. */}
@@ -540,10 +524,11 @@ function PublicMatchmaking({
           touchAction: 'manipulation',
           top: 'max(env(safe-area-inset-top), 16px)',
           right: 'max(env(safe-area-inset-right), 16px)',
+          borderRadius: 2,
         }}
-        className="absolute z-10 inline-flex h-9 items-center gap-1.5 rounded-full border border-white/15 bg-black/60 px-3 text-xs text-white backdrop-blur transition-colors hover:bg-black/80"
+        className="absolute z-10 inline-flex h-9 items-center gap-1.5 border-2 border-white/40 bg-black px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
       >
-        <X size={12} aria-hidden /> cancel
+        <X size={12} aria-hidden /> CANCEL
       </button>
     </div>
   );
@@ -557,11 +542,11 @@ function OpponentSlot({ status }: { status: MatchStatus }) {
           animate={{ rotate: 360 }}
           transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
         >
-          <Swords size={48} className="text-zinc-500" aria-hidden />
+          <Swords size={48} className="text-white/40" aria-hidden />
         </motion.div>
         <div className="flex flex-col gap-1">
-          <p className="text-lg font-semibold text-white">finding an opponent</p>
-          <p className="text-xs text-zinc-500">usually under 30 seconds</p>
+          <p className="text-lg font-bold uppercase tracking-tight text-white">FINDING AN OPPONENT</p>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">USUALLY UNDER 30 SECONDS</p>
         </div>
       </div>
     );
@@ -574,18 +559,18 @@ function OpponentSlot({ status }: { status: MatchStatus }) {
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         className="relative flex flex-col items-center gap-4 px-6 text-center"
       >
-        <Swords size={48} className="text-sky-400" aria-hidden />
+        <Swords size={48} className="text-white" aria-hidden />
         <div className="flex flex-col gap-1">
-          <p className="text-lg font-semibold text-white">opponent found</p>
-          <p className="text-xs text-zinc-500">getting ready…</p>
+          <p className="text-lg font-bold uppercase tracking-tight text-white">OPPONENT FOUND</p>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">GETTING READY…</p>
         </div>
       </motion.div>
     );
   }
   return (
     <div className="relative flex flex-col items-center gap-4 px-6 text-center">
-      <Loader2 size={48} className="animate-spin text-sky-400" aria-hidden />
-      <p className="text-lg font-semibold text-white">connecting…</p>
+      <Loader2 size={48} className="animate-spin text-white" aria-hidden />
+      <p className="text-lg font-bold uppercase tracking-tight text-white">CONNECTING…</p>
     </div>
   );
 }
