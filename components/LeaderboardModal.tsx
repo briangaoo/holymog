@@ -212,7 +212,7 @@ export function LeaderboardModal({
             exit={{ y: 24, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-3xl border border-white/10 bg-black p-6"
+            className="w-full max-w-sm rounded-sm border border-white/10 bg-black p-6"
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 id="lb-title" className="text-base font-semibold text-white">
@@ -237,13 +237,13 @@ export function LeaderboardModal({
               </p>
             ) : (
               <>
-                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-2.5 py-1 text-[11px] text-white">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white" />
                   you · {profileName ?? '…'}
                 </div>
 
                 {/* Read-only username display */}
-                <div className="mb-1 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3">
+                <div className="mb-1 flex w-full items-center justify-between rounded-sm border border-white/10 bg-white/[0.02] px-3 py-3">
                   <span className="text-sm text-zinc-400">
                     {profileName ?? '…'}
                   </span>
@@ -266,13 +266,13 @@ export function LeaderboardModal({
                   type="button"
                   onClick={() => setIncludePhoto((v) => !v)}
                   aria-pressed={includePhoto}
-                  className="mb-3 flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3 text-left transition-colors hover:bg-white/[0.05]"
+                  className="mb-3 flex w-full items-center gap-3 rounded-sm border border-white/10 bg-white/[0.02] px-3 py-3 text-left transition-colors hover:bg-white/[0.05]"
                   style={{ touchAction: 'manipulation' }}
                 >
                   <span
-                    className={`flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
+                    className={`flex h-5 w-5 items-center justify-center rounded-sm border transition-colors ${
                       includePhoto
-                        ? 'border-emerald-500 bg-emerald-500'
+                        ? 'border-white bg-white'
                         : 'border-white/30 bg-transparent'
                     }`}
                     aria-hidden
@@ -321,14 +321,14 @@ export function LeaderboardModal({
                     extra checkbox. The data-storage acknowledgement
                     below covers the BIPA/GDPR consent requirement. */}
                 {triggersReview && (
-                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-3">
+                  <div className="mb-3 flex items-start gap-2 rounded-sm border border-white/40 bg-white/[0.04] p-3">
                     <AlertTriangle
                       size={13}
                       aria-hidden
-                      className="mt-0.5 flex-shrink-0 text-amber-300"
+                      className="mt-0.5 flex-shrink-0 text-white"
                     />
-                    <p className="text-[11px] leading-relaxed text-amber-100/85">
-                      <span className="font-semibold text-amber-200">
+                    <p className="text-[11px] leading-relaxed text-white/70">
+                      <span className="font-semibold text-white">
                         S-tier review.
                       </span>{' '}
                       scores at this level are flagged for human review
@@ -349,16 +349,16 @@ export function LeaderboardModal({
                   onClick={() => setScanDataConsent((v) => !v)}
                   aria-pressed={scanDataConsent}
                   style={{ touchAction: 'manipulation' }}
-                  className={`mb-3 flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                  className={`mb-3 flex w-full items-start gap-3 rounded-sm border px-3 py-3 text-left transition-colors ${
                     scanDataConsent
-                      ? 'border-emerald-500/40 bg-emerald-500/[0.08]'
+                      ? 'border-white bg-white/[0.08]'
                       : 'border-white/10 bg-white/[0.02]'
                   }`}
                 >
                   <span
-                    className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+                    className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm border transition-colors ${
                       scanDataConsent
-                        ? 'border-emerald-500 bg-emerald-500'
+                        ? 'border-white bg-white'
                         : 'border-white/30 bg-transparent'
                     }`}
                     aria-hidden
@@ -368,7 +368,7 @@ export function LeaderboardModal({
                     )}
                   </span>
                   <span className="flex flex-col gap-0.5">
-                    <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-emerald-300">
+                    <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-white">
                       <ShieldCheck size={11} aria-hidden /> scan storage
                     </span>
                     <span className="text-sm text-white">
@@ -425,7 +425,7 @@ export function LeaderboardModal({
                   <p className="mb-3 text-xs text-red-400">{status.message}</p>
                 )}
                 {status.kind === 'success' && (
-                  <p className="mb-3 text-xs text-emerald-400">
+                  <p className="mb-3 text-xs text-white">
                     {previous ? 'updated, see you on the board' : 'added, see you on the board'}
                   </p>
                 )}
@@ -517,7 +517,7 @@ function Cell({
   accentRight?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+    <div className="rounded-sm border border-white/10 bg-white/[0.02] px-3 py-2">
       <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
         {label}
       </div>

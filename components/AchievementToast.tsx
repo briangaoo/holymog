@@ -41,20 +41,21 @@ export function AchievementToastContainer() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 60, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-            className="pointer-events-auto flex w-72 items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 backdrop-blur-md"
+            className="pointer-events-auto flex w-72 items-start gap-3 border-2 border-white bg-black p-3"
+            style={{ borderRadius: 2 }}
           >
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
-              <Sparkles size={16} className="text-emerald-300" aria-hidden />
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center bg-white" style={{ borderRadius: 2 }}>
+              <Sparkles size={16} className="text-black" aria-hidden />
             </span>
             <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-              <span className="text-[11px] uppercase tracking-[0.16em] text-emerald-300">
-                unlocked
+              <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white">
+                UNLOCKED
               </span>
-              <span className="truncate text-[14px] font-semibold text-white">
+              <span className="truncate text-[14px] font-bold uppercase text-white">
                 {grant.name}
               </span>
-              <span className="text-[11px] text-zinc-400">
-                equip from account → customization
+              <span className="text-[10px] uppercase tracking-[0.16em] text-white/50">
+                EQUIP FROM ACCOUNT → CUSTOMIZATION
               </span>
             </div>
             <button

@@ -65,11 +65,11 @@ function PlatformTile({ p }: { p: Platform }) {
     // logo PNG so the browser fetches the new bytes instead of serving
     // a stale optimized variant.
     //
-    // Wrapper has overflow-hidden + rounded-xl so a per-platform `zoom`
+    // Wrapper has overflow-hidden + rounded-sm so a per-platform `zoom`
     // (e.g. X has a transparent border baked into its PNG) scales the
     // image up without pushing neighbouring tiles around.
     return (
-      <div className="relative h-11 w-11 overflow-hidden rounded-xl">
+      <div className="relative h-11 w-11 overflow-hidden rounded-sm">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={`/icons/${p.key}.png?v=2`}
@@ -84,7 +84,7 @@ function PlatformTile({ p }: { p: Platform }) {
   }
   return (
     <div
-      className="flex h-11 w-11 items-center justify-center rounded-xl"
+      className="flex h-11 w-11 items-center justify-center rounded-sm"
       style={{ background: p.bg }}
     >
       <span
@@ -210,7 +210,7 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            className="w-full max-w-sm rounded-t-3xl border border-white/10 bg-black p-5 sm:rounded-3xl"
+            className="w-full max-w-sm rounded-t-3xl border border-white/10 bg-black p-5 sm:rounded-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -232,7 +232,7 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
                 onClick={nativeShare}
                 aria-label="Share via system share sheet"
                 style={{ touchAction: 'manipulation' }}
-                className="mb-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 active:bg-zinc-200"
+                className="mb-4 flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 active:bg-zinc-200"
               >
                 <Share2 size={16} aria-hidden />
                 Share
@@ -247,7 +247,7 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
                   onClick={p.onClick}
                   aria-label={p.ariaLabel}
                   style={{ touchAction: 'manipulation' }}
-                  className="flex flex-col items-center gap-1.5 rounded-2xl pt-4 pb-2 transition-colors hover:bg-white/5 active:bg-white/10"
+                  className="flex flex-col items-center gap-1.5 rounded-sm pt-4 pb-2 transition-colors hover:bg-white/5 active:bg-white/10"
                 >
                   <PlatformTile p={p} />
                   <span className="text-[11px] normal-case text-zinc-400">
@@ -263,7 +263,7 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
                 onClick={() => copyImage()}
                 aria-label="Copy share image"
                 style={{ touchAction: 'manipulation' }}
-                className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-white transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
+                className="flex items-center justify-center gap-2 rounded-sm border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-white transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
               >
                 <Copy size={14} aria-hidden /> Copy Image
               </button>
@@ -272,7 +272,7 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
                 onClick={copyLink}
                 aria-label="Copy link"
                 style={{ touchAction: 'manipulation' }}
-                className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-white transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
+                className="flex items-center justify-center gap-2 rounded-sm border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-white transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
               >
                 <LinkIcon size={14} aria-hidden /> Copy Link
               </button>
@@ -312,10 +312,10 @@ function ToastPortal({
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
           role="status"
           aria-live="polite"
-          className="pointer-events-none fixed left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-5 py-3 text-sm font-medium text-emerald-200 shadow-[0_8px_30px_rgba(16,185,129,0.35)] backdrop-blur"
+          className="pointer-events-none fixed left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/40 bg-white/15 px-5 py-3 text-sm font-medium text-white shadow-[0_8px_30px_rgba(255,255,255,0.20)] backdrop-blur"
           style={{ top: 'max(env(safe-area-inset-top), 24px)' }}
         >
-          <Check size={16} className="text-emerald-300" aria-hidden />
+          <Check size={16} className="text-white" aria-hidden />
           {toast.message}
         </motion.div>
       )}
