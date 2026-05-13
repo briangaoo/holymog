@@ -24,7 +24,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AppHeader } from '@/components/AppHeader';
 import { AuthModal } from '@/components/AuthModal';
 import { AvatarFallback } from '@/components/AvatarFallback';
-import { SpectralRim } from '@/components/SpectralRim';
 import { useUser } from '@/hooks/useUser';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import {
@@ -275,31 +274,12 @@ export default function MogPage() {
 
   return (
     <div className="relative min-h-dvh overflow-hidden bg-black">
-      {/* Ambient sky-blue wash anchored top-right — sets the page identity
-          without dominating. Mirrors the home-page card colour. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-32 -top-32 h-[40rem] w-[40rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(14,165,233,0.06) 35%, transparent 70%)',
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -bottom-40 -left-40 h-[36rem] w-[36rem] rounded-full blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(2,132,199,0.10) 0%, transparent 60%)',
-        }}
-      />
-
       <AppHeader authNext="/mog" />
       <main className="relative mx-auto w-full max-w-md px-5 py-6 sm:max-w-2xl">
         <div className="mb-6 flex items-center gap-3">
           <BackButton onBack={onBack} />
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            mog battles
+          <h1 className="text-2xl font-bold uppercase tracking-tight text-white">
+            MOG BATTLES
           </h1>
         </div>
 
@@ -425,174 +405,82 @@ function ModeSelect({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Hero "find a battle" — sky-blue spectral rim + off-frame radial,
-          mirrors the home-page battle card so the brand identity
-          carries through. */}
-      <SpectralRim accent="rgba(56,189,248,0.95)" className="rounded-3xl">
-        <button
-          type="button"
-          onClick={findBattle}
-          style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
-          className="group relative flex w-full flex-col overflow-hidden rounded-3xl border border-white/10 p-7 text-left transition-all hover:border-white/20"
-        >
-          {/* Sky radial glow off-frame on the bottom-right */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -bottom-24 -right-24 h-[22rem] w-[22rem] rounded-full blur-3xl"
-            style={{
-              background:
-                'radial-gradient(circle, rgba(56,189,248,0.55) 0%, rgba(14,165,233,0.22) 35%, transparent 65%)',
-            }}
-          />
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 backdrop-blur-2xl"
-            style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
-          />
-          {/* Top sheen */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 35%)',
-            }}
-          />
-          {/* Inner sky rim, matches the home card */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-3xl"
-            style={{
-              boxShadow:
-                'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(56,189,248,0.22)',
-            }}
-          />
-
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <span
-                  aria-hidden
-                  className="relative flex h-2 w-2"
-                >
-                  <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/70" />
-                  <span className="relative h-2 w-2 rounded-full bg-sky-400" />
-                </span>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-300">
-                  ranked · live
-                </span>
-              </div>
-              <Swords
-                size={36}
-                aria-hidden
-                className="text-white drop-shadow-lg"
-              />
-              <div className="flex flex-col gap-1">
-                <span className="text-3xl font-bold leading-none tracking-tight text-white">
-                  find a battle
-                </span>
-                <span className="text-sm text-white/75">
-                  1v1 against a stranger · ~15s incl. matchmaking
-                </span>
-              </div>
+      {/* Hero "find a battle" — brutalist square with hard white border,
+          no glow, uppercase. */}
+      <button
+        type="button"
+        onClick={findBattle}
+        style={{ touchAction: 'manipulation', borderRadius: 2 }}
+        className="group relative flex w-full flex-col border-2 border-white/40 bg-black p-7 text-left transition-colors hover:border-white hover:bg-white/[0.03]"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span aria-hidden className="relative flex h-2 w-2">
+                <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
+                <span className="relative h-2 w-2 rounded-full bg-white" />
+              </span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
+                RANKED · LIVE
+              </span>
             </div>
-            <ArrowRight
-              size={20}
-              aria-hidden
-              className="mt-1 text-white/70 transition-transform group-hover:translate-x-1"
-            />
+            <Swords size={36} aria-hidden className="text-white" />
+            <div className="flex flex-col gap-1">
+              <span className="text-3xl font-bold uppercase leading-none tracking-tight text-white">
+                FIND A BATTLE
+              </span>
+              <span className="text-[11px] uppercase tracking-[0.16em] text-white/70">
+                1V1 AGAINST A STRANGER · ~15S INCL. MATCHMAKING
+              </span>
+            </div>
           </div>
-        </button>
-      </SpectralRim>
+          <ArrowRight
+            size={20}
+            aria-hidden
+            className="mt-1 text-white/70 transition-transform group-hover:translate-x-1"
+          />
+        </div>
+      </button>
 
       {/* Section divider — small label so the parties block reads as
           "alternative" and the hero clearly dominates. */}
       <div className="flex items-center gap-3 px-1 pt-1">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-          or play with friends
+        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/40">
+          OR PLAY WITH FRIENDS
         </span>
-        <span aria-hidden className="h-px flex-1 bg-white/5" />
+        <span aria-hidden className="h-px flex-1 bg-white/15" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {/* Create — rose accent. Warm host vibe, distinct from the
-            cool sky-blue hero so the secondary row has its own
-            personality. (Green is reserved for the scan brand.) */}
-        <SpectralRim
-          accent="rgba(244,63,94,0.6)"
-          spotlight={140}
-          className="rounded-3xl"
+        <button
+          type="button"
+          onClick={onCreate}
+          style={{ touchAction: 'manipulation', borderRadius: 2 }}
+          className="group flex w-full flex-col gap-2.5 border-2 border-white/30 bg-black p-5 text-left transition-colors hover:border-white hover:bg-white/[0.03]"
         >
-          <button
-            type="button"
-            onClick={onCreate}
-            style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
-            className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-3xl border border-white/10 p-5 text-left transition-all hover:border-white/20"
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -top-16 -left-16 h-44 w-44 rounded-full blur-3xl"
-              style={{
-                background:
-                  'radial-gradient(circle, rgba(244,63,94,0.30) 0%, transparent 65%)',
-              }}
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 rounded-3xl"
-              style={{
-                boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(244,63,94,0.10)',
-              }}
-            />
-            <Users size={20} aria-hidden className="relative text-rose-200" />
-            <span className="relative text-base font-semibold text-white">
-              create party
-            </span>
-            <span className="relative text-xs text-zinc-400">
-              share a code · up to 10
-            </span>
-          </button>
-        </SpectralRim>
+          <Users size={20} aria-hidden className="text-white" />
+          <span className="text-base font-bold uppercase tracking-tight text-white">
+            CREATE PARTY
+          </span>
+          <span className="text-[10px] uppercase tracking-[0.18em] text-white/50">
+            SHARE A CODE · UP TO 10
+          </span>
+        </button>
 
-        {/* Join — violet accent. Cool but distinctly different from the
-            sky-blue primary; "portal / enter" reads electric-purple. */}
-        <SpectralRim
-          accent="rgba(168,85,247,0.6)"
-          spotlight={140}
-          className="rounded-3xl"
+        <button
+          type="button"
+          onClick={onJoin}
+          style={{ touchAction: 'manipulation', borderRadius: 2 }}
+          className="group flex w-full flex-col gap-2.5 border-2 border-white/30 bg-black p-5 text-left transition-colors hover:border-white hover:bg-white/[0.03]"
         >
-          <button
-            type="button"
-            onClick={onJoin}
-            style={{ touchAction: 'manipulation', backgroundColor: '#0a0a0a' }}
-            className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-3xl border border-white/10 p-5 text-left transition-all hover:border-white/20"
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -bottom-16 -right-16 h-44 w-44 rounded-full blur-3xl"
-              style={{
-                background:
-                  'radial-gradient(circle, rgba(168,85,247,0.30) 0%, transparent 65%)',
-              }}
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 rounded-3xl"
-              style={{
-                boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(168,85,247,0.10)',
-              }}
-            />
-            <Search size={20} aria-hidden className="relative text-violet-200" />
-            <span className="relative text-base font-semibold text-white">
-              join party
-            </span>
-            <span className="relative text-xs text-zinc-400">
-              enter a 6-char code
-            </span>
-          </button>
-        </SpectralRim>
+          <Search size={20} aria-hidden className="text-white" />
+          <span className="text-base font-bold uppercase tracking-tight text-white">
+            JOIN PARTY
+          </span>
+          <span className="text-[10px] uppercase tracking-[0.18em] text-white/50">
+            ENTER A 6-CHAR CODE
+          </span>
+        </button>
       </div>
     </div>
   );
@@ -664,7 +552,7 @@ function BattleStats() {
 
   if (!loaded) {
     return (
-      <section className="mt-6 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+      <section className="mt-6 border-2 border-white/20 bg-black p-5" style={{ borderRadius: 2 }}>
         <div className="h-3 w-24 rounded bg-white/[0.06]" />
         <div className="mt-4 grid grid-cols-3 gap-x-4 gap-y-5">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -696,141 +584,134 @@ function BattleStats() {
   const streakHot = profile.current_streak >= 3;
 
   return (
-    <section className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+    <section className="mt-6 overflow-hidden border-2 border-white/20 bg-black p-5" style={{ borderRadius: 2 }}>
       <header className="mb-5 flex items-baseline justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-          your battles
+        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/50">
+          YOUR BATTLES
         </span>
         {unranked ? (
-          <span className="text-[10px] uppercase tracking-[0.16em] text-sky-300/80">
-            unranked
+          <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">
+            UNRANKED
           </span>
         ) : (
-          <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-            {profile.matches_played} played
+          <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">
+            {profile.matches_played} PLAYED
           </span>
         )}
       </header>
 
       <div className="grid grid-cols-3 gap-x-4 gap-y-5">
         <Stat
-          label="elo"
+          label="ELO"
           value={profile.elo}
-          accent="sky"
           sub={
             eloDelta < 0 ? (
-              <span className="text-sky-400/80">{eloDelta}</span>
+              <span className="text-white/60">{eloDelta}</span>
             ) : eloDelta > 0 ? (
-              <span className="text-emerald-400/80">+{eloDelta}</span>
+              <span className="text-white/60">+{eloDelta}</span>
             ) : null
           }
         />
-        <Stat label="peak" value={profile.peak_elo} accent="purple" />
+        <Stat label="PEAK" value={profile.peak_elo} />
         <Stat
-          label="streak"
+          label="STREAK"
           value={profile.current_streak}
-          accent={streakHot ? 'emerald' : undefined}
           sub={
             profile.longest_streak > 0
-              ? `longest ${profile.longest_streak}`
+              ? `LONGEST ${profile.longest_streak}`
               : null
           }
         />
         <Stat
-          label="record"
+          label="RECORD"
           value={
             unranked ? (
-              <span className="text-zinc-500">—</span>
+              <span className="text-white/30">—</span>
             ) : ties > 0 ? (
               <>
                 <span className="text-white">{profile.matches_won}</span>
-                <span className="uppercase text-zinc-500">W · </span>
+                <span className="uppercase text-white/40">W · </span>
                 <span className="text-white">{ties}</span>
-                <span className="uppercase text-zinc-500">T · </span>
+                <span className="uppercase text-white/40">T · </span>
                 <span className="text-white">{losses}</span>
-                <span className="uppercase text-zinc-500">L</span>
+                <span className="uppercase text-white/40">L</span>
               </>
             ) : (
               <>
                 <span className="text-white">{profile.matches_won}</span>
-                <span className="uppercase text-zinc-500">W · </span>
+                <span className="uppercase text-white/40">W · </span>
                 <span className="text-white">{losses}</span>
-                <span className="uppercase text-zinc-500">L</span>
+                <span className="uppercase text-white/40">L</span>
               </>
             )
           }
         />
         <Stat
-          label="win rate"
-          value={winRate !== null ? `${winRate}%` : <span className="text-zinc-500">—</span>}
-          accent={winRate !== null && winRate >= 50 ? 'emerald' : undefined}
+          label="WIN RATE"
+          value={winRate !== null ? `${winRate}%` : <span className="text-white/30">—</span>}
         />
         <Stat
-          label="best scan"
+          label="BEST SCAN"
           value={
             profile.best_scan_overall === null ? (
-              <span className="text-zinc-500">—</span>
+              <span className="text-white/30">—</span>
             ) : (
               profile.best_scan_overall
             )
           }
-          accent={profile.best_scan_overall === null ? undefined : 'emerald'}
         />
       </div>
 
-      {/* Recent W/L ribbon */}
+      {/* Recent W/L ribbon — wins white, losses dim grey, ties mid grey.
+          Red kept ONLY for genuine danger states (errors, F-tier); a
+          ranked loss isn't dangerous, just dim. */}
       {recent.length > 0 && (
         <div className="mt-5 flex items-center gap-3">
-          <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-            recent
+          <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">
+            RECENT
           </span>
           <div className="flex gap-1">
-            {/* Pad to RECENT_RIBBON_LENGTH so the ribbon doesn't shrink
-                for users with fewer than 10 battles — empty slots show as
-                neutral pips on the LEFT (oldest side). */}
             {Array.from({ length: RECENT_RIBBON_LENGTH - recent.length }).map(
               (_, i) => (
                 <span
                   key={`empty-${i}`}
                   aria-hidden
-                  className="h-2 w-5 rounded-sm bg-white/[0.04]"
+                  className="h-2 w-5 bg-white/[0.06]"
+                  style={{ borderRadius: 1 }}
                 />
               ),
             )}
-            {/* recent is finished_at desc — most recent first. We render
-                left-to-right oldest→newest so the rightmost cell is the
-                user's last result, which is the conventional reading
-                order for win/loss strips. */}
             {[...recent].reverse().map((r) => {
               const tied = r.is_tie === true;
               const label = tied ? 'tie' : r.is_winner ? 'win' : 'loss';
               const cls = tied
-                ? 'bg-zinc-400/70'
+                ? 'bg-white/40'
                 : r.is_winner
-                  ? 'bg-emerald-400/85'
-                  : 'bg-rose-500/70';
+                  ? 'bg-white'
+                  : 'bg-white/15';
               return (
                 <span
                   key={r.battle_id}
                   aria-label={label}
-                  className={`h-2 w-5 rounded-sm ${cls}`}
+                  className={`h-2 w-5 ${cls}`}
+                  style={{ borderRadius: 1 }}
                 />
               );
             })}
           </div>
           <span
             aria-hidden
-            className="ml-auto text-[10px] uppercase tracking-[0.16em] text-zinc-600"
+            className="ml-auto text-[10px] uppercase tracking-[0.22em] text-white/30"
           >
-            new →
+            NEW →
           </span>
         </div>
       )}
 
       {unranked && recent.length === 0 && (
-        <p className="mt-4 rounded-2xl border border-sky-500/15 bg-sky-500/[0.04] px-3 py-2.5 text-[11px] text-sky-200/85">
-          play your first battle to start ranking. you&apos;re placed
-          provisionally for your first 30 matches (k=32) before settling.
+        <p className="mt-4 border border-white/20 bg-white/[0.03] px-3 py-2.5 text-[11px] uppercase tracking-[0.14em] text-white/70" style={{ borderRadius: 2 }}>
+          PLAY YOUR FIRST BATTLE TO START RANKING. YOU&apos;RE PLACED
+          PROVISIONALLY FOR YOUR FIRST 30 MATCHES (K=32) BEFORE SETTLING.
         </p>
       )}
     </section>
@@ -841,35 +722,21 @@ function Stat({
   label,
   value,
   sub,
-  accent,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
-  accent?: 'sky' | 'emerald' | 'cyan' | 'purple';
 }) {
-  const valueColor =
-    accent === 'sky'
-      ? 'text-sky-300'
-      : accent === 'emerald'
-        ? 'text-emerald-300'
-        : accent === 'cyan'
-          ? 'text-cyan-300'
-          : accent === 'purple'
-            ? 'text-purple-300'
-            : 'text-white';
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
         {label}
       </span>
-      <span
-        className={`font-num text-2xl font-extrabold tabular-nums leading-none ${valueColor}`}
-      >
+      <span className="font-num text-2xl font-extrabold tabular-nums leading-none text-white">
         {value}
       </span>
       {sub && (
-        <span className="font-num text-[10px] tabular-nums text-zinc-500">
+        <span className="font-num text-[10px] uppercase tracking-[0.14em] tabular-nums text-white/40">
           {sub}
         </span>
       )}
@@ -1049,24 +916,13 @@ function JoinInput({
       }}
       className="flex flex-col gap-5"
     >
-      {/* Hero violet halo behind the cells to keep the brand accent
-          consistent with the "join party" card on the mode-select
-          screen. Subtle — the cells themselves are the focus. */}
-      <div className="relative flex flex-col items-center gap-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] px-5 py-9">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{
-            background:
-              'radial-gradient(circle at 50% 0%, rgba(168,85,247,0.22) 0%, transparent 55%)',
-          }}
-        />
+      <div className="relative flex flex-col items-center gap-6 border-2 border-white/20 bg-black px-5 py-9" style={{ borderRadius: 2 }}>
         <div className="flex flex-col items-center gap-1.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/30 bg-violet-500/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200">
-            <Search size={11} aria-hidden /> enter code
+          <span className="inline-flex items-center gap-1.5 border border-white/30 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-white" style={{ borderRadius: 2 }}>
+            <Search size={11} aria-hidden /> ENTER CODE
           </span>
-          <p className="text-[13px] text-zinc-400">
-            6 characters · sent by your host
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">
+            6 CHARACTERS · SENT BY YOUR HOST
           </p>
         </div>
 
@@ -1093,12 +949,12 @@ function JoinInput({
               onPaste={(e) => handlePaste(idx, e)}
               onFocus={(e) => e.currentTarget.select()}
               aria-label={`code character ${idx + 1}`}
-              className={`font-num h-14 w-11 rounded-2xl border bg-black/40 text-center text-3xl font-extrabold uppercase tabular-nums text-white caret-transparent transition-all sm:h-16 sm:w-12 sm:text-[2rem] ${
+              className={`font-num h-14 w-11 border-2 bg-black text-center text-3xl font-extrabold uppercase tabular-nums text-white caret-transparent transition-colors sm:h-16 sm:w-12 sm:text-[2rem] ${
                 ch
-                  ? 'border-violet-400/55 shadow-[0_0_0_3px_rgba(168,85,247,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]'
-                  : 'border-white/10 hover:border-white/20 focus:border-violet-400/55 focus:shadow-[0_0_0_3px_rgba(168,85,247,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  ? 'border-white'
+                  : 'border-white/25 hover:border-white/50 focus:border-white'
               } focus:outline-none`}
-              style={{ textTransform: 'uppercase' }}
+              style={{ textTransform: 'uppercase', borderRadius: 2 }}
             />
           ))}
         </div>
@@ -1108,23 +964,23 @@ function JoinInput({
         <button
           type="button"
           onClick={onCancel}
-          style={{ touchAction: 'manipulation' }}
-          className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-sm text-white hover:bg-white/[0.07]"
+          style={{ touchAction: 'manipulation', borderRadius: 2 }}
+          className="inline-flex h-11 flex-1 items-center justify-center border-2 border-white/30 bg-black text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
         >
-          cancel
+          CANCEL
         </button>
         <button
           type="submit"
           disabled={!valid}
-          style={{ touchAction: 'manipulation' }}
-          className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black transition-all hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ touchAction: 'manipulation', borderRadius: 2 }}
+          className="inline-flex h-11 flex-[2] items-center justify-center gap-2 bg-white text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
         >
           {valid ? (
             <>
-              join party <ArrowRight size={14} aria-hidden />
+              JOIN PARTY <ArrowRight size={14} aria-hidden />
             </>
           ) : (
-            'join party'
+            'JOIN PARTY'
           )}
         </button>
       </div>
@@ -1171,7 +1027,7 @@ function Joining_PrivateLoader({
 
   if (errMessage) {
     return (
-      <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
+      <div className="border-2 border-red-500/40 bg-red-500/[0.06] p-6 text-sm uppercase tracking-[0.14em] text-red-200" style={{ borderRadius: 2 }}>
         {prettyJoinError(errMessage)}
       </div>
     );
@@ -1329,38 +1185,17 @@ function Lobby({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Hero code card — rose accent matches the "create party" tile on
-          mode-select. Big chunky cells, copy + (when available)
-          native share, and a centered "share this with friends" CTA
-          replace the cramped row + tiny copy button. */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] px-5 py-7">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -top-32 left-1/2 -z-10 h-72 w-72 -translate-x-1/2 rounded-full blur-3xl"
-          style={{
-            background:
-              'radial-gradient(circle, rgba(244,63,94,0.30) 0%, rgba(244,63,94,0.10) 35%, transparent 65%)',
-          }}
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 rounded-3xl"
-          style={{
-            boxShadow:
-              'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 1px rgba(244,63,94,0.10)',
-          }}
-        />
-
+      <div className="border-2 border-white/20 bg-black px-5 py-7" style={{ borderRadius: 2 }}>
         <div className="flex flex-col items-center gap-1.5 text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-200">
+          <span className="inline-flex items-center gap-1.5 border border-white/30 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-white" style={{ borderRadius: 2 }}>
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-rose-400/70" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-rose-400" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
+              <span className="relative h-1.5 w-1.5 rounded-full bg-white" />
             </span>
-            party code
+            PARTY CODE
           </span>
-          <p className="mt-1 text-[12px] text-zinc-400">
-            share with friends · up to 10 players
+          <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-white/50">
+            SHARE WITH FRIENDS · UP TO 10 PLAYERS
           </p>
         </div>
 
@@ -1374,8 +1209,8 @@ function Lobby({
           {cells.map((ch, idx) => (
             <span
               key={idx}
-              className="font-num inline-flex h-14 w-11 items-center justify-center rounded-2xl border border-rose-400/40 bg-black/40 text-3xl font-extrabold uppercase tabular-nums text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_3px_rgba(244,63,94,0.05)] transition-all group-hover:border-rose-300/65 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_3px_rgba(244,63,94,0.12)] sm:h-16 sm:w-12 sm:text-[2rem]"
-              style={{ textTransform: 'uppercase' }}
+              className="font-num inline-flex h-14 w-11 items-center justify-center border-2 border-white/40 bg-black text-3xl font-extrabold uppercase tabular-nums text-white transition-colors group-hover:border-white sm:h-16 sm:w-12 sm:text-[2rem]"
+              style={{ textTransform: 'uppercase', borderRadius: 2 }}
             >
               {ch}
             </span>
@@ -1386,16 +1221,16 @@ function Lobby({
           <button
             type="button"
             onClick={onCopy}
-            style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-medium text-white transition-colors hover:bg-white/[0.08]"
+            style={{ touchAction: 'manipulation', borderRadius: 2 }}
+            className="inline-flex h-10 items-center gap-2 border-2 border-white/30 bg-black px-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
           >
             {copied ? (
               <>
-                <Check size={14} aria-hidden /> copied
+                <Check size={14} aria-hidden /> COPIED
               </>
             ) : (
               <>
-                <Copy size={14} aria-hidden /> copy
+                <Copy size={14} aria-hidden /> COPY
               </>
             )}
           </button>
@@ -1403,23 +1238,23 @@ function Lobby({
             <button
               type="button"
               onClick={onShare}
-              style={{ touchAction: 'manipulation' }}
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/[0.10] px-4 text-sm font-medium text-rose-100 transition-colors hover:bg-rose-500/[0.16]"
+              style={{ touchAction: 'manipulation', borderRadius: 2 }}
+              className="inline-flex h-10 items-center gap-2 bg-white px-4 text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90"
             >
-              <Share2 size={14} aria-hidden /> share
+              <Share2 size={14} aria-hidden /> SHARE
             </button>
           )}
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+      <div className="border-2 border-white/20 bg-black p-5" style={{ borderRadius: 2 }}>
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-            in lobby · {participants.length}/10
+          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/50">
+            IN LOBBY · {participants.length}/10
           </span>
           {participants.length < 2 && (
-            <span className="text-[10px] uppercase tracking-[0.16em] text-amber-400">
-              need ≥ 2 to start
+            <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">
+              NEED ≥ 2 TO START
             </span>
           )}
         </div>
@@ -1435,9 +1270,10 @@ function Lobby({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2"
+                className="flex items-center gap-3 border border-white/15 bg-white/[0.02] px-3 py-2"
+                style={{ borderRadius: 2 }}
               >
-                <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10">
+                <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15">
                   <AvatarFallback
                     seed={p.display_name}
                     textClassName="text-[11px]"
@@ -1449,69 +1285,72 @@ function Lobby({
                 >
                   {p.display_name}
                 </Link>
-                <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-white/50">
                   {isHostRow && (
-                    <span className="rounded-full border border-rose-400/30 bg-rose-500/[0.08] px-1.5 py-0.5 text-rose-200">
-                      host
+                    <span className="border border-white/30 bg-white/[0.06] px-1.5 py-0.5 text-white" style={{ borderRadius: 2 }}>
+                      HOST
                     </span>
                   )}
-                  {isYou && <span>you</span>}
+                  {isYou && <span>YOU</span>}
                 </span>
               </motion.li>
             );
           })}
-          {/* Empty placeholder rows so the lobby has a visible "waiting"
-              shape before the first opponent joins — better than the
-              previous bare "loading…" text. */}
           {participants.length > 0 && participants.length < 2 && (
-            <li className="flex items-center gap-3 rounded-xl border border-dashed border-white/10 bg-white/[0.01] px-3 py-2 text-sm text-zinc-500">
+            <li
+              className="flex items-center gap-3 border border-dashed border-white/15 bg-white/[0.01] px-3 py-2 text-[11px] uppercase tracking-[0.16em] text-white/40"
+              style={{ borderRadius: 2 }}
+            >
               <span
                 aria-hidden
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/10"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/15"
               >
-                <Loader2 size={12} className="animate-spin text-zinc-500" />
+                <Loader2 size={12} className="animate-spin text-white/40" />
               </span>
-              waiting for someone to join…
+              WAITING FOR SOMEONE TO JOIN…
             </li>
           )}
           {participants.length === 0 && (
-            <li className="text-xs text-zinc-500">loading participants…</li>
+            <li className="text-[11px] uppercase tracking-[0.16em] text-white/40">LOADING PARTICIPANTS…</li>
           )}
         </ul>
       </div>
 
       {startError && (
-        <p className="text-xs text-red-300">{startError}</p>
+        <p className="text-xs uppercase tracking-[0.14em] text-red-300">{startError}</p>
       )}
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={onLeave}
-          style={{ touchAction: 'manipulation' }}
-          className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-sm text-white hover:bg-white/[0.07]"
+          style={{ touchAction: 'manipulation', borderRadius: 2 }}
+          className="inline-flex h-11 flex-1 items-center justify-center border-2 border-white/30 bg-black text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
         >
-          leave
+          LEAVE
         </button>
         {isHost ? (
           <button
             type="button"
             onClick={onStart}
             disabled={!canStart}
-            style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ touchAction: 'manipulation', borderRadius: 2 }}
+            className="inline-flex h-11 flex-[2] items-center justify-center gap-2 bg-white text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
           >
             {starting ? (
               <>
-                <Loader2 size={14} className="animate-spin" /> starting…
+                <Loader2 size={14} className="animate-spin" /> STARTING…
               </>
             ) : (
-              'start battle'
+              'START BATTLE'
             )}
           </button>
         ) : (
-          <div className="inline-flex h-11 flex-[2] items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-sm text-zinc-400">
-            waiting for host…
+          <div
+            className="inline-flex h-11 flex-[2] items-center justify-center border-2 border-white/15 bg-black text-xs font-semibold uppercase tracking-[0.18em] text-white/40"
+            style={{ borderRadius: 2 }}
+          >
+            WAITING FOR HOST…
           </div>
         )}
       </div>
@@ -1573,7 +1412,7 @@ function Joining({
     })();
   }, [battleId, onReady, onError]);
 
-  return <CenteredSpinner label="opponent found · joining…" iconClassName="text-emerald-400" />;
+  return <CenteredSpinner label="OPPONENT FOUND · JOINING…" />;
 }
 
 function CenteredSpinner({
@@ -1584,18 +1423,21 @@ function CenteredSpinner({
   iconClassName?: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.02] p-8 text-center">
+    <div
+      className="flex flex-col items-center gap-3 border-2 border-white/20 bg-black p-8 text-center"
+      style={{ borderRadius: 2 }}
+    >
       <motion.div
         animate={{ scale: [1, 1.06, 1] }}
         transition={{ duration: 0.9, repeat: Infinity }}
       >
         <Swords
           size={32}
-          className={iconClassName ?? 'text-zinc-400'}
+          className={iconClassName ?? 'text-white/60'}
           aria-hidden
         />
       </motion.div>
-      <p className="text-sm text-white">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white">{label}</p>
     </div>
   );
 }
