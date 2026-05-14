@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getTier } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
@@ -61,97 +60,74 @@ type ScanMeterProps = {
 };
 
 /**
- * Top-left live-score card for the scan flow. Visually mirrors the
- * battle-tile ScoreOverlay from app/mog/BattleRoom.tsx so the brand
- * language is consistent — same hard 2px tier-coloured border, same
- * uppercase live pip header, same big number + tier letter row, same
- * thin bar at the bottom. Drops the PLAYER / FLAW rows that the battle
- * version uses (single-player scan, no opponent to mention) and adds
- * a PEAK row that tracks the highest score seen during this scan
- * window — gives the user a sense of "where they've been" not just
- * "where they are right now."
+ * Top-left live-score card for the scan flow. Compact horizontal pill:
+ * pulsing tier-colour dot on the left, tier letter + score number to
+ * the right, thin score-bar at the bottom. Tier letter and number are
+ * the same scale so neither one dwarfs the other (the previous version
+ * had a 44px number next to a 20px letter, which read as unbalanced
+ * against the camera feed). No PEAK row, no "LIVE SCAN" label — the
+ * pulsing dot alone signals 'live' and the tier letter already gives
+ * the user the band they're in.
  */
 export function LiveScanMeter({ score, visible, error = false }: ScanMeterProps) {
-  // Peak resets every time the meter becomes hidden so each scan window
-  // starts fresh. Tracked in a ref + state so the re-render on update
-  // doesn't trigger a render-loop.
-  const peakRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!visible) {
-      peakRef.current = null;
-      return;
-    }
-    if (typeof score === 'number') {
-      peakRef.current = Math.max(peakRef.current ?? 0, score);
-    }
-  }, [score, visible]);
-
   const safeScore = score ?? 50;
   const tier = score !== null ? getTier(safeScore) : null;
   const color = error || score === null ? '#71717a' : getScoreColor(safeScore);
-  const peak = peakRef.current;
-  const peakColor = peak !== null && !error ? getScoreColor(peak) : '#71717a';
 
   return (
     <AnimatePresence>
       {visible && (
         <motion.div
           key="live-scan-meter"
-          initial={{ opacity: 0, x: -16 }}
+          initial={{ opacity: 0, x: -12 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -16 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-none absolute z-30 flex w-[180px] flex-col gap-3 bg-black px-3.5 py-3"
+          exit={{ opacity: 0, x: -12 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none absolute z-30 flex flex-col gap-2 px-3 py-2.5"
           style={{
             top: 'calc(max(env(safe-area-inset-top), 12px) + 12px)',
             left: 'calc(max(env(safe-area-inset-left), 12px) + 12px)',
+            background: 'rgba(0,0,0,0.55)',
+            backdropFilter: 'blur(8px) saturate(1.4)',
+            WebkitBackdropFilter: 'blur(8px) saturate(1.4)',
             border: `2px solid ${color}`,
             borderRadius: 2,
+            minWidth: 124,
           }}
           aria-hidden
         >
-          {/* Header: LIVE SCAN pip */}
-          <div className="relative flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-white">
-              <span aria-hidden className="relative inline-flex h-1.5 w-1.5">
-                <span
-                  className="absolute inset-0 animate-ping rounded-full"
-                  style={{ background: `${color}cc` }}
-                />
-                <span
-                  className="relative h-1.5 w-1.5 rounded-full"
-                  style={{ background: color }}
-                />
-              </span>
-              LIVE SCAN
-            </span>
-          </div>
-
-          {/* Score + tier letter */}
-          <div className="relative flex items-baseline gap-1.5">
-            <span
-              className="font-num font-black leading-none tabular-nums"
-              style={{
-                color,
-                fontSize: 44,
-                lineHeight: 0.92,
-              }}
-            >
-              {error ? 'N/A' : score !== null ? score : '—'}
-            </span>
-            {tier && !error && (
+          {/* Tier letter + score, baseline aligned, same scale. Pulsing
+              dot lives inside the row so the whole pill is one visual
+              unit instead of a header + body. */}
+          <div className="flex items-baseline gap-2">
+            <span aria-hidden className="relative inline-flex h-1.5 w-1.5 self-center">
               <span
-                className="font-num text-xl font-black uppercase"
+                className="absolute inset-0 animate-ping rounded-full"
+                style={{ background: `${color}cc` }}
+              />
+              <span
+                className="relative h-1.5 w-1.5 rounded-full"
+                style={{ background: color }}
+              />
+            </span>
+            {tier && !error ? (
+              <span
+                className="font-num text-[26px] font-black leading-none uppercase tabular-nums"
                 style={tierTextStyleInline(safeScore, tier)}
               >
                 {tier.letter}
               </span>
-            )}
+            ) : null}
+            <span
+              className="font-num ml-auto text-[26px] font-black leading-none tabular-nums"
+              style={{ color }}
+            >
+              {error ? 'N/A' : score !== null ? score : '—'}
+            </span>
           </div>
 
-          {/* Score-as-bar — square, no glow */}
-          <div className="relative h-1 w-full bg-white/10">
+          {/* Score-as-bar — thin, no glow, hits the tier colour. */}
+          <div className="relative h-[3px] w-full bg-white/10">
             <span
               className="absolute left-0 top-0 h-full transition-all duration-500"
               style={{
@@ -159,19 +135,6 @@ export function LiveScanMeter({ score, visible, error = false }: ScanMeterProps)
                 background: color,
               }}
             />
-          </div>
-
-          {/* PEAK row */}
-          <div className="relative flex items-baseline justify-between">
-            <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/50">
-              PEAK
-            </span>
-            <span
-              className="font-num text-base font-bold tabular-nums"
-              style={{ color: peakColor }}
-            >
-              {peak !== null && !error ? peak : '—'}
-            </span>
           </div>
         </motion.div>
       )}

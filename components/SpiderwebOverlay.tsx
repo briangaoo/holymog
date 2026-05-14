@@ -52,15 +52,14 @@ const FADE_OUT_MS = 300;
 const CROSS_START_MS = 3800;
 const CROSS_END_MS = 4900;
 
-// Medium-green vibrant overlay — the visual signature of the scan flow.
-// #10b981 is emerald-500 (the canonical "medium green"): neither the
-// pale green-300 nor the deep forest green-700 territory. Bright enough
-// to read against any camera feed, saturated enough to feel deliberate
-// rather than functional. Strands are thinner than the previous grey
-// pass (1.5 vs 2.5) so the rendered mesh reads as "delicate connective
-// tissue" instead of "drawn-on lines"; dots are larger (4.0 vs 2.5) so
-// each landmark anchor stands out as a vertex, not a tiny speck.
-const STROKE = '#10b981';
+// Strands draw in pure white at 1.5px — thin, vibrant connective tissue
+// that reads against any camera feed. The dots themselves stay
+// emerald-500 (#10b981) so the green pops at every landmark anchor
+// while the white strands map the face mesh between them. Brand
+// posture: dots are the "stand out" colour moment, strands are the
+// neutral skeleton. Labels match the dot colour so they read as
+// belonging to the green-dot family.
+const STROKE = '#ffffff';
 const STROKE_WIDTH = 1.5;
 const STROKE_OPACITY = 0.85;
 const VERTEX_COLOR = '#10b981';
