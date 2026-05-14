@@ -2,84 +2,87 @@
 
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaceLandmarker } from '@mediapipe/tasks-vision';
 import type { Landmark } from '@/types';
 
 /**
- * Dense facial mesh overlay rendered during the scan phase. Uses
- * MediaPipe's built-in FACE_LANDMARKS_TESSELATION (~860 triangle edges,
- * deduplicated to ~430 unique line segments) connecting all 478
- * landmarks into a full triangulated mesh that conforms to the user's
- * actual face — forehead, cheeks, nose, eyes, lips, jaw.
+ * Procedural 3D wireframe head model rendered over the camera feed.
  *
- * Visual treatment:
- *   - Strands: pure white, 1px, 55% opacity. Thin, neutral connective
- *     tissue.
- *   - Accent dots: emerald-500 (#10b981) on the most prominent feature
- *     landmarks (eye corners, brow peaks, nose tip, lip corners,
- *     chin, forehead). Larger radius + glow filter so green is the
- *     standout colour.
+ * Generates an ellipsoid in head-local space (sized from face landmarks),
+ * orients it using a rotation matrix derived from the user's actual
+ * facial features (eye line + nose-to-chin direction), and projects it
+ * to 2D for SVG rendering. The result is a lat/long quad-grid wireframe
+ * that wraps the user's head and rotates as they turn — matches the
+ * 3D-head-scanner reference Brian shared instead of the flat face
+ * triangulation we had before.
  *
- * Performance posture: the dedupe runs once at module load. The
- * component itself has no requestAnimationFrame loop — it re-renders
- * only when `landmarks` changes (~30 Hz from useFaceDetection), and
- * the framer-motion fade in/out is the only state-driven animation.
- * SVG rendering of ~430 line elements + ~18 circles per frame; if
- * profiling shows this is janky on mobile, convert to a <canvas> with
- * an imperative draw loop.
+ * Why this approach instead of MediaPipe's built-in FACE_LANDMARKS_
+ * TESSELATION: that constant only connects the 478 face landmarks
+ * into a triangle mesh on the front of the face — it has no volumetric
+ * depth, no lat/long grid pattern, and visually reads as "drawn on"
+ * rather than "wraps around the head." The ellipsoid is procedural, so
+ * we get the regular grid pattern from the reference image plus real
+ * head-pose tracking from feature landmarks.
  */
 
-// Key feature landmarks where the green accent dots fire. Indices are
-// the standard MediaPipe FaceLandmarker numbering (478-point model).
-const ACCENT_LANDMARKS = [
-  // Eyes — outer + inner corners
-  33, 133, 362, 263,
-  // Brows — peaks
-  70, 105, 300, 334,
-  // Nose tip + bridge top
-  1, 168,
-  // Lips — corners + cupid's bow + lower lip centre
-  61, 291, 0, 17,
-  // Chin + forehead centre
-  152, 10,
-  // Cheekbones — outer points
-  234, 454,
-];
+// Lat/long resolution. Higher = denser mesh = closer to the reference
+// but heavier to render. 18x28 lands around ~500 unique line segments
+// in SVG and renders fine on desktop; mobile may want lower.
+const LAT_SEGMENTS = 18;
+const LON_SEGMENTS = 28;
+
+// Head proportions relative to detected face size. Real heads are
+// roughly ~140% as tall as the visible face (forehead → chin), ~150%
+// as wide as the outer-cheek-to-outer-cheek distance (ears stick out),
+// and ~95% as deep as wide. These multipliers keep the ellipsoid
+// reading as "wraps the user's actual head" instead of "floats over
+// their face."
+const HEIGHT_MULT = 1.4;
+const WIDTH_MULT = 1.5;
+const DEPTH_MULT = 0.95;
 
 const STROKE = '#ffffff';
-const STROKE_WIDTH = 1;
-const STROKE_OPACITY = 0.55;
+const STROKE_WIDTH = 0.9;
+const STROKE_OPACITY = 0.65;
+
 const ACCENT_COLOR = '#10b981';
 const ACCENT_RADIUS = 3.5;
 const ACCENT_GLOW = 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.85))';
 
-// Animation timings exported for the scan page (it gates the spiderweb
-// render on its own scan-phase timeline; these constants document the
-// expected duration so the parent can stay in sync).
+// Key facial landmarks for the green accent dots. Standard MediaPipe
+// 478-point numbering.
+const ACCENT_LANDMARKS = [
+  33, 133, 362, 263, // eye corners (outer + inner)
+  70, 105, 300, 334, // brow peaks
+  1, 168, // nose tip + bridge top
+  61, 291, 0, 17, // lip corners + cupid's bow + lower-lip centre
+  152, 10, // chin + forehead centre
+  234, 454, // outer cheekbones
+];
+
 export const SPIDERWEB_TOTAL_MS = 5000;
 export const SPIDERWEB_FADEOUT_MS = 400;
 
-// MediaPipe's tesselation lists every triangle edge twice (once per
-// adjoining triangle). Dedupe by min/max pair so each unique edge is
-// drawn once. Cached at module level so the dedupe runs once for the
-// lifetime of the page rather than per render.
-let CACHED_CONNECTIONS: Array<{ a: number; b: number }> | null = null;
-function getConnections(): Array<{ a: number; b: number }> {
-  if (CACHED_CONNECTIONS) return CACHED_CONNECTIONS;
-  const tess = FaceLandmarker.FACE_LANDMARKS_TESSELATION ?? [];
-  const seen = new Set<string>();
-  const out: Array<{ a: number; b: number }> = [];
-  for (const c of tess) {
-    const a = Math.min(c.start, c.end);
-    const b = Math.max(c.start, c.end);
-    const key = `${a}-${b}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ a, b });
-  }
-  CACHED_CONNECTIONS = out;
-  return out;
-}
+// ---- Vector helpers --------------------------------------------------------
+
+type Vec3 = { x: number; y: number; z: number };
+
+const sub = (a: Vec3, b: Vec3): Vec3 => ({
+  x: a.x - b.x,
+  y: a.y - b.y,
+  z: a.z - b.z,
+});
+const cross = (a: Vec3, b: Vec3): Vec3 => ({
+  x: a.y * b.z - a.z * b.y,
+  y: a.z * b.x - a.x * b.z,
+  z: a.x * b.y - a.y * b.x,
+});
+const len = (v: Vec3): number => Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+const normalize = (v: Vec3): Vec3 => {
+  const l = len(v) || 1;
+  return { x: v.x / l, y: v.y / l, z: v.z / l };
+};
+
+// ---- Component ------------------------------------------------------------
 
 type Props = {
   landmarks: Landmark[];
@@ -98,18 +101,13 @@ export function SpiderwebOverlay({
   videoHeight,
   visible,
 }: Props) {
-  const connections = getConnections();
-
-  // object-cover mapping: the camera <video> uses object-cover so the
-  // displayed video fills the container, cropping whichever axis is
-  // longer. We need to reproduce that mapping when projecting landmark
-  // coords (which are in normalized 0..1 video space) onto the screen
-  // overlay (which is in container px space).
+  // object-cover mapping: the camera <video> fills the container,
+  // cropping whichever axis is longer. Reproduce that mapping when
+  // projecting landmark coords onto the overlay.
   const { displayedW, displayedH, offsetX, offsetY } = useMemo(() => {
     const sa = containerWidth / containerHeight;
     const va = videoWidth / videoHeight;
     if (va > sa) {
-      // video wider than container → fit height, overflow horizontally
       const dH = containerHeight;
       const dW = containerHeight * va;
       return {
@@ -119,7 +117,6 @@ export function SpiderwebOverlay({
         offsetY: 0,
       };
     }
-    // video taller than container → fit width, overflow vertically
     const dW = containerWidth;
     const dH = containerWidth / va;
     return {
@@ -130,8 +127,105 @@ export function SpiderwebOverlay({
     };
   }, [containerWidth, containerHeight, videoWidth, videoHeight]);
 
-  const toPx = (l: Landmark | undefined) =>
-    l ? { x: offsetX + l.x * displayedW, y: offsetY + l.y * displayedH } : null;
+  // Map a normalized landmark to its 3D position in screen-aligned px
+  // space. Landmark x/y are already in [0,1] of the video; z is a
+  // relative depth offset (in roughly the same units as the longer
+  // edge of the video).
+  const lmToPx = (l: Landmark | undefined): Vec3 | null => {
+    if (!l) return null;
+    return {
+      x: offsetX + l.x * displayedW,
+      y: offsetY + l.y * displayedH,
+      z: l.z * displayedW,
+    };
+  };
+
+  // Generate the ellipsoid vertices + project to 2D every render. This
+  // is O(LAT * LON) per frame — ~500 vertices for the default 18×28.
+  // Cheap enough for 30 Hz.
+  const projected = useMemo(() => {
+    const forehead = lmToPx(landmarks[10]);
+    const chin = lmToPx(landmarks[152]);
+    const leftCheek = lmToPx(landmarks[234]);
+    const rightCheek = lmToPx(landmarks[454]);
+    const nose = lmToPx(landmarks[1]);
+    if (!forehead || !chin || !leftCheek || !rightCheek || !nose) return null;
+
+    // Head reference centre — geometric average of the forehead /
+    // chin / cheek anchors. Slightly biased toward the back of the
+    // head so the ellipsoid wraps both the visible face AND the
+    // implied back-of-skull volume.
+    const faceCenter: Vec3 = {
+      x: (forehead.x + chin.x + leftCheek.x + rightCheek.x) / 4,
+      y: (forehead.y + chin.y + leftCheek.y + rightCheek.y) / 4,
+      z: (forehead.z + chin.z + leftCheek.z + rightCheek.z) / 4,
+    };
+
+    // Head local axes derived from the actual face geometry. As the
+    // user rotates their head, these axes rotate with them — which is
+    // exactly what makes the ellipsoid feel 3D.
+    const right = normalize(sub(rightCheek, leftCheek));
+    const down = normalize(sub(chin, forehead));
+    // Forward = right × down points toward the camera (or away,
+    // depending on coordinate convention). MediaPipe's convention has
+    // +Y down + +X right in screen space, so the cross product points
+    // in -Z (toward viewer in MediaPipe space, which means smaller z
+    // = closer to camera).
+    const forward = normalize(cross(right, down));
+
+    // Head dimensions based on cheek-to-cheek + forehead-to-chin.
+    const cheekDist = len(sub(rightCheek, leftCheek));
+    const foreheadChinDist = len(sub(chin, forehead));
+    const halfW = (cheekDist * WIDTH_MULT) / 2;
+    const halfH = (foreheadChinDist * HEIGHT_MULT) / 2;
+    const halfD = (cheekDist * DEPTH_MULT) / 2;
+
+    // Bias the ellipsoid centre slightly back from the face so the
+    // front of the wireframe sits at the surface of the user's face
+    // rather than poking through it.
+    const center: Vec3 = {
+      x: faceCenter.x - forward.x * halfD * 0.4,
+      y: faceCenter.y - forward.y * halfD * 0.4,
+      z: faceCenter.z - forward.z * halfD * 0.4,
+    };
+
+    // Generate ellipsoid vertex grid + project to 2D screen using
+    // simple orthographic projection (drop Z). The landmark Z values
+    // are noisy in MediaPipe so a real perspective projection adds
+    // jitter without much benefit — ortho looks plenty 3D because the
+    // rotation comes from the head-local axes.
+    type ProjectedVert = { x: number; y: number; visible: boolean };
+    const verts: ProjectedVert[] = [];
+    for (let i = 0; i <= LAT_SEGMENTS; i++) {
+      const lat = (i / LAT_SEGMENTS) * Math.PI;
+      const sinLat = Math.sin(lat);
+      const cosLat = Math.cos(lat);
+      const y = cosLat * halfH;
+      for (let j = 0; j <= LON_SEGMENTS; j++) {
+        const lon = (j / LON_SEGMENTS) * 2 * Math.PI;
+        const x = sinLat * Math.cos(lon) * halfW;
+        const z = sinLat * Math.sin(lon) * halfD;
+        // Transform from head-local space into screen space using
+        // the head-local axes (right / down / forward).
+        const sx = center.x + x * right.x + y * down.x + z * forward.x;
+        const sy = center.y + x * right.y + y * down.y + z * forward.y;
+        const sz = center.z + x * right.z + y * down.z + z * forward.z;
+        // Vertex is "visible" (front of head) if its Z is in front of
+        // the head centre, where smaller Z = closer to camera. Used
+        // to dim back-of-head lines so they read as "behind" without
+        // requiring true depth sorting.
+        verts.push({ x: sx, y: sy, visible: sz <= center.z });
+      }
+    }
+    return verts;
+  }, [landmarks, offsetX, offsetY, displayedW, displayedH]);
+
+  const accents = useMemo(() => {
+    return ACCENT_LANDMARKS.map((idx) => {
+      const p = lmToPx(landmarks[idx]);
+      return p ? { i: idx, x: p.x, y: p.y } : null;
+    }).filter((v): v is { i: number; x: number; y: number } => v !== null);
+  }, [landmarks, offsetX, offsetY, displayedW, displayedH]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AnimatePresence>
@@ -140,60 +234,76 @@ export function SpiderwebOverlay({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{
-            duration: SPIDERWEB_FADEOUT_MS / 1000,
-            ease: [0.4, 0, 0.2, 1],
-          }}
+          transition={{ duration: SPIDERWEB_FADEOUT_MS / 1000, ease: [0.4, 0, 0.2, 1] }}
           className="pointer-events-none absolute inset-0 h-full w-full"
           viewBox={`0 0 ${containerWidth} ${containerHeight}`}
           preserveAspectRatio="none"
           aria-hidden="true"
           // Mirror to match the mirrored camera preview (scaleX(-1) on
-          // the <video> element). Without this the mesh would track the
-          // wrong half of the user's face.
+          // the <video> element).
           style={{ transform: 'scaleX(-1)' }}
         >
           <g strokeLinecap="round">
-            {/* Triangle-mesh strands. ~430 unique edges connecting the
-                full 478-landmark face mesh. */}
-            {connections.map((conn) => {
-              const pa = toPx(landmarks[conn.a]);
-              const pb = toPx(landmarks[conn.b]);
-              if (!pa || !pb) return null;
-              return (
+            {projected &&
+              renderEllipsoidLines(projected).map((seg, idx) => (
                 <line
-                  key={`m-${conn.a}-${conn.b}`}
-                  x1={pa.x}
-                  y1={pa.y}
-                  x2={pb.x}
-                  y2={pb.y}
+                  key={`m-${idx}`}
+                  x1={seg.x1}
+                  y1={seg.y1}
+                  x2={seg.x2}
+                  y2={seg.y2}
                   stroke={STROKE}
                   strokeWidth={STROKE_WIDTH}
-                  strokeOpacity={STROKE_OPACITY}
+                  strokeOpacity={seg.front ? STROKE_OPACITY : STROKE_OPACITY * 0.35}
                 />
-              );
-            })}
-            {/* Emerald accent dots on the prominent feature landmarks.
-                These are the "standout colour moment" — bright green
-                anchors that pop against the white skeleton. */}
-            {ACCENT_LANDMARKS.map((i) => {
-              const p = toPx(landmarks[i]);
-              if (!p) return null;
-              return (
-                <circle
-                  key={`a-${i}`}
-                  cx={p.x}
-                  cy={p.y}
-                  r={ACCENT_RADIUS}
-                  fill={ACCENT_COLOR}
-                  opacity={0.95}
-                  style={{ filter: ACCENT_GLOW }}
-                />
-              );
-            })}
+              ))}
+            {accents.map((a) => (
+              <circle
+                key={`a-${a.i}`}
+                cx={a.x}
+                cy={a.y}
+                r={ACCENT_RADIUS}
+                fill={ACCENT_COLOR}
+                opacity={0.95}
+                style={{ filter: ACCENT_GLOW }}
+              />
+            ))}
           </g>
         </motion.svg>
       )}
     </AnimatePresence>
   );
+}
+
+// Walk the LAT × LON grid and emit the lat/long line segments. Each
+// segment carries a `front` flag so we can dim back-of-head lines.
+function renderEllipsoidLines(
+  verts: Array<{ x: number; y: number; visible: boolean }>,
+): Array<{ x1: number; y1: number; x2: number; y2: number; front: boolean }> {
+  const segs: Array<{ x1: number; y1: number; x2: number; y2: number; front: boolean }> = [];
+  const cols = LON_SEGMENTS + 1;
+  for (let i = 0; i < LAT_SEGMENTS; i++) {
+    for (let j = 0; j < LON_SEGMENTS; j++) {
+      const a = verts[i * cols + j];
+      const b = verts[i * cols + (j + 1)];
+      const c = verts[(i + 1) * cols + j];
+      // Latitude line (horizontal): a → b
+      segs.push({
+        x1: a.x,
+        y1: a.y,
+        x2: b.x,
+        y2: b.y,
+        front: a.visible && b.visible,
+      });
+      // Longitude line (vertical): a → c
+      segs.push({
+        x1: a.x,
+        y1: a.y,
+        x2: c.x,
+        y2: c.y,
+        front: a.visible && c.visible,
+      });
+    }
+  }
+  return segs;
 }
