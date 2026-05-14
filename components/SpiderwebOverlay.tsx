@@ -52,11 +52,21 @@ const FADE_OUT_MS = 300;
 const CROSS_START_MS = 3800;
 const CROSS_END_MS = 4900;
 
-const STROKE = '#a1a1aa'; // zinc-400 grey
-const STROKE_WIDTH = 2.5;
-const STROKE_OPACITY = 0.7;
-const VERTEX_COLOR = '#d4d4d8'; // zinc-300
-const LABEL_COLOR = '#a1a1aa';
+// Medium-green vibrant overlay — the visual signature of the scan flow.
+// #10b981 is emerald-500 (the canonical "medium green"): neither the
+// pale green-300 nor the deep forest green-700 territory. Bright enough
+// to read against any camera feed, saturated enough to feel deliberate
+// rather than functional. Strands are thinner than the previous grey
+// pass (1.5 vs 2.5) so the rendered mesh reads as "delicate connective
+// tissue" instead of "drawn-on lines"; dots are larger (4.0 vs 2.5) so
+// each landmark anchor stands out as a vertex, not a tiny speck.
+const STROKE = '#10b981';
+const STROKE_WIDTH = 1.5;
+const STROKE_OPACITY = 0.85;
+const VERTEX_COLOR = '#10b981';
+const VERTEX_RADIUS = 4.0;
+const VERTEX_GLOW = 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.85))';
+const LABEL_COLOR = '#34d399'; // emerald-400 — slightly brighter for legibility
 
 type AbstractSegment = {
   key: string;
@@ -204,15 +214,16 @@ export function SpiderwebOverlay({
             {abstractSegments.map((seg) => {
               const pb = toPx(landmarks[seg.b]);
               if (!pb) return null;
-              const op = now > seg.start + LINE_DURATION_MS / 2 ? 0.85 : 0;
+              const op = now > seg.start + LINE_DURATION_MS / 2 ? 0.95 : 0;
               return (
                 <circle
                   key={`v-${seg.key}`}
                   cx={pb.x}
                   cy={pb.y}
-                  r={2.5}
+                  r={VERTEX_RADIUS}
                   fill={VERTEX_COLOR}
                   opacity={op}
+                  style={{ filter: VERTEX_GLOW }}
                 />
               );
             })}

@@ -25,7 +25,7 @@ import { LeaderboardModal } from '@/components/LeaderboardModal';
 import { AuthModal } from '@/components/AuthModal';
 import { useUser } from '@/hooks/useUser';
 import { readBackNav } from '@/lib/back-nav';
-import { LivePageBorder } from '@/components/LiveMeter';
+import { LivePageBorder, LiveScanMeter } from '@/components/LiveMeter';
 import { MoreDetail } from '@/components/MoreDetail';
 import { getScoreColor } from '@/lib/scoreColor';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
@@ -709,64 +709,97 @@ export default function Home() {
         />
       )}
 
-      {/* Camera + overlays live inside an inset frame so a ~1 inch black
-          margin shows on every edge. Keeps every page (including this
-          one — which fundamentally needs to show your camera feed) on
-          the same brutalist black ground. The LivePageBorder + Spiderweb
-          components are still imported and kept alive in the codebase
-          for a future live-scan visualisation; just not rendered here.
-
-          Margin scales with viewport: 48px on mobile (a hair under 1/2"),
-          96px on sm+ (a clean 1") so phones don't shrink the camera to
-          unusable. Safe-area insets are layered on top via max() so
-          notches + bottom home-bar don't crop into the inset. */}
+      {/* Full-screen camera, fixed inset-0 covers the entire viewport on
+          every device. Black-margin inset removed — Brian preferred the
+          camera filling the viewport with the breathing rim aura as
+          the visual frame instead. */}
       {showCamera && (
-        <div className="fixed inset-0 z-10 bg-black">
-          <div
-            className="absolute overflow-hidden bg-black"
-            style={{
-              top: 'max(env(safe-area-inset-top), 48px)',
-              bottom: 'max(env(safe-area-inset-bottom), 48px)',
-              left: 'max(env(safe-area-inset-left), 48px)',
-              right: 'max(env(safe-area-inset-right), 48px)',
-            }}
-          >
-            <Camera
-              ref={cameraHandleRef}
-              videoRef={videoRef}
-              enabled
-              onReady={handleCameraReady}
-              onError={handleCameraError}
-              onDimensions={handleVideoDimensions}
-            />
+        <div className="fixed inset-0 z-10 overflow-hidden bg-black">
+          <Camera
+            ref={cameraHandleRef}
+            videoRef={videoRef}
+            enabled
+            onReady={handleCameraReady}
+            onError={handleCameraError}
+            onDimensions={handleVideoDimensions}
+          />
 
-            <FaceDetectedPill visible={state.type === 'detected'} />
+          <FaceDetectedPill visible={state.type === 'detected'} />
 
-            {state.type === 'detected' && !scanPhase && (
-              <Countdown durationMs={COUNTDOWN_MS} />
+          {state.type === 'detected' && !scanPhase && (
+            <Countdown durationMs={COUNTDOWN_MS} />
+          )}
+
+          {/* Live meter: top-left battle-style score card. Shows during
+              the 5-second scan phase + the subsequent mapping phase
+              while the heavy /api/score call resolves. */}
+          <LiveScanMeter
+            score={liveScore}
+            visible={scanPhase || state.type === 'mapping'}
+            error={liveError}
+          />
+
+          {/* Tier-coloured viewport rim. Same lifecycle as the meter —
+              both pull from liveScore so they pulse in sync. */}
+          <LivePageBorder
+            color={
+              (scanPhase || state.type === 'mapping') &&
+              liveScore !== null &&
+              !liveError
+                ? getScoreColor(liveScore)
+                : null
+            }
+          />
+
+          {/* Spiderweb facial-landmark mesh — medium-emerald dots +
+              thin strands that draw onto the user's face during the
+              scan phase. Also runs through the mapping phase if we
+              have landmarks (so the visualisation persists while the
+              heavy call resolves). */}
+          {(scanPhase || state.type === 'mapping') &&
+            screenSize.width > 0 &&
+            (landmarks ||
+              (state.type === 'mapping' &&
+                state.frames[state.frames.length - 1]?.landmarks)) && (
+              <SpiderwebOverlay
+                landmarks={
+                  (landmarks as Landmark[] | null) ??
+                  ((state.type === 'mapping'
+                    ? state.frames[state.frames.length - 1]?.landmarks
+                    : null) as Landmark[])
+                }
+                containerWidth={screenSize.width}
+                containerHeight={screenSize.height}
+                videoWidth={videoSize.width}
+                videoHeight={videoSize.height}
+                visible
+              />
             )}
 
-            <AnimatePresence>
-              {showHint && (
-                <motion.p
-                  key="hint"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.4 }}
-                  className="absolute inset-x-0 bottom-6 z-20 text-center text-sm text-white/70"
-                >
-                  look at the camera
-                </motion.p>
-              )}
-            </AnimatePresence>
-
-            {showFaceCountWarning && (
-              <div className="absolute inset-x-6 bottom-6 z-20 bg-black/70 px-3 py-2 text-center text-xs text-white">
-                one face at a time
-              </div>
+          <AnimatePresence>
+            {showHint && (
+              <motion.p
+                key="hint"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.4 }}
+                className="absolute inset-x-0 z-20 text-center text-sm text-white/70"
+                style={{ bottom: 'max(env(safe-area-inset-bottom), 32px)' }}
+              >
+                look at the camera
+              </motion.p>
             )}
-          </div>
+          </AnimatePresence>
+
+          {showFaceCountWarning && (
+            <div
+              className="absolute inset-x-6 z-20 bg-black/70 px-3 py-2 text-center text-xs text-white"
+              style={{ bottom: 'max(env(safe-area-inset-bottom), 32px)' }}
+            >
+              one face at a time
+            </div>
+          )}
         </div>
       )}
 
