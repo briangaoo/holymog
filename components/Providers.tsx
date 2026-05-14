@@ -3,16 +3,23 @@
 import { useEffect, useRef } from 'react';
 import { SessionProvider, useSession } from 'next-auth/react';
 import { AchievementToastContainer } from './AchievementToast';
+import { StorageOutageBanner } from './StorageOutageBanner';
 
 /**
  * Mounts Auth.js's SessionProvider so every client component can call
  * `useSession()` without hitting an unmounted-context error. Also runs
  * the post-sign-in localStorage → account migration via
  * <ScanMigrationWatcher>, and the global achievement-toast container.
+ *
+ * StorageOutageBanner sits as the first child so it renders at the very
+ * top of the document, above AppHeader and every page's wordmark, while
+ * Supabase Storage is wedged for this project. Remove once Storage is
+ * restored (see banner file header).
  */
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
+      <StorageOutageBanner />
       <ScanMigrationWatcher />
       {children}
       <AchievementToastContainer />

@@ -31,27 +31,6 @@ export default function HomePage() {
           className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-12 pt-6 sm:max-w-2xl"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 48px)' }}
         >
-          {/* Temporary storage-outage banner. Remove once Supabase Storage
-              is restored for this project — see ticket in support queue
-              referencing project ref onnxwfkngqsoluevnanp.
-              Avatars / banners / leaderboard photos / scan archives are
-              all served from Supabase Storage; the rest of the app
-              (scanning, scoring, battles, leaderboard data) is unaffected. */}
-          <div
-            className="mb-5 flex items-center gap-2 border-2 border-white/30 bg-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80"
-            style={{ borderRadius: 2 }}
-            role="status"
-            aria-live="polite"
-          >
-            <span aria-hidden className="flex h-1.5 w-1.5 shrink-0">
-              <span className="absolute h-1.5 w-1.5 animate-ping rounded-full bg-white/60" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-white" />
-            </span>
-            <span className="flex-1 leading-snug">
-              IMAGE PREVIEWS TEMPORARILY UNAVAILABLE · STORAGE OUTAGE · SCANS + BATTLES STILL WORK
-            </span>
-          </div>
-
           <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <HomeCard
               href="/scan"
