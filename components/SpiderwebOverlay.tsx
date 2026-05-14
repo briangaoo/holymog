@@ -1,82 +1,84 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FaceLandmarker } from '@mediapipe/tasks-vision';
 import type { Landmark } from '@/types';
 
-const FACE_OUTLINE = [
-  10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152,
-  148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+/**
+ * Dense facial mesh overlay rendered during the scan phase. Uses
+ * MediaPipe's built-in FACE_LANDMARKS_TESSELATION (~860 triangle edges,
+ * deduplicated to ~430 unique line segments) connecting all 478
+ * landmarks into a full triangulated mesh that conforms to the user's
+ * actual face — forehead, cheeks, nose, eyes, lips, jaw.
+ *
+ * Visual treatment:
+ *   - Strands: pure white, 1px, 55% opacity. Thin, neutral connective
+ *     tissue.
+ *   - Accent dots: emerald-500 (#10b981) on the most prominent feature
+ *     landmarks (eye corners, brow peaks, nose tip, lip corners,
+ *     chin, forehead). Larger radius + glow filter so green is the
+ *     standout colour.
+ *
+ * Performance posture: the dedupe runs once at module load. The
+ * component itself has no requestAnimationFrame loop — it re-renders
+ * only when `landmarks` changes (~30 Hz from useFaceDetection), and
+ * the framer-motion fade in/out is the only state-driven animation.
+ * SVG rendering of ~430 line elements + ~18 circles per frame; if
+ * profiling shows this is janky on mobile, convert to a <canvas> with
+ * an imperative draw loop.
+ */
+
+// Key feature landmarks where the green accent dots fire. Indices are
+// the standard MediaPipe FaceLandmarker numbering (478-point model).
+const ACCENT_LANDMARKS = [
+  // Eyes — outer + inner corners
+  33, 133, 362, 263,
+  // Brows — peaks
+  70, 105, 300, 334,
+  // Nose tip + bridge top
+  1, 168,
+  // Lips — corners + cupid's bow + lower lip centre
+  61, 291, 0, 17,
+  // Chin + forehead centre
+  152, 10,
+  // Cheekbones — outer points
+  234, 454,
 ];
-const LEFT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246];
-const RIGHT_EYE = [
-  362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398,
-];
-const LEFT_BROW = [70, 63, 105, 66, 107];
-const RIGHT_BROW = [336, 296, 334, 293, 300];
-const NOSE = [1, 2, 5, 4, 6, 19, 94, 168];
-const LIPS = [61, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318];
-const JAW = [172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397];
 
-const CROSS_PAIRS: Array<[number, number]> = [
-  [468, 473],
-  [49, 279],
-  [61, 291],
-  [152, 10],
-  [133, 362],
-];
-
-type Group = {
-  name: string;
-  indices: number[];
-  start: number;
-  end: number;
-  closed?: boolean;
-};
-
-// 5-second animation matching the live-scan phase duration.
-const GROUPS: Group[] = [
-  { name: 'face', indices: FACE_OUTLINE, start: 0.0, end: 1.4, closed: true },
-  { name: 'leftEye', indices: LEFT_EYE, start: 0.9, end: 2.3, closed: true },
-  { name: 'rightEye', indices: RIGHT_EYE, start: 0.9, end: 2.3, closed: true },
-  { name: 'leftBrow', indices: LEFT_BROW, start: 0.9, end: 2.3 },
-  { name: 'rightBrow', indices: RIGHT_BROW, start: 0.9, end: 2.3 },
-  { name: 'nose', indices: NOSE, start: 1.8, end: 3.0 },
-  { name: 'lips', indices: LIPS, start: 2.5, end: 3.7, closed: true },
-  { name: 'jaw', indices: JAW, start: 3.2, end: 4.4 },
-];
-
-const LINE_DURATION_MS = 500;
-const TOTAL_MS = 5000;
-const FADE_OUT_MS = 300;
-const CROSS_START_MS = 3800;
-const CROSS_END_MS = 4900;
-
-// Strands draw in pure white at 1.5px — thin, vibrant connective tissue
-// that reads against any camera feed. The dots themselves stay
-// emerald-500 (#10b981) so the green pops at every landmark anchor
-// while the white strands map the face mesh between them. Brand
-// posture: dots are the "stand out" colour moment, strands are the
-// neutral skeleton. Labels match the dot colour so they read as
-// belonging to the green-dot family.
 const STROKE = '#ffffff';
-const STROKE_WIDTH = 1.5;
-const STROKE_OPACITY = 0.85;
-const VERTEX_COLOR = '#10b981';
-const VERTEX_RADIUS = 4.0;
-const VERTEX_GLOW = 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.85))';
-const LABEL_COLOR = '#34d399'; // emerald-400 — slightly brighter for legibility
+const STROKE_WIDTH = 1;
+const STROKE_OPACITY = 0.55;
+const ACCENT_COLOR = '#10b981';
+const ACCENT_RADIUS = 3.5;
+const ACCENT_GLOW = 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.85))';
 
-type AbstractSegment = {
-  key: string;
-  a: number;
-  b: number;
-  start: number;
-  label?: boolean;
-};
+// Animation timings exported for the scan page (it gates the spiderweb
+// render on its own scan-phase timeline; these constants document the
+// expected duration so the parent can stay in sync).
+export const SPIDERWEB_TOTAL_MS = 5000;
+export const SPIDERWEB_FADEOUT_MS = 400;
 
-function lineLength(x1: number, y1: number, x2: number, y2: number): number {
-  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+// MediaPipe's tesselation lists every triangle edge twice (once per
+// adjoining triangle). Dedupe by min/max pair so each unique edge is
+// drawn once. Cached at module level so the dedupe runs once for the
+// lifetime of the page rather than per render.
+let CACHED_CONNECTIONS: Array<{ a: number; b: number }> | null = null;
+function getConnections(): Array<{ a: number; b: number }> {
+  if (CACHED_CONNECTIONS) return CACHED_CONNECTIONS;
+  const tess = FaceLandmarker.FACE_LANDMARKS_TESSELATION ?? [];
+  const seen = new Set<string>();
+  const out: Array<{ a: number; b: number }> = [];
+  for (const c of tess) {
+    const a = Math.min(c.start, c.end);
+    const b = Math.max(c.start, c.end);
+    const key = `${a}-${b}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ a, b });
+  }
+  CACHED_CONNECTIONS = out;
+  return out;
 }
 
 type Props = {
@@ -96,20 +98,13 @@ export function SpiderwebOverlay({
   videoHeight,
   visible,
 }: Props) {
-  const [now, setNow] = useState(0);
-  const [startedAt] = useState(() => performance.now());
+  const connections = getConnections();
 
-  useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      setNow(performance.now() - startedAt);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [startedAt]);
-
-  // object-cover mapping: video fills container, cropping the longer axis
+  // object-cover mapping: the camera <video> uses object-cover so the
+  // displayed video fills the container, cropping whichever axis is
+  // longer. We need to reproduce that mapping when projecting landmark
+  // coords (which are in normalized 0..1 video space) onto the screen
+  // overlay (which is in container px space).
   const { displayedW, displayedH, offsetX, offsetY } = useMemo(() => {
     const sa = containerWidth / containerHeight;
     const va = videoWidth / videoHeight;
@@ -117,86 +112,57 @@ export function SpiderwebOverlay({
       // video wider than container → fit height, overflow horizontally
       const dH = containerHeight;
       const dW = containerHeight * va;
-      return { displayedW: dW, displayedH: dH, offsetX: (containerWidth - dW) / 2, offsetY: 0 };
+      return {
+        displayedW: dW,
+        displayedH: dH,
+        offsetX: (containerWidth - dW) / 2,
+        offsetY: 0,
+      };
     }
     // video taller than container → fit width, overflow vertically
     const dW = containerWidth;
     const dH = containerWidth / va;
-    return { displayedW: dW, displayedH: dH, offsetX: 0, offsetY: (containerHeight - dH) / 2 };
+    return {
+      displayedW: dW,
+      displayedH: dH,
+      offsetX: 0,
+      offsetY: (containerHeight - dH) / 2,
+    };
   }, [containerWidth, containerHeight, videoWidth, videoHeight]);
-
-  // Stable abstract list: which landmark pairs + timings (does not depend on landmark coords)
-  const abstractSegments: AbstractSegment[] = useMemo(() => {
-    const segs: AbstractSegment[] = [];
-    for (const group of GROUPS) {
-      const startMs = group.start * 1000;
-      const endMs = group.end * 1000;
-      const span = endMs - startMs;
-      const steps = group.indices.length + (group.closed ? 0 : -1);
-      const perStep = steps > 0 ? Math.max(0, span - LINE_DURATION_MS) / steps : 0;
-
-      for (let i = 0; i < group.indices.length - (group.closed ? 0 : 1); i++) {
-        const a = group.indices[i];
-        const b = group.indices[(i + 1) % group.indices.length];
-        segs.push({
-          key: `${group.name}-${a}-${b}`,
-          a,
-          b,
-          start: startMs + i * perStep,
-        });
-      }
-    }
-    const crossSpan = CROSS_END_MS - CROSS_START_MS;
-    const crossPer = (crossSpan - LINE_DURATION_MS) / Math.max(1, CROSS_PAIRS.length - 1);
-    CROSS_PAIRS.forEach(([a, b], i) => {
-      segs.push({
-        key: `cross-${a}-${b}`,
-        a,
-        b,
-        start: CROSS_START_MS + i * crossPer,
-        label: true,
-      });
-    });
-    return segs;
-  }, []);
 
   const toPx = (l: Landmark | undefined) =>
     l ? { x: offsetX + l.x * displayedW, y: offsetY + l.y * displayedH } : null;
-
-  // IPD scale for label values (recomputed each frame from current landmarks)
-  const ipd = (() => {
-    const a = toPx(landmarks[468]);
-    const b = toPx(landmarks[473]);
-    if (!a || !b) return Math.max(displayedW, displayedH) * 0.18;
-    const len = lineLength(a.x, a.y, b.x, b.y);
-    return len > 0 ? len : Math.max(displayedW, displayedH) * 0.18;
-  })();
 
   return (
     <AnimatePresence>
       {visible && (
         <motion.svg
-          initial={{ opacity: 1 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: FADE_OUT_MS / 1000, ease: [0.4, 0, 0.2, 1] }}
+          transition={{
+            duration: SPIDERWEB_FADEOUT_MS / 1000,
+            ease: [0.4, 0, 0.2, 1],
+          }}
           className="pointer-events-none absolute inset-0 h-full w-full"
           viewBox={`0 0 ${containerWidth} ${containerHeight}`}
           preserveAspectRatio="none"
           aria-hidden="true"
+          // Mirror to match the mirrored camera preview (scaleX(-1) on
+          // the <video> element). Without this the mesh would track the
+          // wrong half of the user's face.
           style={{ transform: 'scaleX(-1)' }}
         >
-          <g>
-            {abstractSegments.map((seg) => {
-              const pa = toPx(landmarks[seg.a]);
-              const pb = toPx(landmarks[seg.b]);
+          <g strokeLinecap="round">
+            {/* Triangle-mesh strands. ~430 unique edges connecting the
+                full 478-landmark face mesh. */}
+            {connections.map((conn) => {
+              const pa = toPx(landmarks[conn.a]);
+              const pb = toPx(landmarks[conn.b]);
               if (!pa || !pb) return null;
-              const len = lineLength(pa.x, pa.y, pb.x, pb.y);
-              const elapsed = Math.max(0, now - seg.start);
-              const progress = Math.min(1, elapsed / LINE_DURATION_MS);
-              const offset = len * (1 - progress);
               return (
                 <line
-                  key={seg.key}
+                  key={`m-${conn.a}-${conn.b}`}
                   x1={pa.x}
                   y1={pa.y}
                   x2={pb.x}
@@ -204,63 +170,30 @@ export function SpiderwebOverlay({
                   stroke={STROKE}
                   strokeWidth={STROKE_WIDTH}
                   strokeOpacity={STROKE_OPACITY}
-                  strokeDasharray={len}
-                  strokeDashoffset={offset}
-                  strokeLinecap="round"
                 />
               );
             })}
-            {abstractSegments.map((seg) => {
-              const pb = toPx(landmarks[seg.b]);
-              if (!pb) return null;
-              const op = now > seg.start + LINE_DURATION_MS / 2 ? 0.95 : 0;
+            {/* Emerald accent dots on the prominent feature landmarks.
+                These are the "standout colour moment" — bright green
+                anchors that pop against the white skeleton. */}
+            {ACCENT_LANDMARKS.map((i) => {
+              const p = toPx(landmarks[i]);
+              if (!p) return null;
               return (
                 <circle
-                  key={`v-${seg.key}`}
-                  cx={pb.x}
-                  cy={pb.y}
-                  r={VERTEX_RADIUS}
-                  fill={VERTEX_COLOR}
-                  opacity={op}
-                  style={{ filter: VERTEX_GLOW }}
+                  key={`a-${i}`}
+                  cx={p.x}
+                  cy={p.y}
+                  r={ACCENT_RADIUS}
+                  fill={ACCENT_COLOR}
+                  opacity={0.95}
+                  style={{ filter: ACCENT_GLOW }}
                 />
               );
             })}
-            {abstractSegments
-              .filter((s) => s.label)
-              .map((seg) => {
-                const pa = toPx(landmarks[seg.a]);
-                const pb = toPx(landmarks[seg.b]);
-                if (!pa || !pb) return null;
-                const elapsed = Math.max(0, now - seg.start - LINE_DURATION_MS);
-                const op = Math.min(0.7, elapsed / 300);
-                if (op <= 0) return null;
-                const mx = (pa.x + pb.x) / 2;
-                const my = (pa.y + pb.y) / 2;
-                const len = lineLength(pa.x, pa.y, pb.x, pb.y);
-                const labelValue = Math.round((len / ipd) * 100);
-                return (
-                  <text
-                    key={`${seg.key}-label`}
-                    x={mx}
-                    y={my - 6}
-                    fill={LABEL_COLOR}
-                    fillOpacity={op}
-                    fontSize={12}
-                    fontFamily="ui-monospace, SFMono-Regular, monospace"
-                    textAnchor="middle"
-                    style={{ transform: 'scaleX(-1)', transformOrigin: `${mx}px ${my}px` }}
-                  >
-                    {labelValue}pt
-                  </text>
-                );
-              })}
           </g>
         </motion.svg>
       )}
     </AnimatePresence>
   );
 }
-
-export const SPIDERWEB_TOTAL_MS = TOTAL_MS;
-export const SPIDERWEB_FADEOUT_MS = FADE_OUT_MS;
