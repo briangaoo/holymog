@@ -154,7 +154,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       style={{ touchAction: 'manipulation' }}
-      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.18em] transition-colors ${
+      className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 px-3 py-3 text-[11px] font-bold uppercase tracking-[0.18em] transition-colors ${
         active
           ? 'bg-white text-black'
           : 'bg-black text-white/50 hover:text-white'

@@ -379,7 +379,7 @@ function BackButton({ onBack }: { onBack: () => void }) {
       onClick={onBack}
       aria-label="Back"
       style={{ touchAction: 'manipulation' }}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-zinc-300 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-zinc-300 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
     >
       <ArrowLeft size={16} />
     </button>
@@ -1341,7 +1341,7 @@ function Lobby({
             type="button"
             onClick={onCopy}
             style={{ touchAction: 'manipulation', borderRadius: 2 }}
-            className="inline-flex h-10 items-center gap-2 border-2 border-white/30 bg-black px-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
+            className="inline-flex h-11 items-center gap-2 border-2 border-white/30 bg-black px-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
           >
             {copied ? (
               <>
@@ -1358,7 +1358,7 @@ function Lobby({
               type="button"
               onClick={onShare}
               style={{ touchAction: 'manipulation', borderRadius: 2 }}
-              className="inline-flex h-10 items-center gap-2 bg-white px-4 text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90"
+              className="inline-flex h-11 items-center gap-2 bg-white px-4 text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90"
             >
               <Share2 size={14} aria-hidden /> SHARE
             </button>

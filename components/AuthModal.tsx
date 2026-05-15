@@ -193,7 +193,8 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                   type="button"
                   onClick={onClose}
                   aria-label="Close"
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors hover:bg-white/[0.10] hover:text-white"
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors hover:bg-white/[0.10] hover:text-white"
                 >
                   <X size={16} />
                 </button>

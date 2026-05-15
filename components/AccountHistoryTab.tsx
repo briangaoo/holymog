@@ -451,10 +451,13 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   const { rank, total } = computeRank(entry.peak_score, entry.opponents);
   const rankStyle = rankBadgeStyle(rank, total);
 
-  // Expansion is pure CSS via `group` + `group-hover` — no React
-  // state, no click handler. Cursor hovers the row → full
-  // participant standings reveal below. Closed when the cursor
-  // moves off.
+  // Expansion: desktop hovers via CSS `group-hover`, mobile taps the
+  // row to toggle `tapped` state. The expanded list shows when EITHER
+  // path is active — `group-hover` from a real pointer, or the
+  // explicit `data-tapped` attribute we set from the click handler.
+  // We keep the CSS path so desktop users still get the friendly
+  // hover-with-transition we just shipped.
+  const [tapped, setTapped] = useState(false);
 
   const opponentNode = (() => {
     if (entry.opponents.length === 0) return <>—</>;
@@ -503,10 +506,29 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   ].sort((a, b) => b.peak_score - a.peak_score);
 
   const canExpand = total > 2;
+  // Inline override for the tap path — when tapped is true the
+  // expanded styles win regardless of hover. When tapped is false the
+  // CSS group-hover does its job. Both paths use the same animated
+  // transition.
+  const expandedInline = tapped
+    ? {
+        maxHeight: 400,
+        opacity: 1,
+        paddingTop: 4,
+        paddingBottom: 12,
+      }
+    : {};
 
   return (
     <li className="group border-t border-white/5 transition-colors hover:bg-white/[0.015]">
-      <div className="flex w-full items-center gap-3 px-4 py-3 text-[13px]">
+      <button
+        type="button"
+        onClick={() => canExpand && setTapped((t) => !t)}
+        disabled={!canExpand}
+        className="flex w-full min-h-[44px] items-center gap-3 px-4 py-3 text-left text-[13px] disabled:cursor-default"
+        style={{ touchAction: 'manipulation' }}
+        aria-expanded={canExpand ? tapped : undefined}
+      >
         <span
           className="inline-flex h-6 min-w-[24px] flex-shrink-0 items-center justify-center px-1.5 font-num text-[11px] font-bold tabular-nums"
           style={{
@@ -548,11 +570,11 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
         <span className="font-num w-12 text-right text-[11px] tabular-nums text-zinc-500">
           {dateLabel}
         </span>
-      </div>
+      </button>
       {canExpand && (
         <ul
           className="flex max-h-0 flex-col gap-px overflow-hidden bg-black px-4 opacity-0 transition-all ease-out group-hover:max-h-[400px] group-hover:pb-3 group-hover:pt-1 group-hover:opacity-100"
-          style={{ transitionDuration: '260ms' }}
+          style={{ transitionDuration: '260ms', ...expandedInline }}
         >
           {standings.map((p, idx) => {
             const placeRank = idx + 1;

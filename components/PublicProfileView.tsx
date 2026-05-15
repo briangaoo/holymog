@@ -870,12 +870,30 @@ function BattleActivityRow({
     })),
   ].sort((a, b) => b.peak_score - a.peak_score);
 
-  // CSS-only hover expansion via `group` + `group-hover`. No state,
-  // no click handler — moving the cursor onto the row reveals every
-  // participant's standings inline below.
+  // Hover for pointer devices via CSS group-hover. Tap-to-toggle for
+  // touch devices — `tapped` state inlines the expanded styles so
+  // the expansion works whether or not :hover ever fires.
+  const [tapped, setTapped] = useState(false);
+  const expandedInline = tapped
+    ? {
+        maxHeight: 400,
+        opacity: 1,
+        paddingTop: 8,
+        paddingBottom: 8,
+        borderTop: '1px solid rgba(255,255,255,0.1)',
+      }
+    : {};
+
   return (
     <li className="group overflow-hidden rounded-sm border border-white/[0.04] bg-white/[0.01] transition-colors hover:bg-white/[0.025]">
-      <div className="flex w-full items-center gap-3 px-3 py-2.5 text-[14px]">
+      <button
+        type="button"
+        onClick={() => canExpand && setTapped((t) => !t)}
+        disabled={!canExpand}
+        className="flex w-full min-h-[44px] items-center gap-3 px-3 py-2.5 text-left text-[14px] disabled:cursor-default"
+        style={{ touchAction: 'manipulation' }}
+        aria-expanded={canExpand ? tapped : undefined}
+      >
         <span
           className="inline-flex h-7 min-w-[28px] flex-shrink-0 items-center justify-center px-1.5 font-num text-[12px] font-bold tabular-nums"
           style={{
@@ -925,11 +943,11 @@ function BattleActivityRow({
             {formatRelativeShort(battle.finished_at)}
           </span>
         )}
-      </div>
+      </button>
       {canExpand && (
         <ul
           className="flex max-h-0 flex-col gap-px overflow-hidden bg-black/40 px-3 opacity-0 transition-all ease-out group-hover:max-h-[400px] group-hover:border-t group-hover:border-white/10 group-hover:py-2 group-hover:opacity-100"
-          style={{ transitionDuration: '250ms' }}
+          style={{ transitionDuration: '250ms', ...expandedInline }}
         >
           {standings.map((p, idx) => {
             const placeRank = idx + 1;

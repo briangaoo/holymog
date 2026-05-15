@@ -299,3 +299,23 @@ body {
 /* 8. signed — handled in component (inline SVG). no class. */
 /* 9–14: data-binding + shader overlays — handled in component. no class. */
 /* === END NAME_FX CLASSES === */
+
+/* iOS Safari zooms in on a text input when its font-size is < 16px.
+ * Force a 16px minimum on every interactive text element AT PHONE
+ * WIDTHS so the design-language smaller font-sizes (text-[13px] etc.)
+ * still apply on tablet / desktop where the zoom doesn't fire. The
+ * max() lets the component opt UP via its own font-size — we just
+ * clamp the minimum to 16px when the viewport is narrow. */
+@media (max-width: 640px) {
+  input[type='text'],
+  input[type='email'],
+  input[type='password'],
+  input[type='search'],
+  input[type='tel'],
+  input[type='url'],
+  input[type='number'],
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
