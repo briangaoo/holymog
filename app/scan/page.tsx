@@ -13,7 +13,6 @@ import {
   UserRound,
 } from 'lucide-react';
 import { Camera, type CameraHandle } from '@/components/Camera';
-import { FaceDetectedPill } from '@/components/FaceDetectedPill';
 import { Countdown } from '@/components/Countdown';
 import { SpiderwebOverlay } from '@/components/SpiderwebOverlay';
 import { ScoreReveal } from '@/components/ScoreReveal';
@@ -783,8 +782,6 @@ export default function Home() {
             onError={handleCameraError}
             onDimensions={handleVideoDimensions}
           />
-
-          <FaceDetectedPill visible={state.type === 'detected'} />
 
           {state.type === 'detected' && !scanPhase && (
             <Countdown durationMs={COUNTDOWN_MS} />

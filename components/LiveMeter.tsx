@@ -60,14 +60,26 @@ type ScanMeterProps = {
 };
 
 /**
- * Top-left live-score card for the scan flow. Compact horizontal pill:
- * pulsing tier-colour dot on the left, tier letter + score number to
- * the right, thin score-bar at the bottom. Tier letter and number are
- * the same scale so neither one dwarfs the other (the previous version
- * had a 44px number next to a 20px letter, which read as unbalanced
- * against the camera feed). No PEAK row, no "LIVE SCAN" label — the
- * pulsing dot alone signals 'live' and the tier letter already gives
- * the user the band they're in.
+ * Top-left live-score slab for the scan flow. Mirrors the substantial
+ * left-edge card the BattleRoom uses (`LiveScoreCard` in
+ * app/mog/BattleRoom.tsx) so the two surfaces feel like the same
+ * product. Brian preferred the battle version's heavier slab over the
+ * previous compact pill — a 48px score reads at a glance and the LIVE
+ * SCORE pip signals "this number is changing in real time."
+ *
+ * Differences from BattleRoom.LiveScoreCard, intentional:
+ *   - No PEAK row — scan is a single shot, there is no all-time-best
+ *     within this flow.
+ *   - No PLAYER handle — single-player, the user is themselves.
+ *   - No improvement / weakness row — /api/quick-score doesn't return
+ *     it during scan; the full /api/score reveal does.
+ *
+ * Same as battle:
+ *   - Solid black background (not glass) so the number is readable
+ *     against any camera feed.
+ *   - 2px tier-coloured border that shifts hue as the score moves.
+ *   - 180px fixed width slab anchored top-3 left-3 of the camera.
+ *   - LIVE pip + score-as-bar.
  */
 export function LiveScanMeter({ score, visible, error = false }: ScanMeterProps) {
   const safeScore = score ?? 50;
@@ -83,55 +95,65 @@ export function LiveScanMeter({ score, visible, error = false }: ScanMeterProps)
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -12 }}
           transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-none absolute z-30 flex flex-col gap-2 px-3 py-2.5"
+          className="pointer-events-none absolute z-30 flex w-[180px] flex-col gap-3 bg-black px-3.5 py-3"
           style={{
             top: 'calc(max(env(safe-area-inset-top), 12px) + 12px)',
             left: 'calc(max(env(safe-area-inset-left), 12px) + 12px)',
-            background: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(8px) saturate(1.4)',
-            WebkitBackdropFilter: 'blur(8px) saturate(1.4)',
             border: `2px solid ${color}`,
             borderRadius: 2,
-            minWidth: 124,
           }}
           aria-hidden
         >
-          {/* Tier letter + score, baseline aligned, same scale. Pulsing
-              dot lives inside the row so the whole pill is one visual
-              unit instead of a header + body. */}
-          <div className="flex items-baseline gap-2">
-            <span aria-hidden className="relative inline-flex h-1.5 w-1.5 self-center">
-              <span
-                className="absolute inset-0 animate-ping rounded-full"
-                style={{ background: `${color}cc` }}
-              />
-              <span
-                className="relative h-1.5 w-1.5 rounded-full"
-                style={{ background: color }}
-              />
+          {/* LIVE pip row. Same as battle's "LIVE SCORE" header. */}
+          <div className="relative flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-white">
+              <span aria-hidden className="relative inline-flex h-1.5 w-1.5">
+                <span
+                  className="absolute inset-0 animate-ping rounded-full"
+                  style={{ background: `${color}cc` }}
+                />
+                <span
+                  className="relative h-1.5 w-1.5 rounded-full"
+                  style={{ background: color }}
+                />
+              </span>
+              LIVE SCORE
             </span>
-            {tier && !error ? (
+          </div>
+
+          {/* Big score + tier letter. Number is the headline (48px);
+              tier letter sits beside it at 20px, same balance as
+              BattleRoom's LiveScoreCard. */}
+          <div className="relative flex items-baseline gap-1.5">
+            <span
+              className="font-num font-black leading-none tabular-nums"
+              style={{
+                color,
+                fontSize: 48,
+                lineHeight: 0.92,
+              }}
+            >
+              {error ? 'N/A' : score !== null ? score : '—'}
+            </span>
+            {tier && !error && (
               <span
-                className="font-num text-[26px] font-black leading-none uppercase tabular-nums"
+                className="font-num text-xl font-black uppercase"
                 style={tierTextStyleInline(safeScore, tier)}
               >
                 {tier.letter}
               </span>
-            ) : null}
-            <span
-              className="font-num ml-auto text-[26px] font-black leading-none tabular-nums"
-              style={{ color }}
-            >
-              {error ? 'N/A' : score !== null ? score : '—'}
-            </span>
+            )}
           </div>
 
-          {/* Score-as-bar — thin, no glow, hits the tier colour. */}
-          <div className="relative h-[3px] w-full bg-white/10">
+          {/* Score-as-bar — square, no glow, hits the tier colour. */}
+          <div className="relative h-1 w-full bg-white/10">
             <span
               className="absolute left-0 top-0 h-full transition-all duration-500"
               style={{
-                width: score !== null && !error ? `${Math.max(0, Math.min(100, score))}%` : '0%',
+                width:
+                  score !== null && !error
+                    ? `${Math.max(0, Math.min(100, score))}%`
+                    : '0%',
                 background: color,
               }}
             />
