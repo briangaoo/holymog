@@ -6,11 +6,14 @@ import {
   Ban,
   Check,
   Eye,
+  Flag,
   Loader2,
   RefreshCw,
   Search,
   ShieldCheck,
   Trash2,
+  UserCog,
+  X,
 } from 'lucide-react';
 
 /**
@@ -84,6 +87,32 @@ type AdminAuditEntry = {
   ip_hash?: string | null;
 };
 
+type Metrics = {
+  total_users: number;
+  signups_today: number;
+  total_scans: number;
+  scans_today: number;
+  total_battles: number;
+  battles_today: number;
+  total_subscribers: number;
+  leaderboard_total: number;
+  pending_reports: number;
+  banned_users: number;
+};
+
+type PendingReport = {
+  id: string;
+  battle_id: string;
+  reporter_user_id: string;
+  reported_user_id: string;
+  reporter_name: string | null;
+  reported_name: string | null;
+  reported_already_banned: boolean;
+  reason: string;
+  details: string | null;
+  created_at: string;
+};
+
 export function AdminConsole({ adminUserId }: { adminUserId: string }) {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -101,6 +130,21 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
 
   const [globalAudit, setGlobalAudit] = useState<AdminAuditEntry[] | null>(null);
   const [globalAuditLoading, setGlobalAuditLoading] = useState(false);
+
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+
+  const [reports, setReports] = useState<PendingReport[] | null>(null);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportActionState, setReportActionState] = useState<
+    Record<string, 'idle' | 'pending' | 'done' | 'error'>
+  >({});
+  const [reportActionError, setReportActionError] = useState<
+    Record<string, string>
+  >({});
+
+  const [viewAsPending, setViewAsPending] = useState(false);
+  const [viewAsError, setViewAsError] = useState<string | null>(null);
 
   const refreshUser = useCallback(async (q: string) => {
     setSearching(true);
@@ -160,9 +204,97 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
     }
   }, []);
 
+  const refreshMetrics = useCallback(async () => {
+    setMetricsLoading(true);
+    try {
+      const res = await fetch('/api/admin/metrics', { cache: 'no-store' });
+      if (!res.ok) {
+        setMetrics(null);
+        return;
+      }
+      const data = (await res.json()) as Metrics;
+      setMetrics(data);
+    } catch {
+      setMetrics(null);
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, []);
+
+  const refreshReports = useCallback(async () => {
+    setReportsLoading(true);
+    try {
+      const res = await fetch('/api/admin/reports?limit=50', {
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        setReports(null);
+        return;
+      }
+      const data = (await res.json()) as { entries: PendingReport[] };
+      setReports(data.entries);
+    } catch {
+      setReports(null);
+    } finally {
+      setReportsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void refreshGlobalAudit();
-  }, [refreshGlobalAudit]);
+    void refreshMetrics();
+    void refreshReports();
+  }, [refreshGlobalAudit, refreshMetrics, refreshReports]);
+
+  const onResolveReport = useCallback(
+    async (reportId: string, action: 'ban' | 'dismiss') => {
+      const r = reports?.find((x) => x.id === reportId);
+      if (!r) return;
+      if (
+        !window.confirm(
+          action === 'ban'
+            ? `BAN @${r.reported_name ?? r.reported_user_id.slice(0, 8)} from this report?\n\nreason that will be emailed:\n${r.reason}`
+            : `dismiss report against @${r.reported_name ?? r.reported_user_id.slice(0, 8)}? no user action, no email.`,
+        )
+      ) {
+        return;
+      }
+      setReportActionState((s) => ({ ...s, [reportId]: 'pending' }));
+      setReportActionError((e) => {
+        const next = { ...e };
+        delete next[reportId];
+        return next;
+      });
+      try {
+        const res = await fetch('/api/admin/report-resolve', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ reportId, action }),
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setReportActionError((e) => ({
+            ...e,
+            [reportId]: body.error ?? `failed (${res.status})`,
+          }));
+          setReportActionState((s) => ({ ...s, [reportId]: 'error' }));
+          return;
+        }
+        setReportActionState((s) => ({ ...s, [reportId]: 'done' }));
+        await Promise.all([refreshReports(), refreshMetrics()]);
+      } catch (err) {
+        setReportActionError((e) => ({
+          ...e,
+          [reportId]: err instanceof Error ? err.message : 'failed',
+        }));
+        setReportActionState((s) => ({ ...s, [reportId]: 'error' }));
+      }
+    },
+    [reports, refreshReports, refreshMetrics],
+  );
 
   const found = result?.kind === 'found' ? result : null;
   const user = found?.user ?? null;
@@ -273,6 +405,42 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
     }
   }, [user, refreshUser]);
 
+  const onViewAs = useCallback(async () => {
+    if (!user) return;
+    if (
+      !window.confirm(
+        `enter @${user.display_name}'s account?\n\nyou will be acting as them. every click on every page is performed as this user until you click EXIT on the banner at the top of the page.\n\naudit log still records every action against your admin id.`,
+      )
+    ) {
+      return;
+    }
+    setViewAsPending(true);
+    setViewAsError(null);
+    try {
+      const res = await fetch('/api/admin/impersonate/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ userId: user.user_id }),
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setViewAsError(body.error ?? `failed (${res.status})`);
+        return;
+      }
+      // Hard navigation so the new ImpersonationBanner server component
+      // gets read with the freshly-set cookie. router.push wouldn't
+      // re-evaluate the layout in some prefetch / RSC cache states.
+      if (typeof window !== 'undefined') {
+        window.location.assign('/account?tab=settings');
+      }
+    } catch (err) {
+      setViewAsError(err instanceof Error ? err.message : 'failed');
+    } finally {
+      setViewAsPending(false);
+    }
+  }, [user]);
+
   const onDeleteScan = useCallback(
     async (scanId: string) => {
       if (!user) return;
@@ -337,6 +505,229 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
       </header>
 
       <main className="mx-auto w-full max-w-3xl px-5 py-6">
+        {/* Metrics panel */}
+        <section
+          className="mb-6 border-2 border-white/20 bg-black"
+          style={{ borderRadius: 2 }}
+        >
+          <header className="flex items-center justify-between px-5 pb-3 pt-5">
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden
+                className="flex h-10 w-10 items-center justify-center border border-white/25 bg-white/[0.04]"
+                style={{ borderRadius: 2 }}
+              >
+                <ShieldCheck size={18} className="text-white" />
+              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[14px] font-bold uppercase tracking-[0.12em] text-white">
+                  SITE METRICS
+                </span>
+                <span className="text-[12px] text-white/50">
+                  live counters · refresh to recompute
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={refreshMetrics}
+              disabled={metricsLoading}
+              className="flex items-center gap-1.5 border-2 border-white/30 bg-black px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:border-white disabled:opacity-40"
+              style={{ borderRadius: 2 }}
+            >
+              {metricsLoading ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <RefreshCw size={11} />
+              )}
+              REFRESH
+            </button>
+          </header>
+          <div className="border-t border-white/15">
+            {metrics === null && !metricsLoading ? (
+              <p className="px-5 py-4 text-[12px] text-white/40">
+                couldn't load metrics.
+              </p>
+            ) : metrics === null ? (
+              <p className="px-5 py-4 text-[12px] text-white/40">loading…</p>
+            ) : (
+              <dl className="grid grid-cols-2 gap-px bg-white/15 sm:grid-cols-5">
+                <Stat label="USERS" value={fmt(metrics.total_users)} accent="white" />
+                <Stat
+                  label="SIGNUPS TODAY"
+                  value={fmt(metrics.signups_today)}
+                  accent="sky"
+                />
+                <Stat label="SCANS" value={fmt(metrics.total_scans)} accent="white" />
+                <Stat
+                  label="SCANS TODAY"
+                  value={fmt(metrics.scans_today)}
+                  accent="emerald"
+                />
+                <Stat label="BATTLES" value={fmt(metrics.total_battles)} accent="white" />
+                <Stat
+                  label="BATTLES TODAY"
+                  value={fmt(metrics.battles_today)}
+                  accent="emerald"
+                />
+                <Stat
+                  label="SUBSCRIBERS"
+                  value={fmt(metrics.total_subscribers)}
+                  accent="amber"
+                />
+                <Stat
+                  label="LEADERBOARD"
+                  value={fmt(metrics.leaderboard_total)}
+                  accent="violet"
+                />
+                <Stat
+                  label="PENDING REPORTS"
+                  value={fmt(metrics.pending_reports)}
+                  accent={metrics.pending_reports > 0 ? 'rose' : 'white'}
+                />
+                <Stat
+                  label="BANNED"
+                  value={fmt(metrics.banned_users)}
+                  accent="rose"
+                />
+              </dl>
+            )}
+          </div>
+        </section>
+
+        {/* Pending reports queue */}
+        <section
+          className="mb-6 border-2 border-white/20 bg-black"
+          style={{ borderRadius: 2 }}
+        >
+          <header className="flex items-center justify-between px-5 pb-3 pt-5">
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden
+                className="flex h-10 w-10 items-center justify-center border border-rose-500/60 bg-rose-500/[0.04]"
+                style={{ borderRadius: 2 }}
+              >
+                <Flag size={18} className="text-rose-400" />
+              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[14px] font-bold uppercase tracking-[0.12em] text-white">
+                  PENDING REPORTS
+                </span>
+                <span className="text-[12px] text-white/50">
+                  oldest first · ban or dismiss inline
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={refreshReports}
+              disabled={reportsLoading}
+              className="flex items-center gap-1.5 border-2 border-white/30 bg-black px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:border-white disabled:opacity-40"
+              style={{ borderRadius: 2 }}
+            >
+              {reportsLoading ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <RefreshCw size={11} />
+              )}
+              REFRESH
+            </button>
+          </header>
+          <div className="border-t border-white/15 px-5 py-3">
+            {reports === null && !reportsLoading ? (
+              <p className="text-[12px] text-white/40">couldn't load reports.</p>
+            ) : reports === null ? (
+              <p className="text-[12px] text-white/40">loading…</p>
+            ) : reports.length === 0 ? (
+              <p className="text-[12px] text-emerald-300/80">
+                queue empty — nothing pending.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {reports.map((r) => {
+                  const state = reportActionState[r.id] ?? 'idle';
+                  const err = reportActionError[r.id];
+                  return (
+                    <li
+                      key={r.id}
+                      className="flex flex-col gap-2 border-2 border-white/15 bg-white/[0.02] px-3 py-2"
+                      style={{ borderRadius: 2 }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-300">
+                            REPORTED @{r.reported_name ?? r.reported_user_id.slice(0, 8)}
+                            {r.reported_already_banned && (
+                              <span className="ml-2 border border-rose-500/60 bg-rose-500/10 px-1.5 py-0.5 text-[9px] text-rose-200">
+                                already banned
+                              </span>
+                            )}
+                          </span>
+                          <span
+                            className="truncate text-[11px] text-white/40"
+                            style={{ textTransform: 'none' }}
+                          >
+                            by @{r.reporter_name ?? r.reporter_user_id.slice(0, 8)} · {shortDateTime(r.created_at)}
+                          </span>
+                        </div>
+                        <div className="flex flex-shrink-0 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onResolveReport(r.id, 'ban')}
+                            disabled={state === 'pending'}
+                            className="flex items-center gap-1 border-2 border-rose-500 bg-rose-500 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-black transition-colors hover:bg-rose-400 disabled:opacity-40"
+                            style={{ borderRadius: 2 }}
+                          >
+                            {state === 'pending' ? (
+                              <Loader2 size={10} className="animate-spin" />
+                            ) : (
+                              <Ban size={10} />
+                            )}
+                            BAN
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onResolveReport(r.id, 'dismiss')}
+                            disabled={state === 'pending'}
+                            className="flex items-center gap-1 border-2 border-white/30 bg-black px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:border-white disabled:opacity-40"
+                            style={{ borderRadius: 2 }}
+                          >
+                            <X size={10} />
+                            DISMISS
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        className="border-l-2 border-white/15 pl-2 text-[12px] text-white/80"
+                        style={{ textTransform: 'none' }}
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+                          REASON:
+                        </span>{' '}
+                        {r.reason}
+                        {r.details && (
+                          <>
+                            <br />
+                            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+                              DETAILS:
+                            </span>{' '}
+                            {r.details}
+                          </>
+                        )}
+                      </div>
+                      {err && (
+                        <div className="text-[11px] text-rose-300">
+                          <AlertTriangle size={11} className="mr-1 inline" /> {err}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </section>
+
         {/* Lookup bar */}
         <section
           className="relative border-2 border-white/20 bg-black"
@@ -444,6 +835,20 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
                 </span>
               </div>
               <div className="flex flex-col items-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={onViewAs}
+                  disabled={viewAsPending}
+                  className="flex items-center gap-1.5 border-2 border-amber-400 bg-black px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300 transition-colors hover:bg-amber-400/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ borderRadius: 2 }}
+                >
+                  {viewAsPending ? (
+                    <Loader2 size={11} className="animate-spin" />
+                  ) : (
+                    <UserCog size={11} />
+                  )}
+                  VIEW AS
+                </button>
                 {user.banned_at ? (
                   <button
                     type="button"
@@ -460,6 +865,11 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
                     UNBAN
                   </button>
                 ) : null}
+                {viewAsError && (
+                  <span className="text-[10px] text-rose-300">
+                    {viewAsError}
+                  </span>
+                )}
               </div>
             </header>
 
@@ -739,13 +1149,14 @@ function Stat({
 }: {
   label: string;
   value: string;
-  accent: 'amber' | 'sky' | 'emerald' | 'violet' | 'white';
+  accent: 'amber' | 'sky' | 'emerald' | 'violet' | 'rose' | 'white';
 }) {
   const accentClass = {
     amber: 'text-amber-300',
     sky: 'text-sky-300',
     emerald: 'text-emerald-300',
     violet: 'text-violet-300',
+    rose: 'text-rose-300',
     white: 'text-white',
   }[accent];
   return (
@@ -761,6 +1172,10 @@ function Stat({
       </span>
     </div>
   );
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString('en-US');
 }
 
 function AuditRow({

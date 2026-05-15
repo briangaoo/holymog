@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import { IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/Providers';
+import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 
 // PolySans (Pangram Pangram) — brand display + body. Self-hosted from
 // app/fonts/ via next/font/local. Four weights, all upright; no italics
@@ -108,7 +109,10 @@ export default function RootLayout({
         className="min-h-full bg-black text-white antialiased"
         suppressHydrationWarning
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          <ImpersonationBanner />
+          {children}
+        </Providers>
       </body>
     </html>
   );

@@ -4,12 +4,18 @@ import Google from 'next-auth/providers/google';
 import Apple from 'next-auth/providers/apple';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import PostgresAdapter from '@auth/pg-adapter';
+import { cookies } from 'next/headers';
 import type { Pool } from 'pg';
 import { getPool } from './db';
 import { magicLinkEmail } from './auth-email';
 import { recordAudit } from './audit';
 import { recordEmailSent } from './emailVolume';
 import { isReservedUsername } from './reservedUsernames';
+import {
+  IMPERSONATION_COOKIE_NAME,
+  isAdminUserId,
+  verifyImpersonationCookie,
+} from './admin';
 
 const MAX_NAME_LEN = 24;
 const MIN_NAME_LEN = 3;
@@ -282,10 +288,36 @@ const config: NextAuthConfig = {
     /**
      * Inject user.id into the session object so client + server can read
      * `session.user.id` without an extra DB roundtrip.
+     *
+     * Admin impersonation: when the request carries a valid HMAC
+     * impersonation cookie AND the actual signed-in user is on the
+     * ADMIN_USER_IDS allowlist, we swap session.user.id to the target
+     * user. session.user._impersonator_id preserves the admin's real
+     * id so downstream code (audit, banner) can still attribute the
+     * action correctly. Any verification failure — bad cookie, expired,
+     * caller isn't admin — falls through to the normal session so
+     * impersonation is fail-safe.
      */
-    session({ session, user }) {
+    async session({ session, user }) {
       if (session.user && user) {
         session.user.id = user.id;
+      }
+      try {
+        const realUserId = session.user?.id;
+        if (!realUserId || !isAdminUserId(realUserId)) return session;
+        const cookieStore = await cookies();
+        const impCookie = cookieStore.get(IMPERSONATION_COOKIE_NAME)?.value;
+        if (!impCookie) return session;
+        const verified = verifyImpersonationCookie(impCookie);
+        // Reject mismatched admin id — a stale cookie minted by a
+        // different admin should not impersonate under the current one.
+        if (!verified || verified.adminUserId !== realUserId) return session;
+        if (verified.targetUserId === realUserId) return session;
+        session.user._impersonator_id = realUserId;
+        session.user.id = verified.targetUserId;
+      } catch {
+        // never let impersonation plumbing break the session — fall
+        // through with the un-swapped session.
       }
       return session;
     },

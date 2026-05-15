@@ -1,4 +1,10 @@
+import { cookies } from 'next/headers';
 import { getPool } from './db';
+import {
+  IMPERSONATION_COOKIE_NAME,
+  isAdminUserId,
+  verifyImpersonationCookie,
+} from './admin';
 
 /**
  * Append-only audit log for sensitive operations. Hits the
@@ -40,6 +46,37 @@ export type AuditEvent = {
 
 export async function recordAudit(event: AuditEvent): Promise<void> {
   try {
+    // Impersonation tracking: when an admin is acting as another user,
+    // the calling code passes the TARGET's user_id (because session.user.id
+    // has been swapped). To preserve the trail back to the real operator,
+    // we re-read the impersonation cookie here and merge the admin's id
+    // into the metadata. We only do this when the verified cookie's
+    // admin_id is on the allowlist — a stray cookie from a former admin
+    // (env-var removed) shouldn't taint future audit records.
+    //
+    // cookies() is only available inside a request scope (route handlers,
+    // server components). In contexts where it's not — e.g. cron jobs,
+    // webhooks — the try/catch around the whole block silently treats
+    // the audit as non-impersonated, which is correct.
+    let metadata = event.metadata ?? {};
+    try {
+      const cookieStore = await cookies();
+      const impCookie = cookieStore.get(IMPERSONATION_COOKIE_NAME)?.value;
+      if (impCookie) {
+        const verified = verifyImpersonationCookie(impCookie);
+        if (verified && isAdminUserId(verified.adminUserId)) {
+          metadata = {
+            ...metadata,
+            impersonated: true,
+            impersonator_user_id: verified.adminUserId,
+          };
+        }
+      }
+    } catch {
+      // no cookie context (cron, webhook, edge) — just skip the
+      // impersonation merge and audit normally.
+    }
+
     const pool = getPool();
     await pool.query(
       `insert into audit_log
@@ -49,7 +86,7 @@ export async function recordAudit(event: AuditEvent): Promise<void> {
         event.userId,
         event.action,
         event.resource ?? null,
-        JSON.stringify(event.metadata ?? {}),
+        JSON.stringify(metadata),
         event.ipHash ?? null,
         event.userAgent?.slice(0, 256) ?? null,
       ],

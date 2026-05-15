@@ -676,6 +676,8 @@ What each label means (pick the ONE biggest weakness):
   skin      — clarity, acne, scarring, texture, dark circles, redness
   hair      — thinning, damaged, unstyled, poor cut, hairline issues
 
+PRECISION: output a fine-grained integer like 73, 81, 67, 92, 58, 84. Do NOT snap to multiples of 5 or 10 — those round numbers are training-data bias, not real precision. Numbers ending in 0 or 5 should be rare; pick the nearest non-round integer (74 or 76, not 75) unless the score genuinely lands exactly on a round number.
+
 Output ONLY: {"overall": <integer 0-100>, "improvement": "<one of the eleven>"}`;
 
 /**
