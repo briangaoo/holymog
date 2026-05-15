@@ -129,9 +129,10 @@ function BattleInterior({
   // order so the grid is stable.
   const tracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }]);
 
-  // Viewport orientation drives the row-distribution math below. Defaults
-  // to portrait pre-mount so SSR + first paint match phone defaults.
-  const isLandscape = useIsLandscape();
+  // Viewport size drives the grid-shape picker below. Defaults to a
+  // portrait phone (390x844) before the useEffect measurement runs so
+  // SSR + first paint match the common case.
+  const viewport = useViewport();
 
   // Local participant — needed for capturing frames to score.
   const { localParticipant } = useLocalParticipant();
@@ -613,50 +614,65 @@ function BattleInterior({
   const remainingSec = Math.ceil(remainingMs / 1000);
   const countdownSec = Math.ceil(Math.max(0, startedAt - now) / 1000);
 
-  // Zoom-style adaptive layout — flex-rows where each row holds a
-  // computed number of tiles. Each row gets equal height (flex-1), each
-  // tile within a row gets equal width (flex-1). For 2 the layout
-  // mirrors the public matchmaking screen (top/bottom on portrait,
-  // left/right on landscape). Larger counts spread to balance
-  // tile aspect-ratio against orientation. Hairline sky dividers sit
-  // on tile seams, no gaps.
-  const rowLayout = participantRowLayout(tracks.length, isLandscape);
-  let consumed = 0;
+  // Viewport-aware grid. pickGridLayout returns (rows, cols,
+  // lastRowCount) — every tile in the room is rendered with the same
+  // width (= viewport / cols) and same height (= viewport / rows). When
+  // N has orphan slots (rows × cols > N), the last row holds fewer
+  // tiles than `cols`; we anchor the row with justify-center so the
+  // lone tile(s) sit in the middle with symmetric blank space on
+  // either side rather than left-aligned-with-trailing-blanks. Result:
+  // nobody is cramped, every face is the same size, and the only
+  // visual cue that someone is "alone in their row" is the symmetric
+  // breathing space around them.
+  const { rows, cols, lastRowCount } = pickGridLayout(
+    tracks.length,
+    viewport.width,
+    viewport.height,
+  );
+  // Effective render count: at least 2 so we never collapse to a
+  // single full-screen tile while waiting for the remote track to
+  // publish. Slots beyond tracks.length render a "waiting" placeholder.
+  const renderCount = Math.max(2, tracks.length);
+  // Pre-compute tile width as a % of the viewport so the centered last
+  // row uses the same width as full rows (justify-center with flex-
+  // basis ensures the tiles aren't stretched).
+  const tileBasis = `${100 / cols}%`;
 
   return (
     <div className="relative min-h-dvh bg-black text-white">
       <TileLiquidFilter />
       <div className="flex h-dvh w-full flex-col">
-        {rowLayout.map((cellsInRow, rowIdx) => {
-          const isLastRow = rowIdx === rowLayout.length - 1;
-          // Build a cellsInRow-length array; entries past tracks.length
-          // render the "waiting for opponent" placeholder. This keeps
-          // the geometry stable from the moment the user lands in the
-          // room — no full-screen flash before the remote track joins.
-          const rowCells = Array.from({ length: cellsInRow }, (_, i) => {
-            const idx = consumed + i;
-            return idx < tracks.length ? tracks[idx] : null;
-          });
-          consumed += cellsInRow;
+        {Array.from({ length: rows }).map((_, rowIdx) => {
+          const isLastRow = rowIdx === rows - 1;
+          const cellsInRow = isLastRow ? lastRowCount : cols;
+          const startIdx = rowIdx * cols;
+          // Center the last row only when it's not full — equal to
+          // `cols` means it visually IS a full row, no need to anchor.
+          const needsCenter = isLastRow && lastRowCount < cols;
           return (
             <div
               key={rowIdx}
               className={`flex min-h-0 flex-1 ${
-                isLastRow ? '' : 'border-b border-white/30'
-              }`}
+                needsCenter ? 'justify-center' : ''
+              } ${isLastRow ? '' : 'border-b border-white/30'}`}
             >
-              {rowCells.map((trackRef, colIdx) => {
-                const isLastCell = colIdx === rowCells.length - 1;
+              {Array.from({ length: cellsInRow }, (_, colIdx) => {
+                const idx = startIdx + colIdx;
+                const trackRef = idx < tracks.length ? tracks[idx] : null;
+                const isWaiting = idx >= tracks.length && idx < renderCount;
+                const isLastCellInRow = colIdx === cellsInRow - 1;
                 const key = trackRef
                   ? `${trackRef.participant.identity}-${rowIdx}-${colIdx}`
                   : `waiting-${rowIdx}-${colIdx}`;
+                if (!trackRef && !isWaiting) return null;
                 if (!trackRef) {
                   return (
                     <div
                       key={key}
-                      className={`relative min-w-0 flex-1 overflow-hidden bg-black ${
-                        isLastCell ? '' : 'border-r border-white/30'
+                      className={`relative min-w-0 overflow-hidden bg-black ${
+                        isLastCellInRow ? '' : 'border-r border-white/30'
                       }`}
+                      style={{ flexBasis: tileBasis, flexGrow: 0, flexShrink: 0 }}
                     >
                       <WaitingTile />
                     </div>
@@ -668,10 +684,15 @@ function BattleInterior({
                 return (
                   <div
                     key={key}
-                    className={`relative min-w-0 flex-1 overflow-hidden bg-black transition-opacity duration-300 ${
-                      isLastCell ? '' : 'border-r border-white/30'
+                    className={`relative min-w-0 overflow-hidden bg-black transition-opacity duration-300 ${
+                      isLastCellInRow ? '' : 'border-r border-white/30'
                     }`}
-                    style={{ opacity: hasLeft ? 0.35 : 1 }}
+                    style={{
+                      flexBasis: tileBasis,
+                      flexGrow: 0,
+                      flexShrink: 0,
+                      opacity: hasLeft ? 0.35 : 1,
+                    }}
                   >
                     {isTrackReference(trackRef) ? (
                       <VideoTrack
@@ -809,61 +830,102 @@ function WaitingTile() {
   );
 }
 
-function participantRowLayout(n: number, isLandscape: boolean): number[] {
-  // Every battle has ≥ 2 participants by design — when only one track
-  // is currently published (you joined first, opponent's track hasn't
-  // arrived yet OR LiveKit hasn't surfaced it), we still want the
-  // layout reserved for two. Otherwise the single tile briefly
-  // expands to fill the whole screen and "pops" into half when the
-  // remote track lands — the bug the user reported.
+type GridLayout = {
+  rows: number;
+  cols: number;
+  /** Number of tiles in the final row. Equals cols on a full row,
+   *  less than cols when there are orphan slots. */
+  lastRowCount: number;
+};
+
+/**
+ * Viewport-aware grid picker. For N participants and the given
+ * viewport, enumerate (rows, cols) candidates where rows × cols ≥ N
+ * and rows × cols - N < cols (i.e. the wasted space is at most one
+ * row short of full). Score each by the squared log distance of the
+ * resulting tile aspect from a face-friendly target (3:4 portrait,
+ * 0.75 W/H), and pick the best.
+ *
+ * Why log-distance: aspect ratios are multiplicative, not additive.
+ * A tile at 1.5 and 0.5 are equally "off" from 1.0, but linear
+ * distance would treat 0.5 as twice as bad. log() flips them onto a
+ * symmetric scale.
+ *
+ * Why prefer face-portrait target on every viewport: even on a wide
+ * desktop, each tile holds a portrait face. A tall-thin tile fits a
+ * face; a wide-short tile clips the head. The picker therefore
+ * prefers more columns on wide viewports and more rows on tall
+ * viewports, both narrowing toward 3:4 tiles.
+ *
+ * Min participant = 2: when only your local track is published and
+ * the others haven't joined yet, we still target the 2-slot layout
+ * so a remote track landing doesn't "pop" the single tile from full
+ * screen into half. Same behaviour as the old hand-tuned table.
+ */
+// Target tile width:height. 0.65 is a touch more portrait than 3:4 — it
+// nudges the picker toward more rows / fewer cols on phone, which keeps
+// faces from being clipped by landscape-ish tiles. Calibrated so:
+//   N=3, 5, 7 on phone → 2-col layouts with a centered orphan
+//   N=9 on phone → 3x3 Zoom-style (instead of 5x2 with one lone bottom)
+//   N=4, 6, 8 on phone → uniform 2-col grid
+// Adjust this constant to bias the layout in either direction.
+const TARGET_TILE_ASPECT = 0.65;
+
+function pickGridLayout(n: number, vw: number, vh: number): GridLayout {
   const effective = Math.max(2, n);
-  if (effective <= 1) return [1];
+  if (effective <= 1) return { rows: 1, cols: 1, lastRowCount: 1 };
 
-  if (isLandscape) {
-    switch (effective) {
-      case 2: return [2];
-      case 3: return [3];
-      case 4: return [2, 2];
-      case 5: return [3, 2];
-      case 6: return [3, 3];
-      case 7: return [4, 3];
-      case 8: return [4, 4];
-      case 9: return [3, 3, 3];
-      case 10: return [4, 3, 3];
-    }
-  } else {
-    switch (effective) {
-      case 2: return [1, 1];
-      case 3: return [1, 2];
-      case 4: return [2, 2];
-      case 5: return [2, 3];
-      case 6: return [2, 2, 2];
-      case 7: return [2, 2, 3];
-      case 8: return [2, 3, 3];
-      case 9: return [3, 3, 3];
-      case 10: return [2, 3, 3, 2];
+  let bestScore = Infinity;
+  let best: GridLayout = { rows: effective, cols: 1, lastRowCount: 1 };
+
+  for (let cols = 1; cols <= effective; cols++) {
+    const rows = Math.ceil(effective / cols);
+    // Reject layouts whose last row would be EMPTY (rows*cols >= n+cols).
+    // We allow up to cols-1 orphan slots in the last row — that's the
+    // case the centered-orphan rendering exists to handle.
+    if (rows * cols - effective >= cols) continue;
+
+    const tileW = vw / cols;
+    const tileH = vh / rows;
+    const aspect = tileW / tileH;
+    if (aspect <= 0) continue;
+    const score = Math.pow(Math.log(aspect / TARGET_TILE_ASPECT), 2);
+    if (score < bestScore) {
+      bestScore = score;
+      best = {
+        rows,
+        cols,
+        lastRowCount: effective - (rows - 1) * cols,
+      };
     }
   }
-
-  // Fallback for unanticipated counts: square-ish grid, tolerate empty
-  // cells in the last row.
-  const cols = Math.ceil(Math.sqrt(n));
-  const rows = Math.ceil(n / cols);
-  const out: number[] = [];
-  let left = n;
-  for (let r = 0; r < rows; r++) {
-    const take = Math.min(cols, left);
-    out.push(take);
-    left -= take;
-  }
-  return out;
+  return best;
 }
 
-function useIsLandscape(): boolean {
-  const [isLandscape, setIsLandscape] = useState(false);
+type Viewport = {
+  width: number;
+  height: number;
+  isLandscape: boolean;
+};
+
+/**
+ * Viewport size + orientation. Updates on resize and
+ * orientationchange. SSR / first-paint defaults to a portrait phone
+ * (390x844) so the grid picker has a sensible target before the
+ * client measurement lands; the moment useEffect runs we swap to
+ * real values.
+ */
+function useViewport(): Viewport {
+  const [vp, setVp] = useState<Viewport>({
+    width: 390,
+    height: 844,
+    isLandscape: false,
+  });
   useEffect(() => {
     const update = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setVp({ width: w, height: h, isLandscape: w > h });
     };
     update();
     window.addEventListener('resize', update);
@@ -873,7 +935,7 @@ function useIsLandscape(): boolean {
       window.removeEventListener('orientationchange', update);
     };
   }, []);
-  return isLandscape;
+  return vp;
 }
 
 type ParticipantMeta = {

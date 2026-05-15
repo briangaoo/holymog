@@ -1482,34 +1482,113 @@ function Joining({
   onReady: (token: string, url: string, startedAt: number) => void;
   onError: () => void;
 }) {
-  const firedRef = useRef(false);
+  // For 2-person battles the old "try once, drop to mode-select on
+  // failure" path was usually fine — only one guest racing the
+  // /api/battle/start broadcast. For 3+ guests, every non-host
+  // races simultaneously, and any of:
+  //   - /state lands before the host's UPDATE has committed
+  //   - /token races LiveKit room creation
+  //   - transient network hiccup on one of two parallel fetches
+  // bounces THAT guest all the way back to mode-select while
+  // everyone else lands in the battle. The retry pattern below
+  // mirrors the public-matchmaking handoff (app/mog/battle/page.tsx)
+  // — up to MAX_ATTEMPTS tries with a short backoff, then a
+  // CONNECTION FAILED overlay with TRY AGAIN / GO BACK so the
+  // user has agency instead of being silently kicked.
+  const MAX_ATTEMPTS = 4;
+  const RETRY_DELAY_MS = 600;
+  const [failed, setFailed] = useState(false);
+  const attemptRef = useRef(0);
+  const cancelledRef = useRef(false);
+  const successRef = useRef(false);
+
+  const attempt = useCallback(async () => {
+    if (cancelledRef.current || successRef.current) return;
+    attemptRef.current += 1;
+    try {
+      const [tokenRes, stateRes] = await Promise.all([
+        fetch(`/api/battle/${battleId}/token`, { cache: 'no-store' }),
+        fetch(`/api/battle/${battleId}/state`, { cache: 'no-store' }),
+      ]);
+      if (!tokenRes.ok || !stateRes.ok) {
+        throw new Error('handoff_failed');
+      }
+      const tokenData = (await tokenRes.json()) as { token: string; url: string };
+      const stateData = (await stateRes.json()) as { started_at: string | null };
+      const startedAt = stateData.started_at
+        ? Date.parse(stateData.started_at)
+        : Date.now();
+      if (cancelledRef.current) return;
+      successRef.current = true;
+      onReady(tokenData.token, tokenData.url, startedAt);
+    } catch {
+      if (cancelledRef.current) return;
+      if (attemptRef.current < MAX_ATTEMPTS) {
+        // Brief backoff before the next retry — gives the host's
+        // start broadcast / LiveKit room create a moment to settle.
+        window.setTimeout(() => {
+          if (!cancelledRef.current && !successRef.current) attempt();
+        }, RETRY_DELAY_MS);
+      } else {
+        setFailed(true);
+      }
+    }
+  }, [battleId, onReady]);
 
   useEffect(() => {
-    if (firedRef.current) return;
-    firedRef.current = true;
-    (async () => {
-      try {
-        const [tokenRes, stateRes] = await Promise.all([
-          fetch(`/api/battle/${battleId}/token`),
-          fetch(`/api/battle/${battleId}/state`, { cache: 'no-store' }),
-        ]);
-        if (!tokenRes.ok || !stateRes.ok) {
-          onError();
-          return;
-        }
-        const tokenData = (await tokenRes.json()) as { token: string; url: string };
-        const stateData = (await stateRes.json()) as { started_at: string | null };
-        const startedAt = stateData.started_at
-          ? Date.parse(stateData.started_at)
-          : Date.now();
-        onReady(tokenData.token, tokenData.url, startedAt);
-      } catch {
-        onError();
-      }
-    })();
-  }, [battleId, onReady, onError]);
+    cancelledRef.current = false;
+    successRef.current = false;
+    attemptRef.current = 0;
+    setFailed(false);
+    void attempt();
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, [attempt]);
 
-  return <CenteredSpinner label="OPPONENT FOUND · JOINING…" />;
+  const onTryAgain = useCallback(() => {
+    attemptRef.current = 0;
+    setFailed(false);
+    void attempt();
+  }, [attempt]);
+
+  if (failed) {
+    return (
+      <div
+        className="flex w-full max-w-sm flex-col gap-4 border-2 border-red-500/60 bg-black p-6 text-center"
+        style={{ borderRadius: 2 }}
+        role="alert"
+      >
+        <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-red-300">
+          CONNECTION FAILED
+        </span>
+        <p className="text-base font-semibold text-white normal-case">
+          couldn&apos;t connect to the battle. the host may have just started
+          — your link might be a moment behind.
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            onClick={onError}
+            style={{ touchAction: 'manipulation', borderRadius: 2 }}
+            className="inline-flex h-11 flex-1 items-center justify-center border-2 border-white/30 bg-black text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
+          >
+            GO BACK
+          </button>
+          <button
+            type="button"
+            onClick={onTryAgain}
+            style={{ touchAction: 'manipulation', borderRadius: 2 }}
+            className="inline-flex h-11 flex-[1.2] items-center justify-center bg-white text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90"
+          >
+            TRY AGAIN
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <CenteredSpinner label="JOINING BATTLE…" />;
 }
 
 function CenteredSpinner({
