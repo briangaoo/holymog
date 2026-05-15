@@ -442,7 +442,17 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
         className="flex items-center gap-3 border border-white/20 bg-black p-3 transition-colors hover:border-white/50 hover:bg-white/[0.03]"
         style={{ borderRadius: 2 }}
       >
-        <div className="w-7 text-right font-num text-sm font-semibold tabular-nums text-white/50">
+        <div
+          className={`w-7 text-right font-num text-sm font-bold tabular-nums ${
+            rank === 1
+              ? 'text-amber-300'
+              : rank === 2
+                ? 'text-zinc-300'
+                : rank === 3
+                  ? 'text-orange-400'
+                  : 'text-white/50'
+          }`}
+        >
           {rank}
         </div>
         <Frame slug={row.equipped_frame ?? null} size={40} userStats={userStats}>
@@ -510,7 +520,17 @@ function BattleRow({ row, rank }: { row: BattleRow; rank: number }) {
         className="flex items-center gap-3 border border-white/20 bg-black p-3 transition-colors hover:border-white/50 hover:bg-white/[0.03]"
         style={{ borderRadius: 2 }}
       >
-        <div className="w-7 text-right font-num text-sm font-semibold tabular-nums text-white/50">
+        <div
+          className={`w-7 text-right font-num text-sm font-bold tabular-nums ${
+            rank === 1
+              ? 'text-amber-300'
+              : rank === 2
+                ? 'text-zinc-300'
+                : rank === 3
+                  ? 'text-orange-400'
+                  : 'text-white/50'
+          }`}
+        >
           {rank}
         </div>
         <Frame slug={row.equipped_frame ?? null} size={40} userStats={userStats}>

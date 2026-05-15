@@ -666,10 +666,15 @@ function StatChip({
   sub?: string | null;
   accent: 'sky' | 'emerald' | 'zinc';
 }) {
-  // Brutalist: accent kept on the type for callsite compat; all variants
-  // resolve to white.
-  void accent;
-  const valueColor = 'text-white';
+  // Map the accent prop to a semantic colour: sky for ELO / neutral
+  // numbers, emerald for positive stats (best scan, wins), zinc for
+  // muted ones.
+  const valueColor =
+    accent === 'sky'
+      ? 'text-sky-300'
+      : accent === 'emerald'
+        ? 'text-emerald-300'
+        : 'text-white';
   return (
     <div
       className="overflow-hidden rounded-sm border border-white/10 px-3 py-3"
@@ -743,7 +748,7 @@ function ClimbChart({
               {trend !== 0 && (
                 <span
                   className={`font-num text-[14px] font-semibold tabular-nums ${
-                    trend > 0 ? 'text-white' : 'text-white/60'
+                    trend > 0 ? 'text-emerald-300' : 'text-rose-300'
                   }`}
                 >
                   {trend > 0 ? '+' : ''}
@@ -817,7 +822,7 @@ function BattleActivity({
                 key={b.battle_id}
                 title={b.is_winner ? 'win' : 'loss'}
                 className={`h-2.5 flex-1 rounded-sm ${
-                  b.is_winner ? 'bg-white/85' : 'bg-white/15'
+                  b.is_winner ? 'bg-emerald-400' : 'bg-rose-500/80'
                 }`}
               />
             ))}

@@ -351,13 +351,13 @@ function MultiplayerSection(props: {
         label="elo"
         value={
           <span className="flex items-center gap-2">
-            <span className="font-num text-lg font-semibold tabular-nums text-white">
+            <span className="font-num text-lg font-semibold tabular-nums text-sky-300">
               {elo}
             </span>
-            <span className="font-num text-[12px] text-zinc-500 tabular-nums">
-              peak {peakElo}
+            <span className="font-num text-[12px] tabular-nums text-zinc-500">
+              peak <span className="text-violet-300">{peakElo}</span>
               {eloDelta < 0 && (
-                <span className="ml-1 text-white/60">{eloDelta}</span>
+                <span className="ml-1 text-rose-300">{eloDelta}</span>
               )}
             </span>
           </span>
@@ -371,8 +371,8 @@ function MultiplayerSection(props: {
               points={sparklinePoints}
               width={140}
               height={32}
-              stroke="rgba(255,255,255,0.85)"
-              fill="rgba(255,255,255,0.10)"
+              stroke="rgba(56,189,248,0.95)"
+              fill="rgba(56,189,248,0.18)"
             />
           }
         />
@@ -381,13 +381,24 @@ function MultiplayerSection(props: {
         label="record"
         value={
           <span className="flex items-center gap-2">
-            <span className="font-num text-[14px] font-semibold tabular-nums uppercase text-white">
-              {ties > 0
-                ? `${wins}W · ${ties}T · ${losses}L`
-                : `${wins}W · ${losses}L`}
+            <span className="font-num text-[14px] font-semibold tabular-nums uppercase">
+              <span className="text-emerald-300">{wins}</span>
+              <span className="text-zinc-500">W</span>
+              {ties > 0 && (
+                <>
+                  <span className="ml-1.5 text-zinc-300">{ties}</span>
+                  <span className="text-zinc-500">T</span>
+                </>
+              )}
+              <span className="ml-1.5 text-rose-300">{losses}</span>
+              <span className="text-zinc-500">L</span>
             </span>
             {winRate !== null && (
-              <span className="font-num text-[12px] tabular-nums text-zinc-500">
+              <span
+                className={`font-num text-[12px] tabular-nums ${
+                  winRate >= 50 ? 'text-emerald-300' : 'text-rose-300'
+                }`}
+              >
                 {winRate}% win rate
               </span>
             )}
@@ -398,11 +409,16 @@ function MultiplayerSection(props: {
         label="streak"
         value={
           <span className="flex items-center gap-2">
-            <span className="font-num text-[14px] font-semibold tabular-nums text-white">
+            <span
+              className={`font-num text-[14px] font-semibold tabular-nums ${
+                currentStreak >= 3 ? 'text-emerald-300' : 'text-white'
+              }`}
+            >
               {currentStreak}
+              {currentStreak >= 3 && <span className="ml-1">🔥</span>}
             </span>
             <span className="font-num text-[12px] tabular-nums text-zinc-500">
-              longest {longestStreak}
+              longest <span className="text-violet-300">{longestStreak}</span>
             </span>
           </span>
         }
@@ -451,10 +467,10 @@ function RecentBattlesSection({
                 r === null
                   ? 'bg-white/[0.06]'
                   : r === 'win'
-                    ? 'bg-white'
+                    ? 'bg-emerald-400'
                     : r === 'tie'
-                      ? 'bg-white/40'
-                      : 'bg-white/15'
+                      ? 'bg-zinc-400'
+                      : 'bg-rose-500/80'
               }`}
               style={{ borderRadius: 1 }}
             />
@@ -510,12 +526,20 @@ function SwingCard({
         borderLeftColor: 'rgba(255,255,255,0.06)',
       }}
     >
-      <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+      <div
+        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+          isWin ? 'text-emerald-300' : 'text-rose-300'
+        }`}
+      >
         <Icon size={11} aria-hidden /> {isWin ? 'BIGGEST WIN' : 'BIGGEST LOSS'}
       </div>
       {entry ? (
         <>
-          <div className="font-num text-2xl font-bold tabular-nums text-white">
+          <div
+            className={`font-num text-2xl font-bold tabular-nums ${
+              isWin ? 'text-emerald-300' : 'text-rose-300'
+            }`}
+          >
             {entry.delta > 0 ? `+${entry.delta}` : entry.delta} elo
           </div>
           <div className="text-[12px] text-zinc-400">
@@ -792,7 +816,7 @@ function WeaknessSection({ counts }: { counts: Record<string, number> }) {
               </span>
               <span
                 className={`font-num w-8 text-right text-[13px] font-semibold tabular-nums ${
-                  isTop ? 'text-white' : 'text-white/50'
+                  isTop ? 'text-violet-300' : 'text-zinc-400'
                 }`}
               >
                 {count}
@@ -820,10 +844,10 @@ function MostImprovedSection({
       accent="emerald"
     >
       <div className="flex items-center gap-3 border-t border-white/15 px-4 py-4">
-        <Sparkles size={18} className="text-white" aria-hidden />
+        <Sparkles size={18} className="text-emerald-300" aria-hidden />
         <span className="text-[14px] text-white">
           your <span className="font-semibold">{most.metric}</span> score is up{' '}
-          <span className="font-num font-semibold tabular-nums text-white">
+          <span className="font-num font-semibold tabular-nums text-emerald-300">
             +{most.delta} pts
           </span>
         </span>

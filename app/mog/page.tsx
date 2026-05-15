@@ -603,19 +603,30 @@ function BattleStats() {
       <div className="grid grid-cols-3 gap-x-4 gap-y-5">
         <Stat
           label="ELO"
+          valueClass="text-sky-300"
           value={profile.elo}
           sub={
             eloDelta < 0 ? (
-              <span className="text-white/60">{eloDelta}</span>
+              <span className="text-rose-300">{eloDelta}</span>
             ) : eloDelta > 0 ? (
-              <span className="text-white/60">+{eloDelta}</span>
+              <span className="text-emerald-300">+{eloDelta}</span>
             ) : null
           }
         />
-        <Stat label="PEAK" value={profile.peak_elo} />
+        <Stat
+          label="PEAK"
+          valueClass="text-violet-300"
+          value={profile.peak_elo}
+        />
         <Stat
           label="STREAK"
-          value={profile.current_streak}
+          valueClass={streakHot ? 'text-emerald-300' : 'text-white'}
+          value={
+            <>
+              {profile.current_streak}
+              {streakHot && <span className="ml-1">🔥</span>}
+            </>
+          }
           sub={
             profile.longest_streak > 0
               ? `LONGEST ${profile.longest_streak}`
@@ -629,29 +640,37 @@ function BattleStats() {
               <span className="text-white/30">—</span>
             ) : ties > 0 ? (
               <>
-                <span className="text-white">{profile.matches_won}</span>
-                <span className="uppercase text-white/40">W · </span>
-                <span className="text-white">{ties}</span>
-                <span className="uppercase text-white/40">T · </span>
-                <span className="text-white">{losses}</span>
-                <span className="uppercase text-white/40">L</span>
+                <span className="text-emerald-300">{profile.matches_won}</span>
+                <span className="uppercase text-zinc-500">W · </span>
+                <span className="text-zinc-300">{ties}</span>
+                <span className="uppercase text-zinc-500">T · </span>
+                <span className="text-rose-300">{losses}</span>
+                <span className="uppercase text-zinc-500">L</span>
               </>
             ) : (
               <>
-                <span className="text-white">{profile.matches_won}</span>
-                <span className="uppercase text-white/40">W · </span>
-                <span className="text-white">{losses}</span>
-                <span className="uppercase text-white/40">L</span>
+                <span className="text-emerald-300">{profile.matches_won}</span>
+                <span className="uppercase text-zinc-500">W · </span>
+                <span className="text-rose-300">{losses}</span>
+                <span className="uppercase text-zinc-500">L</span>
               </>
             )
           }
         />
         <Stat
           label="WIN RATE"
+          valueClass={
+            winRate !== null && winRate >= 50
+              ? 'text-emerald-300'
+              : winRate !== null
+                ? 'text-rose-300'
+                : undefined
+          }
           value={winRate !== null ? `${winRate}%` : <span className="text-white/30">—</span>}
         />
         <Stat
           label="BEST SCAN"
+          valueClass="text-amber-300"
           value={
             profile.best_scan_overall === null ? (
               <span className="text-white/30">—</span>
@@ -685,10 +704,10 @@ function BattleStats() {
               const tied = r.is_tie === true;
               const label = tied ? 'tie' : r.is_winner ? 'win' : 'loss';
               const cls = tied
-                ? 'bg-white/40'
+                ? 'bg-zinc-400'
                 : r.is_winner
-                  ? 'bg-white'
-                  : 'bg-white/15';
+                  ? 'bg-emerald-400'
+                  : 'bg-rose-500/80';
               return (
                 <span
                   key={r.battle_id}
@@ -722,17 +741,25 @@ function Stat({
   label,
   value,
   sub,
+  valueClass,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
+  /** Optional Tailwind class for the value text (e.g. text-sky-300).
+   *  Defaults to text-white when omitted. */
+  valueClass?: string;
 }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
         {label}
       </span>
-      <span className="font-num text-2xl font-extrabold tabular-nums leading-none text-white">
+      <span
+        className={`font-num text-2xl font-extrabold tabular-nums leading-none ${
+          valueClass ?? 'text-white'
+        }`}
+      >
         {value}
       </span>
       {sub && (

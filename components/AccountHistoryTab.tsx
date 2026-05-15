@@ -289,12 +289,12 @@ export function AccountHistoryTab({
                 <SummaryChip
                   label="won"
                   value={String(summary.won)}
-                  color="text-white"
+                  color="text-emerald-300"
                 />
                 <SummaryChip
                   label="lost"
                   value={String(summary.lost)}
-                  color="text-white/60"
+                  color="text-rose-300"
                 />
                 {summary.win_rate !== null && (
                   <SummaryChip
@@ -302,8 +302,8 @@ export function AccountHistoryTab({
                     value={`${summary.win_rate}%`}
                     color={
                       summary.win_rate >= 50
-                        ? 'text-white'
-                        : 'text-zinc-200'
+                        ? 'text-emerald-300'
+                        : 'text-rose-300'
                     }
                   />
                 )}
@@ -311,7 +311,7 @@ export function AccountHistoryTab({
                   <SummaryChip
                     label="best peak"
                     value={String(summary.peak)}
-                    color="text-white"
+                    color="text-violet-300"
                   />
                 )}
               </>
@@ -400,11 +400,16 @@ function FilterChip({
   accent: 'purple' | 'emerald' | 'rose';
   children: React.ReactNode;
 }) {
-  // The accent prop is preserved on the type for callsite compatibility,
-  // but the brutalist redesign collapses all variants to white-on-black
-  // (active) vs muted-white (inactive). Colour-coded filter states are
-  // not part of the new aesthetic.
-  void accent;
+  // Active state pulls a semantic accent so 'won' / 'lost' / 'all' read
+  // as distinct categories instead of a row of identical white pills.
+  // Inactive state stays monochrome (muted white) so the active one
+  // pops.
+  const activeBorder =
+    accent === 'emerald'
+      ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
+      : accent === 'rose'
+        ? 'border-rose-400 bg-rose-500/15 text-rose-200'
+        : 'border-violet-400 bg-violet-500/15 text-violet-200';
   return (
     <button
       type="button"
@@ -412,7 +417,7 @@ function FilterChip({
       style={{ touchAction: 'manipulation', borderRadius: 2 }}
       className={`border-2 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] transition-colors ${
         active
-          ? 'border-white bg-white text-black'
+          ? activeBorder
           : 'border-white/25 bg-black text-white/60 hover:border-white/50 hover:text-white'
       }`}
     >
@@ -475,8 +480,8 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
       <span
         className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center text-[11px] font-bold uppercase ${
           entry.is_winner
-            ? 'bg-white text-black'
-            : 'bg-white/15 text-white/60'
+            ? 'bg-emerald-500/25 text-emerald-200'
+            : 'bg-rose-500/20 text-rose-200'
         }`}
         style={{ borderRadius: 2 }}
       >
@@ -484,7 +489,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
       </span>
       <span
         className={`text-[10px] uppercase tracking-[0.16em] ${
-          entry.kind === 'private' ? 'text-white/70' : 'text-white/40'
+          entry.kind === 'private' ? 'text-amber-300' : 'text-sky-300'
         } w-12`}
       >
         {entry.kind === 'private' ? 'PRIV' : '1V1'}
