@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Camera, Swords } from 'lucide-react';
+import { Camera, Crown, Swords } from 'lucide-react';
 import { getTier } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
 import type { LeaderboardRow } from '@/lib/supabase';
@@ -455,48 +455,189 @@ function InitialAvatar({ name }: { name: string }) {
 
 // ---- Podium (top 3) --------------------------------------------------------
 //
-// Both leaderboard tabs surface their top 3 entries as a podium tower
-// before the regular row list. The podium reuses the same visual
-// language as the battle-finish podium in MogResultScreen — gold
-// border on 1st, silver on 2nd, bronze on 3rd, all in a 2-row stack
-// where 1st is full-width and 2nd + 3rd are side-by-side.
+// Stair-stepped physical podium. Three columns side-by-side ordered
+// 2nd · 1st · 3rd (Olympic convention) with platform heights tuned so
+// 1st sits highest, 2nd in the middle, 3rd shortest. Each column
+// stacks: optional crown → avatar in Frame → name + badge → score →
+// the podium block itself with the rank number ghosted onto its face.
 //
-// Both tab data shapes (LeaderboardRow + BattleRow) feed into a
-// shared LeaderboardPodium via small `kind`-aware adapters so the
-// visual is identical across scans + battles even though the
-// headline metric differs (tier letter vs ELO number).
+// items-end on the parent aligns the bottom of every platform to the
+// same baseline so the "step up" visual reads correctly regardless
+// of how tall each column's header is.
 
-const PODIUM_META: Record<
+const PODIUM_THEME: Record<
   1 | 2 | 3,
-  { accent: string; medal: string; label: string }
+  {
+    accent: string;
+    platformHeight: string;
+    avatarSize: number;
+    scoreSize: string;
+    nameSize: string;
+    bgGradient: string;
+    borderColor: string;
+    shadow: string;
+    rankNumberColor: string;
+    avatarShadow: string;
+  }
 > = {
-  1: { accent: '#fbbf24', medal: '1ST', label: 'GOLD' },
-  2: { accent: '#cbd5e1', medal: '2ND', label: 'SILVER' },
-  3: { accent: '#fb923c', medal: '3RD', label: 'BRONZE' },
+  1: {
+    accent: '#fbbf24',
+    platformHeight: 'h-44 sm:h-52',
+    avatarSize: 88,
+    scoreSize: 'text-3xl sm:text-4xl',
+    nameSize: 'text-sm',
+    bgGradient: 'bg-gradient-to-b from-amber-500/25 via-amber-500/10 to-amber-950/40',
+    borderColor: 'border-amber-500/40',
+    shadow: 'shadow-[0_-12px_56px_-12px_rgba(251,191,36,0.55)]',
+    rankNumberColor: 'text-amber-500/30',
+    avatarShadow: 'drop-shadow-[0_0_24px_rgba(251,191,36,0.6)]',
+  },
+  2: {
+    accent: '#e2e8f0',
+    platformHeight: 'h-32 sm:h-40',
+    avatarSize: 64,
+    scoreSize: 'text-2xl sm:text-3xl',
+    nameSize: 'text-[13px]',
+    bgGradient: 'bg-gradient-to-b from-zinc-300/15 via-zinc-400/5 to-zinc-950/40',
+    borderColor: 'border-zinc-400/30',
+    shadow: 'shadow-[0_-8px_36px_-12px_rgba(226,232,240,0.35)]',
+    rankNumberColor: 'text-zinc-400/35',
+    avatarShadow: 'drop-shadow-[0_0_16px_rgba(226,232,240,0.35)]',
+  },
+  3: {
+    accent: '#fb923c',
+    platformHeight: 'h-24 sm:h-28',
+    avatarSize: 60,
+    scoreSize: 'text-2xl sm:text-3xl',
+    nameSize: 'text-[13px]',
+    bgGradient: 'bg-gradient-to-b from-orange-500/20 via-orange-600/8 to-orange-950/40',
+    borderColor: 'border-orange-500/30',
+    shadow: 'shadow-[0_-8px_28px_-12px_rgba(251,146,60,0.45)]',
+    rankNumberColor: 'text-orange-500/40',
+    avatarShadow: 'drop-shadow-[0_0_14px_rgba(251,146,60,0.4)]',
+  },
 };
+
+/**
+ * One column of the podium. Caller passes whatever should sit above
+ * the platform (avatar, name, score) as `children`; the column owns
+ * the platform itself + the rank-themed sizing/colour.
+ */
+function PodiumColumn({
+  rank,
+  href,
+  children,
+}: {
+  rank: 1 | 2 | 3;
+  href: string;
+  children: React.ReactNode;
+}) {
+  const theme = PODIUM_THEME[rank];
+  const isFirst = rank === 1;
+  return (
+    <Link
+      href={href}
+      className="group flex flex-1 flex-col items-center transition-transform duration-300 hover:-translate-y-0.5"
+      style={{ touchAction: 'manipulation' }}
+    >
+      {/* Crown sits above the 1st-place avatar with a soft yellow glow. */}
+      {isFirst && (
+        <Crown
+          size={20}
+          className="mb-1 text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.85)]"
+          aria-hidden
+        />
+      )}
+      {/* Header content (avatar, name, score) provided by caller. */}
+      <div className="flex flex-col items-center gap-1.5 px-1 text-center">
+        {children}
+      </div>
+      {/* Podium platform — tall block with the rank ghosted onto its
+          face. Rounded-top only so the row of three reads as a single
+          tiered stage. */}
+      <div
+        className={`relative mt-2 flex w-full items-start justify-center overflow-hidden rounded-t-xl border ${theme.borderColor} ${theme.bgGradient} ${theme.shadow} ${theme.platformHeight} transition-all duration-300 group-hover:brightness-110`}
+      >
+        <span
+          className={`pt-3 font-num text-5xl font-black leading-none tabular-nums sm:text-6xl ${theme.rankNumberColor}`}
+          style={{ textShadow: `0 2px 24px ${theme.accent}55` }}
+        >
+          {rank}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * Avatar disc used inside every podium column. Wrapped in the user's
+ * equipped Frame so frames carry through. The accent ring + glow
+ * matches the rank's medal colour.
+ */
+function PodiumAvatar({
+  rank,
+  src,
+  fallbackName,
+  frameSlug,
+  userStats,
+}: {
+  rank: 1 | 2 | 3;
+  src: string | null;
+  fallbackName: string;
+  frameSlug: string | null;
+  userStats: UserStats;
+}) {
+  const theme = PODIUM_THEME[rank];
+  return (
+    <div className={`${theme.avatarShadow}`}>
+      <Frame slug={frameSlug} size={theme.avatarSize} userStats={userStats}>
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <InitialAvatar name={fallbackName} />
+        )}
+      </Frame>
+    </div>
+  );
+}
 
 function ScansPodium({ entries }: { entries: LeaderboardRow[] }) {
   if (entries.length === 0) return null;
+  // 2 - 1 - 3 ordering puts the tallest centred.
+  const order: Array<{ rank: 1 | 2 | 3; row: LeaderboardRow | undefined }> = [
+    { rank: 2, row: entries[1] },
+    { rank: 1, row: entries[0] },
+    { rank: 3, row: entries[2] },
+  ];
   return (
-    <div className="mb-5 flex flex-col gap-3">
-      {entries[0] && <ScanPodiumSpot rank={1} row={entries[0]} />}
-      {(entries[1] || entries[2]) && (
-        <div className="grid grid-cols-2 gap-3">
-          {entries[1] && <ScanPodiumSpot rank={2} row={entries[1]} />}
-          {entries[2] && <ScanPodiumSpot rank={3} row={entries[2]} />}
-        </div>
+    <div className="mb-6 flex items-end justify-center gap-2 sm:gap-3">
+      {order.map(
+        ({ rank, row }) =>
+          row && <ScanPodiumColumn key={rank} rank={rank} row={row} />,
       )}
     </div>
   );
 }
 
-function ScanPodiumSpot({ rank, row }: { rank: 1 | 2 | 3; row: LeaderboardRow }) {
-  const isFirst = rank === 1;
-  const meta = PODIUM_META[rank];
+function ScanPodiumColumn({
+  rank,
+  row,
+}: {
+  rank: 1 | 2 | 3;
+  row: LeaderboardRow;
+}) {
+  const theme = PODIUM_THEME[rank];
   const tier = getTier(row.overall);
   const tierStyle: React.CSSProperties = tier.isGradient
     ? {
-        backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
+        backgroundImage:
+          'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
         WebkitBackgroundClip: 'text',
         backgroundClip: 'text',
         color: 'transparent',
@@ -511,104 +652,73 @@ function ScanPodiumSpot({ rank, row }: { rank: 1 | 2 | 3; row: LeaderboardRow })
     matchesWon: row.matches_won ?? null,
   };
   return (
-    <Link
-      href={`/@${row.name}`}
-      className={`relative flex flex-col items-center gap-2 border-2 bg-black px-3 py-4 text-center transition-colors hover:bg-white/[0.03] ${
-        isFirst ? '' : 'gap-1.5 py-3'
-      }`}
-      style={{
-        borderColor: meta.accent,
-        borderRadius: 2,
-        boxShadow: isFirst
-          ? `0 0 56px -14px ${meta.accent}88, inset 0 0 0 1px ${meta.accent}33`
-          : `0 0 24px -12px ${meta.accent}55`,
-      }}
-    >
-      <span
-        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-black"
-        style={{ background: meta.accent, borderRadius: 2 }}
-      >
-        {meta.medal}
-      </span>
-      <Frame
-        slug={row.equipped_frame ?? null}
-        size={isFirst ? 88 : 56}
+    <PodiumColumn rank={rank} href={`/@${row.name}`}>
+      <PodiumAvatar
+        rank={rank}
+        src={photoSrc}
+        fallbackName={row.name}
+        frameSlug={row.equipped_frame ?? null}
         userStats={userStats}
+      />
+      <span
+        className={`mt-1 flex items-center gap-1 truncate ${theme.nameSize} font-semibold text-white`}
       >
-        {photoSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={photoSrc}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <InitialAvatar name={row.name} />
-        )}
-      </Frame>
-      <div
-        className={`font-num font-black leading-none uppercase ${
-          isFirst ? 'text-6xl' : 'text-4xl'
-        }`}
-        style={tierStyle}
-      >
-        {row.tier}
-      </div>
-      <div
-        className={`font-num font-bold leading-none tabular-nums ${
-          isFirst ? 'text-2xl' : 'text-lg'
-        }`}
-        style={{ color: getScoreColor(row.overall) }}
-      >
-        {row.overall}
-      </div>
-      <div
-        className={`flex items-center gap-1 truncate ${
-          isFirst ? 'text-sm' : 'text-xs'
-        }`}
-      >
-        <span className="truncate font-bold text-white">
-          <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
-            {row.name}
-          </NameFx>
-        </span>
+        <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
+          @{row.name}
+        </NameFx>
         {row.equipped_flair && (
           <Badge
             slug={row.equipped_flair}
-            size={isFirst ? 18 : 14}
+            size={rank === 1 ? 16 : 12}
             userStats={userStats}
           />
         )}
+      </span>
+      <div className="flex items-baseline gap-1">
+        <span
+          className={`font-num font-extrabold leading-none tabular-nums ${theme.scoreSize}`}
+          style={{ color: theme.accent }}
+        >
+          {row.overall}
+        </span>
+        <span
+          className={`font-num font-black uppercase ${
+            rank === 1 ? 'text-base' : 'text-sm'
+          }`}
+          style={tierStyle}
+        >
+          {row.tier}
+        </span>
       </div>
-      {isFirst && (
-        <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-          j {row.jawline} · e {row.eyes} · s {row.skin} · c {row.cheekbones}
-        </div>
-      )}
-    </Link>
+    </PodiumColumn>
   );
 }
 
 function BattlesPodium({ entries }: { entries: BattleRow[] }) {
   if (entries.length === 0) return null;
+  const order: Array<{ rank: 1 | 2 | 3; row: BattleRow | undefined }> = [
+    { rank: 2, row: entries[1] },
+    { rank: 1, row: entries[0] },
+    { rank: 3, row: entries[2] },
+  ];
   return (
-    <div className="mb-5 flex flex-col gap-3">
-      {entries[0] && <BattlePodiumSpot rank={1} row={entries[0]} />}
-      {(entries[1] || entries[2]) && (
-        <div className="grid grid-cols-2 gap-3">
-          {entries[1] && <BattlePodiumSpot rank={2} row={entries[1]} />}
-          {entries[2] && <BattlePodiumSpot rank={3} row={entries[2]} />}
-        </div>
+    <div className="mb-6 flex items-end justify-center gap-2 sm:gap-3">
+      {order.map(
+        ({ rank, row }) =>
+          row && <BattlePodiumColumn key={rank} rank={rank} row={row} />,
       )}
     </div>
   );
 }
 
-function BattlePodiumSpot({ rank, row }: { rank: 1 | 2 | 3; row: BattleRow }) {
-  const isFirst = rank === 1;
-  const meta = PODIUM_META[rank];
-  const losses = Math.max(0, row.matches_played - row.matches_won);
+function BattlePodiumColumn({
+  rank,
+  row,
+}: {
+  rank: 1 | 2 | 3;
+  row: BattleRow;
+}) {
+  const theme = PODIUM_THEME[rank];
   const userStats: UserStats = {
     elo: row.elo,
     matchesWon: row.matches_won,
@@ -616,78 +726,35 @@ function BattlePodiumSpot({ rank, row }: { rank: 1 | 2 | 3; row: BattleRow }) {
     currentWinStreak: row.current_streak ?? null,
   };
   return (
-    <Link
-      href={`/@${row.display_name}`}
-      className={`relative flex flex-col items-center gap-2 border-2 bg-black px-3 py-4 text-center transition-colors hover:bg-white/[0.03] ${
-        isFirst ? '' : 'gap-1.5 py-3'
-      }`}
-      style={{
-        borderColor: meta.accent,
-        borderRadius: 2,
-        boxShadow: isFirst
-          ? `0 0 56px -14px ${meta.accent}88, inset 0 0 0 1px ${meta.accent}33`
-          : `0 0 24px -12px ${meta.accent}55`,
-      }}
-    >
-      <span
-        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-black"
-        style={{ background: meta.accent, borderRadius: 2 }}
-      >
-        {meta.medal}
-      </span>
-      <Frame
-        slug={row.equipped_frame ?? null}
-        size={isFirst ? 88 : 56}
+    <PodiumColumn rank={rank} href={`/@${row.display_name}`}>
+      <PodiumAvatar
+        rank={rank}
+        src={row.avatar_url}
+        fallbackName={row.display_name}
+        frameSlug={row.equipped_frame ?? null}
         userStats={userStats}
+      />
+      <span
+        className={`mt-1 flex items-center gap-1 truncate ${theme.nameSize} font-semibold text-white`}
       >
-        {row.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={row.avatar_url}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <InitialAvatar name={row.display_name} />
-        )}
-      </Frame>
-      <div
-        className={`font-num font-black leading-none tabular-nums text-white ${
-          isFirst ? 'text-6xl' : 'text-4xl'
-        }`}
-      >
-        {row.elo}
-      </div>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-white/50">
-        elo · peak {row.peak_elo}
-      </div>
-      <div
-        className={`flex items-center gap-1 truncate ${
-          isFirst ? 'text-sm' : 'text-xs'
-        }`}
-      >
-        <span className="truncate font-bold text-white">
-          <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
-            {row.display_name}
-          </NameFx>
-        </span>
+        <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
+          @{row.display_name}
+        </NameFx>
         {row.equipped_flair && (
           <Badge
             slug={row.equipped_flair}
-            size={isFirst ? 18 : 14}
+            size={rank === 1 ? 16 : 12}
             userStats={userStats}
           />
         )}
-      </div>
-      {isFirst && (
-        <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-          {row.matches_played === 0
-            ? 'unranked'
-            : `${row.matches_won}w / ${losses}l`}
-        </div>
-      )}
-    </Link>
+      </span>
+      <span
+        className={`font-num font-extrabold leading-none tabular-nums ${theme.scoreSize}`}
+        style={{ color: theme.accent }}
+      >
+        {row.elo}
+      </span>
+    </PodiumColumn>
   );
 }
 

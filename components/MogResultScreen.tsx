@@ -8,7 +8,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Download, Flag, Loader2 } from 'lucide-react';
+import { Crown, Download, Flag, Loader2 } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
 import { NameFx } from '@/components/customization/NameFx';
 import { Frame } from '@/components/customization/Frame';
@@ -1177,35 +1177,29 @@ function ResultPartyBoard({
   const top3 = sortedParticipants.slice(0, 3);
   const honorable = sortedParticipants.slice(3, 5);
   const rest = sortedParticipants.slice(5);
+  // 2 - 1 - 3 ordering puts the tallest column (1st) centred.
+  const podiumOrder: Array<{ rank: 1 | 2 | 3; player: ResultParticipant | undefined }> = [
+    { rank: 2, player: top3[1] },
+    { rank: 1, player: top3[0] },
+    { rank: 3, player: top3[2] },
+  ];
   return (
     <div className="mb-8 flex flex-col items-center gap-6">
-      {/* 1st on top, alone, large */}
-      {top3[0] && (
-        <PodiumSpot
-          rank={1}
-          player={top3[0]}
-          isYou={top3[0].user_id === currentUserId}
-        />
-      )}
-      {/* 2nd + 3rd below, side-by-side */}
-      {(top3[1] || top3[2]) && (
-        <div className="grid w-full max-w-md grid-cols-2 gap-3 sm:gap-4">
-          {top3[1] && (
-            <PodiumSpot
-              rank={2}
-              player={top3[1]}
-              isYou={top3[1].user_id === currentUserId}
-            />
-          )}
-          {top3[2] && (
-            <PodiumSpot
-              rank={3}
-              player={top3[2]}
-              isYou={top3[2].user_id === currentUserId}
-            />
-          )}
-        </div>
-      )}
+      {/* Stair-stepped podium — three columns side by side, 1st in
+          the middle on the tallest platform. */}
+      <div className="flex w-full max-w-md items-end justify-center gap-2 sm:gap-3">
+        {podiumOrder.map(
+          ({ rank, player }) =>
+            player && (
+              <PartyPodiumColumn
+                key={rank}
+                rank={rank}
+                player={player}
+                isYou={player.user_id === currentUserId}
+              />
+            ),
+        )}
+      </div>
       {honorable.length > 0 && (
         <div className="mt-2 w-full max-w-lg">
           <span className="mb-2 block text-center text-[13px] font-medium text-amber-200/70">
@@ -1244,16 +1238,71 @@ function ResultPartyBoard({
   );
 }
 
-const PODIUM_RANK_META: Record<
+// Per-rank theming for the stair-stepped podium. Numbers + classes
+// chosen so 1st sits dramatically higher than the other two without
+// overflowing a phone-portrait viewport. Avatar shadow + drop-shadow
+// pull in a subtle medal-coloured halo around the face.
+const PARTY_PODIUM_THEME: Record<
   1 | 2 | 3,
-  { medal: string; accent: string; label: string }
+  {
+    accent: string;
+    platformHeight: string;
+    avatarSize: number;
+    scoreSize: string;
+    nameSize: string;
+    bgGradient: string;
+    borderColor: string;
+    shadow: string;
+    rankNumberColor: string;
+    avatarShadow: string;
+    scoreDelay: number;
+  }
 > = {
-  1: { medal: '1ST', accent: '#fbbf24', label: 'GOLD' },
-  2: { medal: '2ND', accent: '#cbd5e1', label: 'SILVER' },
-  3: { medal: '3RD', accent: '#fb923c', label: 'BRONZE' },
+  1: {
+    accent: '#fbbf24',
+    platformHeight: 'h-48 sm:h-56',
+    avatarSize: 88,
+    scoreSize: 'text-3xl sm:text-4xl',
+    nameSize: 'text-sm',
+    bgGradient:
+      'bg-gradient-to-b from-amber-500/30 via-amber-500/12 to-amber-950/40',
+    borderColor: 'border-amber-500/45',
+    shadow: 'shadow-[0_-16px_60px_-14px_rgba(251,191,36,0.6)]',
+    rankNumberColor: 'text-amber-500/30',
+    avatarShadow: 'drop-shadow-[0_0_28px_rgba(251,191,36,0.7)]',
+    scoreDelay: 0.2,
+  },
+  2: {
+    accent: '#e2e8f0',
+    platformHeight: 'h-32 sm:h-40',
+    avatarSize: 64,
+    scoreSize: 'text-2xl sm:text-3xl',
+    nameSize: 'text-[13px]',
+    bgGradient:
+      'bg-gradient-to-b from-zinc-300/15 via-zinc-400/5 to-zinc-950/40',
+    borderColor: 'border-zinc-400/30',
+    shadow: 'shadow-[0_-12px_36px_-12px_rgba(226,232,240,0.4)]',
+    rankNumberColor: 'text-zinc-400/35',
+    avatarShadow: 'drop-shadow-[0_0_18px_rgba(226,232,240,0.4)]',
+    scoreDelay: 0.5,
+  },
+  3: {
+    accent: '#fb923c',
+    platformHeight: 'h-24 sm:h-28',
+    avatarSize: 60,
+    scoreSize: 'text-2xl sm:text-3xl',
+    nameSize: 'text-[13px]',
+    bgGradient:
+      'bg-gradient-to-b from-orange-500/22 via-orange-600/8 to-orange-950/40',
+    borderColor: 'border-orange-500/35',
+    shadow: 'shadow-[0_-8px_28px_-12px_rgba(251,146,60,0.5)]',
+    rankNumberColor: 'text-orange-500/40',
+    avatarShadow: 'drop-shadow-[0_0_16px_rgba(251,146,60,0.45)]',
+    scoreDelay: 0.65,
+  },
 };
 
-function PodiumSpot({
+function PartyPodiumColumn({
   rank,
   player,
   isYou,
@@ -1262,95 +1311,87 @@ function PodiumSpot({
   player: ResultParticipant;
   isYou: boolean;
 }) {
-  const meta = PODIUM_RANK_META[rank];
+  const theme = PARTY_PODIUM_THEME[rank];
   const isFirst = rank === 1;
-  const animatedScore = useCountUp(
-    player.final_score,
-    1100,
-    isFirst ? 200 : 350 + rank * 80,
-  );
+  const animatedScore = useCountUp(player.final_score, 1100, theme.scoreDelay * 1000);
   const tier = getTier(player.final_score);
-  const color = getScoreColor(player.final_score);
   const userStats = participantUserStats(player);
-  const avatarSize = isFirst ? 96 : 64;
 
   return (
     <motion.div
-      initial={{ y: 24, opacity: 0, scale: 0.92 }}
-      animate={{ y: 0, opacity: 1, scale: 1 }}
+      initial={{ y: 24, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
       transition={{
-        duration: 0.6,
-        delay: isFirst ? 0.15 : 0.4 + rank * 0.05,
+        duration: 0.55,
+        delay: theme.scoreDelay - 0.1,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className={`relative flex flex-col items-center gap-2 border-2 bg-black px-4 py-5 text-center ${
-        isFirst ? 'w-full max-w-xs' : 'w-full'
-      }`}
-      style={{
-        borderColor: meta.accent,
-        borderRadius: 2,
-        boxShadow: isFirst
-          ? `0 0 56px -12px ${meta.accent}88, inset 0 0 0 1px ${meta.accent}33`
-          : `0 0 24px -10px ${meta.accent}55`,
-      }}
+      className="flex flex-1 flex-col items-center"
     >
-      {/* Rank chip top-right */}
-      <span
-        className="absolute right-2 top-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-black"
-        style={{ background: meta.accent, borderRadius: 2 }}
-      >
-        {meta.medal}
-      </span>
-      {isYou && (
-        <span
-          className="absolute left-2 top-2 inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.22em] text-white"
-          style={{
-            background: 'rgba(255,255,255,0.12)',
-            border: '1px solid rgba(255,255,255,0.3)',
-            borderRadius: 2,
-          }}
-        >
-          YOU
-        </span>
+      {/* Crown above 1st place. */}
+      {isFirst && (
+        <Crown
+          size={22}
+          className="mb-1 text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.9)]"
+          aria-hidden
+        />
       )}
 
-      <Frame
-        slug={player.equipped_frame ?? null}
-        size={avatarSize}
-        userStats={userStats}
-      >
-        {player.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={player.avatar_url}
-            alt=""
-            className="h-full w-full rounded-full object-cover"
-          />
-        ) : (
-          <span className="flex h-full w-full overflow-hidden rounded-full border border-white/15">
-            <AvatarFallback
-              seed={player.display_name}
-              textClassName={isFirst ? 'text-2xl' : 'text-lg'}
+      {/* Avatar with frame + medal-tinted halo. */}
+      <div className={theme.avatarShadow}>
+        <Frame
+          slug={player.equipped_frame ?? null}
+          size={theme.avatarSize}
+          userStats={userStats}
+        >
+          {player.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={player.avatar_url}
+              alt=""
+              className="h-full w-full rounded-full object-cover"
             />
-          </span>
-        )}
-      </Frame>
+          ) : (
+            <span className="flex h-full w-full overflow-hidden rounded-full border border-white/15">
+              <AvatarFallback
+                seed={player.display_name}
+                textClassName={isFirst ? 'text-2xl' : 'text-lg'}
+              />
+            </span>
+          )}
+        </Frame>
+      </div>
 
-      <div className="flex items-baseline gap-1.5">
+      {/* Name + flair pill. */}
+      <span
+        className={`mt-1.5 flex items-center gap-1 truncate font-semibold text-white ${theme.nameSize}`}
+      >
+        <NameFx slug={player.equipped_name_fx ?? null} userStats={userStats}>
+          @{player.display_name}
+        </NameFx>
+        {player.equipped_flair && (
+          <Badge
+            slug={player.equipped_flair}
+            size={isFirst ? 16 : 12}
+            userStats={userStats}
+          />
+        )}
+      </span>
+
+      {/* Score + tier letter. */}
+      <div className="mt-0.5 flex items-baseline gap-1">
         <span
-          className={`font-num font-black leading-none tabular-nums ${
-            isFirst ? 'text-6xl sm:text-7xl' : 'text-4xl'
-          }`}
+          className={`font-num font-extrabold leading-none tabular-nums ${theme.scoreSize}`}
           style={{
-            color,
-            textShadow: `0 0 28px ${color}55`,
+            color: theme.accent,
+            textShadow: `0 0 20px ${theme.accent}55`,
           }}
         >
           {animatedScore}
         </span>
         <span
           className={`font-num font-black uppercase ${
-            isFirst ? 'text-2xl' : 'text-lg'
+            isFirst ? 'text-base' : 'text-sm'
           }`}
           style={tierTextStyle(player.final_score)}
         >
@@ -1358,26 +1399,22 @@ function PodiumSpot({
         </span>
       </div>
 
-      <div
-        className={`flex items-center gap-1.5 ${
-          isFirst ? 'text-base' : 'text-sm'
-        }`}
-      >
-        <span className="truncate font-bold text-white">
-          <NameFx
-            slug={player.equipped_name_fx ?? null}
-            userStats={userStats}
-          >
-            @{player.display_name}
-          </NameFx>
+      {isYou && (
+        <span className="mt-1 inline-flex items-center rounded-md border border-white/30 bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+          You
         </span>
-        {player.equipped_flair && (
-          <Badge
-            slug={player.equipped_flair}
-            size={isFirst ? 22 : 16}
-            userStats={userStats}
-          />
-        )}
+      )}
+
+      {/* Podium platform with rank number ghosted onto its face. */}
+      <div
+        className={`relative mt-2 flex w-full items-start justify-center overflow-hidden rounded-t-xl border ${theme.borderColor} ${theme.bgGradient} ${theme.shadow} ${theme.platformHeight}`}
+      >
+        <span
+          className={`pt-3 font-num text-5xl font-black leading-none tabular-nums sm:text-6xl ${theme.rankNumberColor}`}
+          style={{ textShadow: `0 2px 24px ${theme.accent}55` }}
+        >
+          {rank}
+        </span>
       </div>
     </motion.div>
   );
