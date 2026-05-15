@@ -211,12 +211,19 @@ export function AccountAvatar({ next, context }: Props) {
     <AvatarFallback seed={seed} textClassName="text-xs" />
   );
 
-  // If the user has an equipped frame, wrap with the Frame component;
-  // else render the legacy plain bordered circle so the header is
-  // unchanged for everyone who hasn't customized.
+  // Visible avatar is 32px but the tap target is 44x44 (centered) so
+  // touch users on iOS / Android hit a comfortable hit zone even
+  // though the avatar reads small in the header. The inner element
+  // keeps the existing visual; the wrapping <Link> just adds invisible
+  // padding around it.
   if (profile.equippedFrame) {
     return (
-      <Link href="/account" aria-label="account" className="block">
+      <Link
+        href="/account"
+        aria-label="account"
+        className="inline-flex h-11 w-11 items-center justify-center"
+        style={{ touchAction: 'manipulation' }}
+      >
         <Frame slug={profile.equippedFrame} size={32}>
           {inner}
         </Frame>
@@ -228,9 +235,12 @@ export function AccountAvatar({ next, context }: Props) {
     <Link
       href="/account"
       aria-label="account"
-      className="block h-8 w-8 overflow-hidden rounded-full border border-white/15 transition-opacity hover:opacity-90"
+      className="inline-flex h-11 w-11 items-center justify-center"
+      style={{ touchAction: 'manipulation' }}
     >
-      {inner}
+      <span className="block h-8 w-8 overflow-hidden rounded-full border border-white/15 transition-opacity hover:opacity-90">
+        {inner}
+      </span>
     </Link>
   );
 }

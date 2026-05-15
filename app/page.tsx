@@ -233,7 +233,7 @@ function ActivityStrip({
         LIVE
       </span>
       <ActivityChip
-        label="scans today"
+        label="scans"
         value={scans}
         accent="text-sky-300"
       />
@@ -243,7 +243,7 @@ function ActivityStrip({
         accent="text-emerald-300"
       />
       <ActivityChip
-        label="s+ today"
+        label="s+"
         value={sTier}
         accent="text-amber-300"
         lastCell
@@ -335,7 +335,7 @@ function MeChip({
 
   return (
     <div
-      className="mb-5 grid grid-cols-4 gap-px overflow-hidden border-2 border-white/20 bg-white/15"
+      className="mb-5 grid grid-cols-2 gap-px overflow-hidden border-2 border-white/20 bg-white/15 sm:grid-cols-4"
       style={{ borderRadius: 2 }}
     >
       <MeStat label="elo" value={String(me.elo)} accent="text-amber-300" />
