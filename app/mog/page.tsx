@@ -1320,17 +1320,21 @@ function Lobby({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="border-2 border-white/20 bg-black px-5 py-7" style={{ borderRadius: 2 }}>
+      <div
+        className="relative overflow-hidden rounded-xl border border-sky-500/25 bg-gradient-to-br from-sky-500/[0.06] via-black to-black px-5 py-7"
+      >
         <div className="flex flex-col items-center gap-1.5 text-center">
-          <span className="inline-flex items-center gap-1.5 border border-white/30 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-white" style={{ borderRadius: 2 }}>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-md border border-sky-400/40 bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-200"
+          >
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-white" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/70" />
+              <span className="relative h-1.5 w-1.5 rounded-full bg-sky-400" />
             </span>
-            PARTY CODE
+            Party code
           </span>
-          <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-white/50">
-            SHARE WITH FRIENDS · UP TO 10 PLAYERS
+          <p className="mt-1 text-[12px] text-white/55">
+            Share with friends · up to 10 players
           </p>
         </div>
 
@@ -1344,8 +1348,8 @@ function Lobby({
           {cells.map((ch, idx) => (
             <span
               key={idx}
-              className="font-num inline-flex h-14 w-11 items-center justify-center border-2 border-white/40 bg-black text-3xl font-extrabold uppercase tabular-nums text-white transition-colors group-hover:border-white sm:h-16 sm:w-12 sm:text-[2rem]"
-              style={{ textTransform: 'uppercase', borderRadius: 2 }}
+              className="font-num inline-flex h-14 w-11 items-center justify-center rounded-md border border-sky-400/40 bg-gradient-to-b from-sky-500/[0.05] to-black text-3xl font-extrabold uppercase tabular-nums text-white shadow-[0_0_18px_-6px_rgba(56,189,248,0.45)] transition-all duration-300 group-hover:border-sky-400/80 group-hover:shadow-[0_0_28px_-4px_rgba(56,189,248,0.7)] sm:h-16 sm:w-12 sm:text-[2rem]"
+              style={{ textTransform: 'uppercase' }}
             >
               {ch}
             </span>
@@ -1356,16 +1360,17 @@ function Lobby({
           <button
             type="button"
             onClick={onCopy}
-            style={{ touchAction: 'manipulation', borderRadius: 2 }}
-            className="inline-flex h-11 items-center gap-2 border-2 border-white/30 bg-black px-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
+            style={{ touchAction: 'manipulation' }}
+            className="inline-flex h-11 items-center gap-2 rounded-md border border-white/20 bg-black/60 px-4 text-[13px] font-medium text-white transition-all duration-200 hover:border-white/50 hover:bg-white/[0.06]"
           >
             {copied ? (
               <>
-                <Check size={14} aria-hidden /> COPIED
+                <Check size={14} aria-hidden className="text-emerald-300" />{' '}
+                Copied
               </>
             ) : (
               <>
-                <Copy size={14} aria-hidden /> COPY
+                <Copy size={14} aria-hidden /> Copy
               </>
             )}
           </button>
@@ -1373,23 +1378,23 @@ function Lobby({
             <button
               type="button"
               onClick={onShare}
-              style={{ touchAction: 'manipulation', borderRadius: 2 }}
-              className="inline-flex h-11 items-center gap-2 bg-white px-4 text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90"
+              style={{ touchAction: 'manipulation' }}
+              className="inline-flex h-11 items-center gap-2 rounded-md bg-white px-4 text-[13px] font-semibold text-black transition-all duration-200 hover:bg-zinc-100 hover:shadow-[0_0_24px_-4px_rgba(255,255,255,0.5)]"
             >
-              <Share2 size={14} aria-hidden /> SHARE
+              <Share2 size={14} aria-hidden /> Share
             </button>
           )}
         </div>
       </div>
 
-      <div className="border-2 border-white/20 bg-black p-5" style={{ borderRadius: 2 }}>
+      <div className="rounded-xl border border-white/10 bg-zinc-950/60 p-5">
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/50">
-            IN LOBBY · {participants.length}/10
+          <span className="text-[12px] font-medium text-white/55">
+            In lobby · {participants.length}/10
           </span>
           {participants.length < 2 && (
-            <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">
-              NEED ≥ 2 TO START
+            <span className="text-[11px] text-amber-300/80">
+              Need ≥ 2 to start
             </span>
           )}
         </div>
@@ -1452,72 +1457,66 @@ function Lobby({
                     userStats={userStats}
                   />
                 )}
-                <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-white/50">
+                <span className="flex flex-shrink-0 items-center gap-1.5 text-[11px] text-white/50">
                   {isHostRow && (
-                    <span className="border border-white/30 bg-white/[0.06] px-1.5 py-0.5 text-white" style={{ borderRadius: 2 }}>
-                      HOST
+                    <span className="rounded-md border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-200">
+                      Host
                     </span>
                   )}
-                  {isYou && <span>YOU</span>}
+                  {isYou && <span className="text-white/70">You</span>}
                 </span>
               </motion.li>
             );
           })}
           {participants.length > 0 && participants.length < 2 && (
-            <li
-              className="flex items-center gap-3 border border-dashed border-white/15 bg-white/[0.01] px-3 py-2 text-[11px] uppercase tracking-[0.16em] text-white/40"
-              style={{ borderRadius: 2 }}
-            >
+            <li className="flex items-center gap-3 rounded-md border border-dashed border-white/15 bg-white/[0.01] px-3 py-2 text-[12px] text-white/45">
               <span
                 aria-hidden
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/15"
               >
                 <Loader2 size={12} className="animate-spin text-white/40" />
               </span>
-              WAITING FOR SOMEONE TO JOIN…
+              Waiting for someone to join…
             </li>
           )}
           {participants.length === 0 && (
-            <li className="text-[11px] uppercase tracking-[0.16em] text-white/40">LOADING PARTICIPANTS…</li>
+            <li className="text-[12px] text-white/40">Loading participants…</li>
           )}
         </ul>
       </div>
 
       {startError && (
-        <p className="text-xs uppercase tracking-[0.14em] text-red-300">{startError}</p>
+        <p className="text-[12px] text-rose-300">{startError}</p>
       )}
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={onLeave}
-          style={{ touchAction: 'manipulation', borderRadius: 2 }}
-          className="inline-flex h-11 flex-1 items-center justify-center border-2 border-white/30 bg-black text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
+          style={{ touchAction: 'manipulation' }}
+          className="inline-flex h-11 flex-1 items-center justify-center rounded-md border border-white/20 bg-black/60 text-[13px] font-medium text-white transition-all duration-200 hover:border-white/40 hover:bg-white/[0.04]"
         >
-          LEAVE
+          Leave
         </button>
         {isHost ? (
           <button
             type="button"
             onClick={onStart}
             disabled={!canStart}
-            style={{ touchAction: 'manipulation', borderRadius: 2 }}
-            className="inline-flex h-11 flex-[2] items-center justify-center gap-2 bg-white text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+            style={{ touchAction: 'manipulation' }}
+            className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-md bg-gradient-to-br from-white via-white to-emerald-200 text-[13px] font-semibold text-black transition-all duration-200 hover:shadow-[0_0_28px_-6px_rgba(16,185,129,0.6)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:shadow-none"
           >
             {starting ? (
               <>
-                <Loader2 size={14} className="animate-spin" /> STARTING…
+                <Loader2 size={14} className="animate-spin" /> Starting…
               </>
             ) : (
-              'START BATTLE'
+              'Start battle'
             )}
           </button>
         ) : (
-          <div
-            className="inline-flex h-11 flex-[2] items-center justify-center border-2 border-white/15 bg-black text-xs font-semibold uppercase tracking-[0.18em] text-white/40"
-            style={{ borderRadius: 2 }}
-          >
-            WAITING FOR HOST…
+          <div className="inline-flex h-11 flex-[2] items-center justify-center rounded-md border border-white/10 bg-black/40 text-[13px] font-medium text-white/45">
+            Waiting for host…
           </div>
         )}
       </div>

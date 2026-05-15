@@ -96,22 +96,20 @@ export function Section({
   return (
     <section
       id={id}
-      className="relative border-2 border-white/20 bg-black"
-      style={{ borderRadius: 2 }}
+      className="relative rounded-xl border border-white/10 bg-zinc-950/60"
     >
       <header className="relative flex items-center gap-3.5 px-5 pb-3 pt-5">
         {Icon && (
           <span
             aria-hidden
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center border border-white/25 bg-white/[0.04]"
-            style={{ borderRadius: 2 }}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-white/15 bg-white/[0.04]"
           >
             <Icon size={18} aria-hidden className="text-white" />
           </span>
         )}
         <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-          <span className="text-[14px] font-bold uppercase leading-tight tracking-[0.12em] text-white">
-            {label}
+          <span className="text-[15px] font-semibold leading-tight text-white">
+            {label.charAt(0).toUpperCase() + label.slice(1)}
           </span>
           {description && (
             <span className="text-[12px] leading-relaxed text-white/50">
@@ -130,21 +128,21 @@ export function Section({
 export function SaveIndicator({ state }: { state: SaveState }) {
   if (state.kind === 'pending') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] text-white/50">
-        <Loader2 size={11} className="animate-spin" aria-hidden /> SAVING
+      <span className="inline-flex items-center gap-1 text-[11px] text-white/55">
+        <Loader2 size={11} className="animate-spin" aria-hidden /> Saving
       </span>
     );
   }
   if (state.kind === 'saved') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] text-white">
-        <Check size={11} aria-hidden /> SAVED
+      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-300">
+        <Check size={11} aria-hidden /> Saved
       </span>
     );
   }
   if (state.kind === 'error') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-red-400">
+      <span className="inline-flex items-center gap-1 text-[11px] text-rose-400">
         <AlertTriangle size={11} aria-hidden /> {state.message}
       </span>
     );

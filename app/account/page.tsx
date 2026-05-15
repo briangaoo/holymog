@@ -288,37 +288,41 @@ function AccountPageInner() {
           {prefetched.me?.profile?.display_name && (
             <Link
               href={`/@${prefetched.me.profile.display_name}`}
-              className="ml-auto border-2 border-white/30 bg-black px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
-              style={{ borderRadius: 2 }}
+              className="ml-auto rounded-md border border-white/20 bg-black/40 px-3 py-2 text-[12px] font-medium text-white/80 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.05] hover:text-white"
             >
-              VIEW PUBLIC PROFILE
+              View public profile
             </Link>
           )}
         </header>
 
         <nav
           aria-label="account tabs"
-          className="mb-6 flex gap-5 border-b-2 border-white/20 text-xs"
+          className="mb-6 flex gap-6 border-b border-white/15 text-xs"
         >
           {(['stats', 'history', 'settings'] as Tab[]).map((t) => {
             const active = tab === t;
+            const labelMap: Record<Tab, string> = {
+              stats: 'Stats',
+              history: 'History',
+              settings: 'Settings',
+            };
             return (
               <button
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
                 style={{ touchAction: 'manipulation' }}
-                className={`relative -mb-0.5 px-0.5 pb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] transition-colors ${
+                className={`relative -mb-px px-0.5 pb-3 text-[13px] font-medium transition-colors ${
                   active
                     ? 'text-white'
-                    : 'text-white/40 hover:text-white/70'
+                    : 'text-white/45 hover:text-white/75'
                 }`}
               >
-                {t.toUpperCase()}
+                {labelMap[t]}
                 {active && (
                   <span
                     aria-hidden
-                    className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-white"
+                    className="absolute -bottom-px left-0 right-0 h-0.5 rounded-t bg-gradient-to-r from-emerald-400 via-white to-emerald-400 shadow-[0_0_12px_rgba(255,255,255,0.6)]"
                   />
                 )}
               </button>
