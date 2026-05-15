@@ -550,7 +550,10 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
         </span>
       </div>
       {canExpand && (
-        <ul className="hidden flex-col gap-px bg-black px-4 pb-3 group-hover:flex">
+        <ul
+          className="flex max-h-0 flex-col gap-px overflow-hidden bg-black px-4 opacity-0 transition-all ease-out group-hover:max-h-[400px] group-hover:pb-3 group-hover:pt-1 group-hover:opacity-100"
+          style={{ transitionDuration: '260ms' }}
+        >
           {standings.map((p, idx) => {
             const placeRank = idx + 1;
             const placeStyle = rankBadgeStyle(placeRank, total);

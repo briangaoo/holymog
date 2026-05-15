@@ -927,7 +927,10 @@ function BattleActivityRow({
         )}
       </div>
       {canExpand && (
-        <ul className="hidden flex-col gap-px border-t border-white/10 bg-black/40 px-3 py-2 group-hover:flex">
+        <ul
+          className="flex max-h-0 flex-col gap-px overflow-hidden bg-black/40 px-3 opacity-0 transition-all ease-out group-hover:max-h-[400px] group-hover:border-t group-hover:border-white/10 group-hover:py-2 group-hover:opacity-100"
+          style={{ transitionDuration: '250ms' }}
+        >
           {standings.map((p, idx) => {
             const placeRank = idx + 1;
             const placeStyle = battleRankStyle(placeRank, total);
