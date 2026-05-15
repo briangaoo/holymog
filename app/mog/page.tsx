@@ -282,8 +282,8 @@ export default function MogPage() {
       <main className="relative mx-auto w-full max-w-md px-5 py-6 sm:max-w-2xl">
         <div className="mb-6 flex items-center gap-3">
           <BackButton onBack={onBack} />
-          <h1 className="text-2xl font-bold uppercase tracking-tight text-white">
-            MOG BATTLES
+          <h1 className="bg-gradient-to-br from-white via-rose-100 to-rose-300 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
+            Mog battles
           </h1>
         </div>
 
@@ -409,39 +409,44 @@ function ModeSelect({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Hero "find a battle" — brutalist square with hard white border,
-          no glow, uppercase. */}
+      {/* Hero "find a battle" — rose ambient glow + pulsing pip to
+          signal LIVE matchmaking. Card lifts on hover and pulls in
+          a soft rose halo so it visibly invites the primary action. */}
       <button
         type="button"
         onClick={findBattle}
-        style={{ touchAction: 'manipulation', borderRadius: 2 }}
-        className="group relative flex w-full flex-col border-2 border-white/40 bg-black p-7 text-left transition-colors hover:border-white hover:bg-white/[0.03]"
+        style={{ touchAction: 'manipulation' }}
+        className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-rose-500/30 bg-gradient-to-br from-rose-500/[0.08] via-black to-black p-7 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-400/70 hover:shadow-[0_0_44px_-6px_rgba(244,63,94,0.55)]"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <span aria-hidden className="relative flex h-2 w-2">
-                <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
-                <span className="relative h-2 w-2 rounded-full bg-white" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-rose-400/70" />
+                <span className="relative h-2 w-2 rounded-full bg-rose-400" />
               </span>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
-                RANKED · LIVE
+              <span className="text-[11px] font-medium text-rose-300/90">
+                Ranked · live
               </span>
             </div>
-            <Swords size={36} aria-hidden className="text-white" />
+            <Swords
+              size={36}
+              aria-hidden
+              className="text-rose-300 transition-transform duration-300 group-hover:scale-110"
+            />
             <div className="flex flex-col gap-1">
-              <span className="text-3xl font-bold uppercase leading-none tracking-tight text-white">
-                FIND A BATTLE
+              <span className="text-3xl font-bold leading-none tracking-tight text-white transition-colors duration-300 group-hover:text-rose-100">
+                Find a battle
               </span>
-              <span className="text-[11px] uppercase tracking-[0.16em] text-white/70">
-                1V1 AGAINST A STRANGER · ~15S INCL. MATCHMAKING
+              <span className="text-[12px] text-white/70">
+                1v1 against a stranger · ~15s incl. matchmaking
               </span>
             </div>
           </div>
           <ArrowRight
             size={20}
             aria-hidden
-            className="mt-1 text-white/70 transition-transform group-hover:translate-x-1"
+            className="mt-1 text-rose-300/70 transition-all duration-300 group-hover:translate-x-1 group-hover:text-rose-200"
           />
         </div>
       </button>
@@ -449,40 +454,51 @@ function ModeSelect({
       {/* Section divider — small label so the parties block reads as
           "alternative" and the hero clearly dominates. */}
       <div className="flex items-center gap-3 px-1 pt-1">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/40">
-          OR PLAY WITH FRIENDS
+        <span className="text-[11px] text-white/40">
+          Or play with friends
         </span>
-        <span aria-hidden className="h-px flex-1 bg-white/15" />
+        <span
+          aria-hidden
+          className="h-px flex-1 bg-gradient-to-r from-white/15 to-transparent"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
           onClick={onCreate}
-          style={{ touchAction: 'manipulation', borderRadius: 2 }}
-          className="group flex w-full flex-col gap-2.5 border-2 border-white/30 bg-black p-5 text-left transition-colors hover:border-white hover:bg-white/[0.03]"
+          style={{ touchAction: 'manipulation' }}
+          className="group flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-sky-500/25 bg-gradient-to-br from-sky-500/[0.05] via-black to-black p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-sky-400/70 hover:shadow-[0_0_28px_-6px_rgba(56,189,248,0.5)]"
         >
-          <Users size={20} aria-hidden className="text-white" />
-          <span className="text-base font-bold uppercase tracking-tight text-white">
-            CREATE PARTY
+          <Users
+            size={20}
+            aria-hidden
+            className="text-sky-300 transition-transform duration-300 group-hover:scale-110"
+          />
+          <span className="text-base font-semibold tracking-tight text-white">
+            Create party
           </span>
-          <span className="text-[10px] uppercase tracking-[0.18em] text-white/50">
-            SHARE A CODE · UP TO 10
+          <span className="text-[11px] text-white/50">
+            Share a code · up to 10
           </span>
         </button>
 
         <button
           type="button"
           onClick={onJoin}
-          style={{ touchAction: 'manipulation', borderRadius: 2 }}
-          className="group flex w-full flex-col gap-2.5 border-2 border-white/30 bg-black p-5 text-left transition-colors hover:border-white hover:bg-white/[0.03]"
+          style={{ touchAction: 'manipulation' }}
+          className="group flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-violet-500/25 bg-gradient-to-br from-violet-500/[0.05] via-black to-black p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-400/70 hover:shadow-[0_0_28px_-6px_rgba(168,85,247,0.5)]"
         >
-          <Search size={20} aria-hidden className="text-white" />
-          <span className="text-base font-bold uppercase tracking-tight text-white">
-            JOIN PARTY
+          <Search
+            size={20}
+            aria-hidden
+            className="text-violet-300 transition-transform duration-300 group-hover:scale-110"
+          />
+          <span className="text-base font-semibold tracking-tight text-white">
+            Join party
           </span>
-          <span className="text-[10px] uppercase tracking-[0.18em] text-white/50">
-            ENTER A 6-CHAR CODE
+          <span className="text-[11px] text-white/50">
+            Enter a 6-char code
           </span>
         </button>
       </div>

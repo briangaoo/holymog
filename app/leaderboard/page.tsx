@@ -91,14 +91,26 @@ export default function LeaderboardPage() {
 
   return (
     <div className="relative min-h-dvh bg-black">
+      {/* Soft violet wash anchored top-right — sets the leaderboard's
+          podium / royal vibe without adding any geometry. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-80"
+        style={{
+          background:
+            'radial-gradient(circle at 80% 0%, rgba(168,85,247,0.16) 0%, transparent 50%), radial-gradient(circle at 0% 100%, rgba(251,191,36,0.08) 0%, transparent 55%)',
+        }}
+      />
       <AppHeader authNext="/leaderboard" />
 
-      <main className="mx-auto w-full max-w-md px-5 pb-12 pt-4">
-        <h1 className="mb-1 text-2xl font-bold uppercase tracking-tight text-white">LEADERBOARD</h1>
-        <p className="mb-4 text-[10px] uppercase tracking-[0.18em] text-white/50">
+      <main className="relative mx-auto w-full max-w-md px-5 pb-12 pt-4">
+        <h1 className="mb-1 bg-gradient-to-br from-white via-violet-100 to-amber-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
+          Leaderboard
+        </h1>
+        <p className="mb-4 text-[12px] text-white/50">
           {tab === 'scans'
-            ? 'TOP SCAN SCORES · SORTED BY OVERALL'
-            : 'TOP 1V1 BATTLES · SORTED BY ELO'}
+            ? 'Top scan scores · sorted by overall'
+            : 'Top 1v1 battles · sorted by ELO'}
         </p>
 
         <TabBar tab={tab} onChange={setTab} />
@@ -121,18 +133,20 @@ function TabBar({
   onChange: (next: Tab) => void;
 }) {
   return (
-    <div className="mb-5 grid grid-cols-2 gap-0 border-2 border-white/20 bg-black p-0" style={{ borderRadius: 2 }}>
+    <div
+      className="mb-5 grid grid-cols-2 gap-0 overflow-hidden rounded-lg border border-white/15 bg-black/60 p-0 backdrop-blur"
+    >
       <TabButton
         active={tab === 'scans'}
         onClick={() => onChange('scans')}
         icon={<Camera size={14} aria-hidden />}
-        label="SCANS"
+        label="Scans"
       />
       <TabButton
         active={tab === 'battles'}
         onClick={() => onChange('battles')}
         icon={<Swords size={14} aria-hidden />}
-        label="BATTLES"
+        label="Battles"
       />
     </div>
   );
@@ -154,10 +168,10 @@ function TabButton({
       type="button"
       onClick={onClick}
       style={{ touchAction: 'manipulation' }}
-      className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 px-3 py-3 text-[11px] font-bold uppercase tracking-[0.18em] transition-colors ${
+      className={`inline-flex min-h-[44px] items-center justify-center gap-2 px-3 py-3 text-[13px] font-semibold transition-all duration-300 ${
         active
-          ? 'bg-white text-black'
-          : 'bg-black text-white/50 hover:text-white'
+          ? 'bg-white text-black shadow-[inset_0_-2px_0_0_rgba(0,0,0,0.1)]'
+          : 'bg-transparent text-white/55 hover:bg-white/[0.04] hover:text-white'
       }`}
     >
       {icon}
@@ -235,9 +249,9 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
   if (status === 'unconfigured') {
     return (
       <div className="border-2 border-white/20 bg-black p-6 text-center" style={{ borderRadius: 2 }}>
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white">LEADERBOARD NOT YET AVAILABLE</p>
-        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/50">
-          THE SUPABASE BACKEND HASN&apos;T BEEN CONFIGURED FOR THIS DEPLOYMENT
+        <p className="text-sm font-semibold text-white">Leaderboard not yet available</p>
+        <p className="mt-2 text-[12px] text-white/50">
+          The Supabase backend hasn&apos;t been configured for this deployment.
         </p>
       </div>
     );
@@ -252,8 +266,8 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
   if (entries.length === 0) {
     return (
       <div className="border-2 border-white/20 bg-black p-6 text-center" style={{ borderRadius: 2 }}>
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white">NO ENTRIES YET</p>
-        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/50">BE THE FIRST</p>
+        <p className="text-sm font-semibold text-white">No entries yet</p>
+        <p className="mt-2 text-[12px] text-white/50">Be the first.</p>
       </div>
     );
   }
@@ -267,7 +281,7 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
           <div className="mb-2 mt-2 flex items-center gap-2">
             <span className="h-px flex-1 bg-white/15" />
             <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
-              RANKS 4+
+              Ranks 4+
             </span>
             <span className="h-px flex-1 bg-white/15" />
           </div>
@@ -285,13 +299,13 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
           className="flex items-center justify-center pt-6 pb-2"
         >
           <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-            {loadingMore ? 'LOADING MORE…' : 'SCROLL FOR MORE'}
+            {loadingMore ? 'Loading more…' : 'Scroll for more'}
           </span>
         </div>
       )}
       {!hasMore && (
         <p className="pt-6 pb-2 text-center text-[10px] uppercase tracking-[0.22em] text-white/30">
-          END OF LEADERBOARD
+          End of leaderboard
         </p>
       )}
     </>
@@ -368,8 +382,8 @@ function BattlesTab({ initial }: { initial: BattleApiResponse | null }) {
   if (entries.length === 0) {
     return (
       <div className="border-2 border-white/20 bg-black p-6 text-center" style={{ borderRadius: 2 }}>
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white">NO BATTLES YET</p>
-        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/50">QUEUE UP TO CLIMB THE LADDER</p>
+        <p className="text-sm font-semibold text-white">No battles yet</p>
+        <p className="mt-2 text-[12px] text-white/50">Queue up to climb the ladder.</p>
       </div>
     );
   }
@@ -383,7 +397,7 @@ function BattlesTab({ initial }: { initial: BattleApiResponse | null }) {
           <div className="mb-2 mt-2 flex items-center gap-2">
             <span className="h-px flex-1 bg-white/15" />
             <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
-              RANKS 4+
+              Ranks 4+
             </span>
             <span className="h-px flex-1 bg-white/15" />
           </div>
@@ -401,13 +415,13 @@ function BattlesTab({ initial }: { initial: BattleApiResponse | null }) {
           className="flex items-center justify-center pt-6 pb-2"
         >
           <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-            {loadingMore ? 'LOADING MORE…' : 'SCROLL FOR MORE'}
+            {loadingMore ? 'Loading more…' : 'Scroll for more'}
           </span>
         </div>
       )}
       {!hasMore && (
         <p className="pt-6 pb-2 text-center text-[10px] uppercase tracking-[0.22em] text-white/30">
-          END OF LEADERBOARD
+          End of leaderboard
         </p>
       )}
     </>
