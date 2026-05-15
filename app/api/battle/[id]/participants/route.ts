@@ -27,14 +27,20 @@ export async function GET(
   const { id } = await params;
   const pool = getPool();
 
-  const allowedResult = await pool.query<{ allowed: boolean }>(
+  const allowedResult = await pool.query<{
+    allowed: boolean;
+    state: string;
+    started_at: Date | null;
+  }>(
     `select (
        b.host_user_id = $2 or
        exists(
          select 1 from battle_participants p
           where p.battle_id = b.id and p.user_id = $2
        )
-     ) as allowed
+     ) as allowed,
+     b.state,
+     b.started_at
        from battles b
       where b.id = $1
       limit 1`,
@@ -58,5 +64,16 @@ export async function GET(
     [id],
   );
 
-  return NextResponse.json({ participants: rows });
+  // Return state + started_at alongside participants so the lobby poll
+  // can detect a host's /api/battle/start without depending on the
+  // Supabase Realtime broadcast — broadcasts have proven flaky on
+  // this project (same pattern as the Storage outage). The poll is the
+  // reliable fallback path.
+  return NextResponse.json({
+    participants: rows,
+    state: allowedResult.rows[0].state,
+    started_at: allowedResult.rows[0].started_at
+      ? allowedResult.rows[0].started_at.toISOString()
+      : null,
+  });
 }

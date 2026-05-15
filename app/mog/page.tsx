@@ -1088,12 +1088,28 @@ function Lobby({
         cache: 'no-store',
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { participants?: LobbyParticipant[] };
+      const data = (await res.json()) as {
+        participants?: LobbyParticipant[];
+        state?: string;
+      };
       if (Array.isArray(data.participants)) setParticipants(data.participants);
+      // Polling fallback for the start transition: if Realtime is
+      // degraded and the 'battle.starting' broadcast never reaches us,
+      // detecting state != 'lobby' here flips us into the joining phase
+      // so private parties can start without Realtime. Same poll cadence
+      // (every 4s) — adds a worst-case 4s latency vs the broadcast but
+      // guarantees the transition fires.
+      if (
+        typeof data.state === 'string' &&
+        data.state !== 'lobby' &&
+        data.state !== 'cancelled'
+      ) {
+        onStarting();
+      }
     } catch {
       // ignore
     }
-  }, [battleId]);
+  }, [battleId, onStarting]);
 
   // Initial + periodic refresh — the broadcast subscription below is
   // the fast path, but polling is the reliable fallback in case
@@ -1169,12 +1185,18 @@ function Lobby({
         setStarting(false);
         return;
       }
-      // The realtime subscription on battles.state will flip us into joining.
+      // Host self-transitions on a successful response instead of
+      // waiting for the Realtime broadcast to echo back. Broadcasts
+      // have proven flaky on this project; the response IS the signal
+      // that the battle is starting, no reason to add a round-trip.
+      // Guests pick up the transition via the participants-poll
+      // fallback (refetchParticipants returns state on every tick).
+      onStarting();
     } catch {
       setStartError('could not start — try again.');
       setStarting(false);
     }
-  }, [battleId]);
+  }, [battleId, onStarting]);
 
   const canStart = isHost && participants.length >= 2 && !starting;
 
