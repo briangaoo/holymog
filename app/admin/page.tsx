@@ -5,28 +5,21 @@ import { AdminConsole } from './AdminConsole';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// No indexing, ever — even if a stray link leaks, search engines should
-// not catalogue this surface. notFound() already adds noindex but this
-// is a belt + braces guarantee independent of what Next does with the
-// 404 render.
-export const metadata = {
-  title: '404',
-  robots: { index: false, follow: false, nocache: true },
-};
-
 /**
- * /admin — staff console. Hidden behind a real 404 for anyone who
- * isn't on the ADMIN_USER_IDS allowlist.
+ * /admin — staff console. The primary stealth gate is proxy.ts at the
+ * repo root: non-admins never reach this handler, they get rewritten
+ * to a non-existent path and Next serves its real _not-found
+ * response (byte-identical to a 404 for any other unknown URL).
  *
- * Stealth model: when the caller is not an admin we call `notFound()`,
- * which throws the same NEXT_HTTP_ERROR_FALLBACK;404 that
- * a non-existent route would. The response status, headers, and body
- * are identical to hitting any other unknown URL. Logged-out users,
- * regular signed-in users, and curl scans all see the same 404 —
- * there's no observable signal that /admin exists at all.
- *
- * This is one half of the gate. The other half is /api/admin/*, where
- * each route handler also calls notFound() before doing any work.
+ * The page-level requireAdmin() + notFound() below is defense in
+ * depth — if the proxy ever fails open (bug, matcher drift, new
+ * Next runtime quirk), the page still refuses to render and falls
+ * back to a 404. The response shape is slightly different from
+ * the proxy-mediated 404 in that "fail open" case, but it's still a
+ * 404 with no console payload, which is the security-critical
+ * property. We deliberately do NOT export a custom metadata object
+ * here because the title would leak as a fingerprint visible to
+ * an attacker who managed to bypass the proxy.
  */
 export default async function AdminPage() {
   const admin = await requireAdmin();
