@@ -12,6 +12,39 @@ export const AUTH_DAILY_LIMIT = 30;
 export const AUTH_DAILY_WARNING_THRESHOLD = 25;
 const ANON_IP_DAILY_LIMIT = 3;
 
+/**
+ * LAUNCH-1 growth mode. When `true`, both the read-only check and the
+ * atomic check-and-record paths return "unlimited / allowed" without
+ * counting against any quota. scan_attempts rows are still inserted
+ * (so analytics still work + rollbackScanAttempt() still has something
+ * to delete on failure) — only the gate is bypassed.
+ *
+ * The whole point of this constant is to let people scan as much as
+ * they want during the launch window when Brian has $300 of free
+ * Gemini credit to spend on growth. Flip back to `false` to re-engage
+ * the 1-lifetime anon, 30-day auth, and 3-day-per-IP caps.
+ *
+ * The UI consumers (app/scan/page.tsx, ScanPaywall) read `allowed`
+ * + `used` + `limit` and already do the right thing with the
+ * sentinel `limit: -1` we return here — paywall never fires,
+ * "X scans left today" warning never shows.
+ */
+const LIMITS_DISABLED = true;
+
+function unlimitedState(signedIn: boolean): ScanLimitState {
+  return {
+    allowed: true,
+    used: 0,
+    // -1 is the same "unlimited" sentinel the subscriber branch
+    // already returns, so any UI reading `state.limit` to display
+    // "X scans left" naturally short-circuits the chip.
+    limit: -1,
+    signedIn,
+    reason: null,
+    resetInSeconds: null,
+  };
+}
+
 export type ScanLimitInput = {
   userId: string | null;
   anonId: string | null;
@@ -71,6 +104,8 @@ export function readClientIp(request: Request): string {
  * which inserts-and-validates atomically under per-key advisory locks.
  */
 export async function checkScanLimit(input: ScanLimitInput): Promise<ScanLimitState> {
+  if (LIMITS_DISABLED) return unlimitedState(!!input.userId);
+
   const pool = getPool();
 
   if (input.userId && (await isSubscriber(input.userId))) {
@@ -264,6 +299,8 @@ async function computeStateLocked(
   client: PoolClient,
   input: ScanLimitInput,
 ): Promise<ScanLimitState> {
+  if (LIMITS_DISABLED) return unlimitedState(!!input.userId);
+
   if (input.userId) {
     const { rows } = await client.query<{ c: number; oldest: Date | null }>(
       `select count(*)::int as c, min(created_at) as oldest

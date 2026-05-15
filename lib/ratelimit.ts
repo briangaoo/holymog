@@ -48,7 +48,35 @@ export type RatelimitName = keyof typeof PRESETS;
 
 const cache = new Map<RatelimitName, Ratelimit>();
 
+/**
+ * LAUNCH-1 growth bypass. Returning null from getRatelimit() is the
+ * existing "no-limit" code path used when Upstash credentials aren't
+ * configured (local dev). We piggyback on that contract for the
+ * scan + multiplayer presets so people can spam quick-scores and
+ * battles freely during the launch window.
+ *
+ * Kept ON the bypass: quickScore + battleScore (Gemini-heavy scoring
+ * calls — but Brian has $300 of free credit to burn on growth here),
+ * battleJoin + battleCreate (lobby spam is a non-issue at launch
+ * scale).
+ *
+ * Kept OFF the bypass (still enforced): username (handle squatting),
+ * accountMutate + accountAvatar (storage abuse), leaderboardSubmit
+ * (server-validated scans at ~$0.01 each — keep the bound),
+ * battleReport (harassment-spam protection), default.
+ *
+ * Flip LIMITS_DISABLED back to `false` to re-engage every preset.
+ */
+const LIMITS_DISABLED = true;
+const GROWTH_BYPASS: ReadonlySet<RatelimitName> = new Set([
+  'quickScore',
+  'battleScore',
+  'battleJoin',
+  'battleCreate',
+]);
+
 export function getRatelimit(name: RatelimitName = 'default'): Ratelimit | null {
+  if (LIMITS_DISABLED && GROWTH_BYPASS.has(name)) return null;
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
     return null;
   }
