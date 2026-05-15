@@ -46,7 +46,7 @@ export function BattleSection({
     <Section
       id="battle"
       label="battles"
-      description="how mog battles feel for you."
+      description="How mog battles feel for you."
       icon={Swords}
       accent="rose"
       meta={<SaveIndicator state={state} />}

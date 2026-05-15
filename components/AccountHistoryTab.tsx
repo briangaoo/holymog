@@ -190,7 +190,7 @@ export function AccountHistoryTab({
       <Section
         id="history-filters"
         label="battle history"
-        description="filter by type, result, or opponent."
+        description="Filter by type, result, or opponent."
         icon={History}
         accent="purple"
         meta={
@@ -324,7 +324,7 @@ export function AccountHistoryTab({
       {status === 'loading' && entries.length === 0 ? (
         <Section
           label="results"
-          description="battles matching your filters."
+          description="Battles matching your filters."
           icon={History}
           accent="zinc"
         >
@@ -339,7 +339,7 @@ export function AccountHistoryTab({
       ) : entries.length === 0 ? (
         <Section
           label="results"
-          description="battles matching your filters."
+          description="Battles matching your filters."
           icon={History}
           accent="zinc"
         >

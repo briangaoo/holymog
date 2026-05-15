@@ -183,7 +183,7 @@ export function CustomizationSection({
       <Section
         id="customization"
         label="customization"
-        description="name effects you've earned."
+        description="Name effects you've earned."
         icon={Sparkles}
         accent="emerald"
       >
@@ -209,7 +209,7 @@ export function CustomizationSection({
     <Section
       id="customization"
       label="customization"
-      description="name effects you've earned. unlock more by scanning, battling, climbing."
+      description="Name effects you've earned. Unlock more by scanning, battling, climbing."
       icon={Sparkles}
       accent="emerald"
       meta={

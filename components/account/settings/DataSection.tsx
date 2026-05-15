@@ -142,14 +142,14 @@ export function DataSection({
       <Section
         id="data"
         label="your data"
-        description="export everything we have about you."
+        description="Export everything we have about you."
         icon={Database}
         accent="cyan"
       >
         <DataRow
-          title="download my data"
-          description="exports profile, scans, battles, elo history, and purchases as a single mog.json file."
-          action="download"
+          title="Download my data"
+          description="Exports profile, scans, battles, ELO history, and purchases as a single mog.json file."
+          action="Download"
           state={downloadState}
           onClick={downloadData}
           icon={Download}
@@ -159,12 +159,12 @@ export function DataSection({
       <Section
         id="danger"
         label="danger zone"
-        description="permanent actions. cannot be undone."
+        description="Permanent actions. Cannot be undone."
         icon={Skull}
         accent="red"
         meta={
           <span className="inline-flex items-center gap-1 text-[11px] text-red-300/80">
-            <AlertTriangle size={11} aria-hidden /> destructive
+            <AlertTriangle size={11} aria-hidden /> Destructive
           </span>
         }
       >
@@ -173,35 +173,35 @@ export function DataSection({
             of the session, so it sits at the top of the danger list as
             the mildest entry. */}
         <DangerRow
-          title="sign out"
-          description="end this session on this device. you'll need to sign in again."
-          action="sign out"
+          title="Sign out"
+          description="End this session on this device. You'll need to sign in again."
+          action="Sign out"
           state={{ kind: 'idle' }}
           onClick={onSignOut}
         />
         <DangerRow
-          title="reset stats"
-          description="elo → 1000, counters → 0, best scan cleared. battle history rows kept."
-          action="reset"
+          title="Reset stats"
+          description="ELO → 1000, counters → 0, best scan cleared. Battle history rows kept."
+          action="Reset"
           state={resetState}
           onClick={resetStats}
         />
         <DangerRow
-          title="remove leaderboard entry"
+          title="Remove leaderboard entry"
           description={
             hasLeaderboardEntry
-              ? 'delete your photo + score from the public board.'
-              : 'no leaderboard entry to remove.'
+              ? 'Delete your photo + score from the public board.'
+              : 'No leaderboard entry to remove.'
           }
-          action="remove"
+          action="Remove"
           state={removeState}
           onClick={removeLeaderboard}
           disabled={!hasLeaderboardEntry}
         />
         <DangerRow
-          title="delete account"
-          description="cascades through profile, leaderboard, battles, scans, sessions, purchases."
-          action="delete"
+          title="Delete account"
+          description="Cascades through profile, leaderboard, battles, scans, sessions, purchases."
+          action="Delete"
           state={deleteState}
           onClick={deleteAccount}
           variant="solid"
@@ -303,7 +303,7 @@ function DataRow({
         )}
         {ok && (
           <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-white">
-            <Check size={11} aria-hidden /> done
+            <Check size={11} aria-hidden /> Done
           </p>
         )}
       </div>
@@ -356,7 +356,7 @@ function DangerRow({
         )}
         {ok && (
           <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-white">
-            <Check size={11} aria-hidden /> done
+            <Check size={11} aria-hidden /> Done
           </p>
         )}
       </div>

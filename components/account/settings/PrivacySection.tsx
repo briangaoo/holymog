@@ -55,7 +55,7 @@ export function PrivacySection({
     <Section
       id="privacy"
       label="privacy"
-      description="control what other people see about you."
+      description="Control what other people see about you."
       icon={Lock}
       accent="amber"
       meta={<SaveIndicator state={state} />}

@@ -343,7 +343,7 @@ function MultiplayerSection(props: {
   return (
     <Section
       label="multiplayer"
-      description="how you rank in mog battles."
+      description="How you rank in mog battles."
       icon={Swords}
       accent="rose"
     >
@@ -453,7 +453,7 @@ function RecentBattlesSection({
   return (
     <Section
       label="recent battles"
-      description="last 10 results, newest on the right."
+      description="Last 10 results, newest on the right."
       icon={Activity}
       accent="emerald"
     >
@@ -496,7 +496,7 @@ function BiggestSwingsSection({
   return (
     <Section
       label="biggest swings"
-      description="your largest single-battle elo moves."
+      description="Your largest single-battle ELO moves."
       icon={Zap}
       accent="amber"
     >
@@ -580,7 +580,7 @@ function BestScanSection({
     return (
       <Section
         label="best scan"
-        description="your top score and full breakdown."
+        description="Your top score and full breakdown."
         icon={Crown}
         accent="purple"
       >
@@ -606,7 +606,7 @@ function BestScanSection({
   return (
     <Section
       label="best scan"
-      description="your top score and full breakdown."
+      description="Your top score and full breakdown."
       icon={Crown}
       accent="purple"
     >
@@ -839,7 +839,7 @@ function MostImprovedSection({
   return (
     <Section
       label="most improved"
-      description="biggest gain from your earliest scans to recent ones."
+      description="Biggest gain from your earliest scans to recent ones."
       icon={Sparkles}
       accent="emerald"
     >

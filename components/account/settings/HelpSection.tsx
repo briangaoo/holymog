@@ -23,7 +23,7 @@ export function HelpSection() {
     <Section
       id="help"
       label="help & legal"
-      description="docs, contact, and the fine print."
+      description="Docs, contact, and the fine print."
       icon={HelpCircle}
       accent="zinc"
     >
