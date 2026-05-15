@@ -738,11 +738,16 @@ function TileContents({
   isLocal,
   score,
   hasLeft,
+  compactOverlay = false,
 }: {
   trackRef: TrackReferenceOrPlaceholder;
   isLocal: boolean;
   score: BattleScores[string] | undefined;
   hasLeft: boolean;
+  /** Switches ScoreOverlay to its 2-row bottom-strip variant. Used
+   *  for the small "others" thumbnails in party speaker view where
+   *  the full 180px card would cover most of the face. */
+  compactOverlay?: boolean;
 }) {
   return (
     <>
@@ -763,6 +768,7 @@ function TileContents({
         displayName={trackRef.participant.name || trackRef.participant.identity}
         score={score}
         meta={parseMetadata(trackRef.participant.metadata)}
+        compact={compactOverlay}
       />
       <ConnectionBars participant={trackRef.participant} />
       {hasLeft && (
@@ -977,6 +983,7 @@ function PartyLayoutView({
                   isLocal={false}
                   score={scores[userId]}
                   hasLeft={hasLeft}
+                  compactOverlay
                 />
               </div>
             );
@@ -1309,10 +1316,17 @@ function ScoreOverlay({
   displayName,
   score,
   meta,
+  compact = false,
 }: {
   displayName: string;
   score?: { overall: number; peak: number; improvement: string };
   meta: ParticipantMeta;
+  /** When true, render as a 2-row bottom strip that doesn't cover
+   *  the face. Used on the small "others" thumbnails in party
+   *  speaker view. Text stays readable (score number is 22px) —
+   *  the savings come from reorganising the rows, not shrinking the
+   *  type. */
+  compact?: boolean;
 }) {
   // Single substantial card on the left edge of each tile. Replaces
   // the prior 3-corner chip layout (avatar top-left + score top-right
@@ -1323,6 +1337,74 @@ function ScoreOverlay({
   const color = score ? getScoreColor(score.overall) : '#a1a1aa';
   const peakColor = score ? getScoreColor(score.peak) : '#a1a1aa';
   const userStats = userStatsFromMeta(meta);
+
+  if (compact) {
+    return (
+      <Link
+        href={`/@${displayName}`}
+        onClick={(e) => e.stopPropagation()}
+        className="group absolute inset-x-0 bottom-0 z-10 flex flex-col gap-0.5 bg-black/85 px-2 py-1.5 backdrop-blur-sm transition-colors hover:bg-black"
+        style={{ borderTop: `2px solid ${color}` }}
+      >
+        {/* Row 1: pulsing pip + name on the left, big score + tier on
+            the right. Score is the headline (22px) so it's readable
+            from across the screen even on a 130x130 tile. */}
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="inline-flex min-w-0 items-center gap-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white">
+            <span aria-hidden className="relative inline-flex h-1.5 w-1.5 flex-shrink-0">
+              <span
+                className="absolute inset-0 animate-ping rounded-full"
+                style={{ background: `${color}cc` }}
+              />
+              <span
+                className="relative h-1.5 w-1.5 rounded-full"
+                style={{ background: color }}
+              />
+            </span>
+            <span className="truncate">
+              <NameFx slug={meta.equippedNameFx ?? null} userStats={userStats}>
+                {displayName}
+              </NameFx>
+            </span>
+          </span>
+          <span className="flex flex-shrink-0 items-baseline gap-0.5">
+            <span
+              className="font-num text-[22px] font-black leading-none tabular-nums"
+              style={{ color }}
+            >
+              {score?.overall ?? '—'}
+            </span>
+            {tier && (
+              <span
+                className="font-num text-[12px] font-black uppercase leading-none"
+                style={tierTextStyleInline(score!.overall, tier)}
+              >
+                {tier.letter}
+              </span>
+            )}
+          </span>
+        </div>
+        {/* Row 2: peak + flaw small. Drops gracefully when there's no
+            score yet (— in both slots). */}
+        <div className="flex items-baseline justify-between gap-2 text-[9px] uppercase tracking-[0.16em] text-white/60">
+          <span>
+            peak{' '}
+            <span
+              className="font-num font-bold tabular-nums"
+              style={{ color: peakColor }}
+            >
+              {score?.peak ?? '—'}
+            </span>
+          </span>
+          {score?.improvement && (
+            <span className="truncate font-bold tracking-[0.18em] text-white/80">
+              {score.improvement}
+            </span>
+          )}
+        </div>
+      </Link>
+    );
+  }
 
   return (
     <Link

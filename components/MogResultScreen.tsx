@@ -113,6 +113,21 @@ export function MogResultScreen({
   const isTie = result.is_tie === true || result.winner_id === null;
   const youWon = !isTie && me?.is_winner === true;
   const isPrivate = result.kind === 'private';
+
+  // Party finish (3+ participants) gets a podium layout instead of
+  // the 1v1 versus board. Sort by final_score desc — ties preserve
+  // the server-side joined_at order. myRank is 1-indexed; we use it
+  // for the headline copy ("podium finish" / "honorable mention" /
+  // "you got mogged") and for "is YOU in the top 3" so confetti only
+  // fires when there's something to celebrate from YOUR perspective.
+  const sortedParticipants = [...result.participants].sort(
+    (a, b) => b.final_score - a.final_score,
+  );
+  const isParty = sortedParticipants.length >= 3;
+  const myRank = me
+    ? sortedParticipants.findIndex((p) => p.user_id === me.user_id) + 1
+    : 0;
+  const youInTopThree = myRank >= 1 && myRank <= 3;
   // Report flow lives in public-1v1 only. The button shows in the
   // result actions; the modal mounts at the page root via portal.
   const isPublic = result.kind === 'public';
@@ -294,7 +309,11 @@ export function MogResultScreen({
     }
   }, [result.battle_id, onRematch, currentUserId]);
 
-  if (!me || !opponent) {
+  // Party (3+) path doesn't need an opponent — show podium even
+  // when the local user can't be located in the participants list
+  // (rare; spectator-ish edge). 1v1 path still bails if we can't
+  // place me + opponent.
+  if (!isParty && (!me || !opponent)) {
     return (
       <div className="min-h-dvh bg-black">
         <AppHeader authNext="/mog" />
@@ -307,9 +326,13 @@ export function MogResultScreen({
 
   return (
     <div className="relative min-h-dvh overflow-hidden bg-black">
-      <ResultAmbient won={youWon} tied={isTie} myScore={me.final_score} />
-      {youWon && <ResultConfetti />}
-      {!youWon && !isTie && <ResultLossWash />}
+      <ResultAmbient
+        won={isParty ? youInTopThree : youWon}
+        tied={isTie}
+        myScore={me?.final_score ?? sortedParticipants[0].final_score}
+      />
+      {(isParty ? youInTopThree : youWon) && <ResultConfetti />}
+      {!isParty && !youWon && !isTie && <ResultLossWash />}
 
       <AppHeader authNext="/mog" />
 
@@ -317,21 +340,41 @@ export function MogResultScreen({
         className="relative z-10 mx-auto w-full max-w-4xl px-5 pt-2 pb-12 sm:pt-6"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
       >
-        <ResultHeadline
-          won={youWon}
-          tied={isTie}
-          myScore={me.final_score}
-          opponent={opponent}
-        />
-
-        <ResultVersusBoard
-          me={me}
-          opponent={opponent}
-          youWon={youWon}
-          tied={isTie}
-        />
-
-        <ResultDelta me={me} opponent={opponent} youWon={youWon} tied={isTie} />
+        {isParty ? (
+          <>
+            <ResultPartyHeadline
+              rank={myRank}
+              total={sortedParticipants.length}
+              me={me}
+              winner={sortedParticipants[0]}
+            />
+            <ResultPartyBoard
+              sortedParticipants={sortedParticipants}
+              currentUserId={currentUserId}
+            />
+          </>
+        ) : (
+          <>
+            <ResultHeadline
+              won={youWon}
+              tied={isTie}
+              myScore={me!.final_score}
+              opponent={opponent!}
+            />
+            <ResultVersusBoard
+              me={me!}
+              opponent={opponent!}
+              youWon={youWon}
+              tied={isTie}
+            />
+            <ResultDelta
+              me={me!}
+              opponent={opponent!}
+              youWon={youWon}
+              tied={isTie}
+            />
+          </>
+        )}
 
         <ResultEloDelta
           changes={result.elo_changes ?? []}
@@ -352,8 +395,10 @@ export function MogResultScreen({
         {/* Report row — public 1v1 only. Subtle outlined button below
             the main actions so it's available without competing for
             attention with share/rematch/find-another. The modal
-            handles all submit-state UX. */}
-        {isPublic && (
+            handles all submit-state UX. Party finishes are private-only
+            and have no single opponent, so the report flow doesn't
+            apply. */}
+        {isPublic && opponent && (
           <div className="mt-4 flex items-center justify-center">
             <button
               type="button"
@@ -367,27 +412,36 @@ export function MogResultScreen({
           </div>
         )}
 
-        <div className="mt-8 flex items-center justify-center gap-2 text-[11px] text-zinc-600">
-          <Link
-            href={`/@${me.display_name}`}
-            className="hover:text-zinc-400 hover:underline underline-offset-2"
-          >
-            @{me.display_name}
-          </Link>
-          <span aria-hidden>·</span>
-          <Link
-            href={`/@${opponent.display_name}`}
-            className="hover:text-zinc-400 hover:underline underline-offset-2"
-          >
-            @{opponent.display_name}
-          </Link>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-zinc-600">
+          {me && (
+            <Link
+              href={`/@${me.display_name}`}
+              className="hover:text-zinc-400 hover:underline underline-offset-2"
+            >
+              @{me.display_name}
+            </Link>
+          )}
+          {!isParty && opponent && (
+            <>
+              <span aria-hidden>·</span>
+              <Link
+                href={`/@${opponent.display_name}`}
+                className="hover:text-zinc-400 hover:underline underline-offset-2"
+              >
+                @{opponent.display_name}
+              </Link>
+            </>
+          )}
+          {isParty && me && (
+            <span>· {sortedParticipants.length} players</span>
+          )}
         </div>
       </main>
 
       {/* Report modal (public-1v1 only). Mounted at the page root
           via portal so it isn't clipped by the result screen's
           transformed parents. */}
-      {isPublic && (
+      {isPublic && opponent && (
         <BattleReportModal
           open={reportOpen}
           battleId={result.battle_id}
@@ -1026,5 +1080,416 @@ function ResultActions({
         </Link>
       </div>
     </motion.div>
+  );
+}
+
+// ---------- Party (3+) result components --------------------------------
+
+type ResultParticipant = FinishPayload['participants'][number];
+
+/**
+ * Rank-aware headline for party finishes. Replaces the 1v1
+ * "you cooked @opponent" copy with copy that scales with how many
+ * people were in the room AND where YOU placed. When the local user
+ * isn't in the participants list (rare spectator-ish edge), falls
+ * back to a generic "battle finished".
+ */
+function ResultPartyHeadline({
+  rank,
+  total,
+  me,
+  winner,
+}: {
+  rank: number;
+  total: number;
+  me: ResultParticipant | undefined;
+  winner: ResultParticipant;
+}) {
+  let copy: { kicker: string; line: string; accent: string };
+  if (!me) {
+    copy = {
+      kicker: 'battle finished',
+      line: `@${winner.display_name} took the win`,
+      accent: '#fbbf24',
+    };
+  } else if (rank === 1) {
+    copy = {
+      kicker: 'you mogged everyone',
+      line: `${total - 1} player${total - 1 === 1 ? '' : 's'} cooked`,
+      accent: '#fbbf24',
+    };
+  } else if (rank === 2) {
+    copy = {
+      kicker: 'second place',
+      line: 'so close to the top',
+      accent: '#cbd5e1',
+    };
+  } else if (rank === 3) {
+    copy = {
+      kicker: 'podium finish',
+      line: 'bronze counts',
+      accent: '#fb923c',
+    };
+  } else if (rank <= 5) {
+    copy = {
+      kicker: 'honorable mention',
+      line: `${rank}th of ${total}`,
+      accent: '#a78bfa',
+    };
+  } else {
+    copy = {
+      kicker: 'you got cooked',
+      line: `${rank}th of ${total}`,
+      accent: '#fb7185',
+    };
+  }
+  return (
+    <motion.div
+      initial={{ y: 12, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.55 }}
+      className="mb-6 text-center"
+    >
+      <span
+        className="block text-[11px] font-bold uppercase tracking-[0.28em]"
+        style={{ color: copy.accent }}
+      >
+        {copy.kicker}
+      </span>
+      <h1 className="mt-2 text-3xl font-black uppercase leading-tight text-white sm:text-5xl">
+        {copy.line}
+      </h1>
+    </motion.div>
+  );
+}
+
+/**
+ * Top-3 podium + honorable mentions + leaderboard tail. Layout
+ * scales with participant count: 3-5 players show podium + (maybe)
+ * a 2-wide honorable-mention strip; 6+ adds a compact list of
+ * everyone else. Caller is responsible for ensuring
+ * sortedParticipants has at least 3 entries — the component will
+ * still render with fewer but it'll look wrong.
+ */
+function ResultPartyBoard({
+  sortedParticipants,
+  currentUserId,
+}: {
+  sortedParticipants: ResultParticipant[];
+  currentUserId: string;
+}) {
+  const top3 = sortedParticipants.slice(0, 3);
+  const honorable = sortedParticipants.slice(3, 5);
+  const rest = sortedParticipants.slice(5);
+  return (
+    <div className="mb-8 flex flex-col items-center gap-6">
+      {/* 1st on top, alone, large */}
+      {top3[0] && (
+        <PodiumSpot
+          rank={1}
+          player={top3[0]}
+          isYou={top3[0].user_id === currentUserId}
+        />
+      )}
+      {/* 2nd + 3rd below, side-by-side */}
+      {(top3[1] || top3[2]) && (
+        <div className="grid w-full max-w-md grid-cols-2 gap-3 sm:gap-4">
+          {top3[1] && (
+            <PodiumSpot
+              rank={2}
+              player={top3[1]}
+              isYou={top3[1].user_id === currentUserId}
+            />
+          )}
+          {top3[2] && (
+            <PodiumSpot
+              rank={3}
+              player={top3[2]}
+              isYou={top3[2].user_id === currentUserId}
+            />
+          )}
+        </div>
+      )}
+      {honorable.length > 0 && (
+        <div className="mt-2 w-full max-w-lg">
+          <span className="mb-2 block text-center text-[10px] font-bold uppercase tracking-[0.28em] text-white/50">
+            honorable mentions
+          </span>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {honorable.map((p, idx) => (
+              <HonorableMentionRow
+                key={p.user_id}
+                rank={4 + idx}
+                player={p}
+                isYou={p.user_id === currentUserId}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {rest.length > 0 && (
+        <div className="mt-2 w-full max-w-lg">
+          <span className="mb-2 block text-center text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+            also played
+          </span>
+          <ul className="flex flex-col gap-1">
+            {rest.map((p, idx) => (
+              <AlsoPlayedRow
+                key={p.user_id}
+                rank={6 + idx}
+                player={p}
+                isYou={p.user_id === currentUserId}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PODIUM_RANK_META: Record<
+  1 | 2 | 3,
+  { medal: string; accent: string; label: string }
+> = {
+  1: { medal: '1ST', accent: '#fbbf24', label: 'GOLD' },
+  2: { medal: '2ND', accent: '#cbd5e1', label: 'SILVER' },
+  3: { medal: '3RD', accent: '#fb923c', label: 'BRONZE' },
+};
+
+function PodiumSpot({
+  rank,
+  player,
+  isYou,
+}: {
+  rank: 1 | 2 | 3;
+  player: ResultParticipant;
+  isYou: boolean;
+}) {
+  const meta = PODIUM_RANK_META[rank];
+  const isFirst = rank === 1;
+  const animatedScore = useCountUp(
+    player.final_score,
+    1100,
+    isFirst ? 200 : 350 + rank * 80,
+  );
+  const tier = getTier(player.final_score);
+  const color = getScoreColor(player.final_score);
+  const userStats = participantUserStats(player);
+  const avatarSize = isFirst ? 96 : 64;
+
+  return (
+    <motion.div
+      initial={{ y: 24, opacity: 0, scale: 0.92 }}
+      animate={{ y: 0, opacity: 1, scale: 1 }}
+      transition={{
+        duration: 0.6,
+        delay: isFirst ? 0.15 : 0.4 + rank * 0.05,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className={`relative flex flex-col items-center gap-2 border-2 bg-black px-4 py-5 text-center ${
+        isFirst ? 'w-full max-w-xs' : 'w-full'
+      }`}
+      style={{
+        borderColor: meta.accent,
+        borderRadius: 2,
+        boxShadow: isFirst
+          ? `0 0 56px -12px ${meta.accent}88, inset 0 0 0 1px ${meta.accent}33`
+          : `0 0 24px -10px ${meta.accent}55`,
+      }}
+    >
+      {/* Rank chip top-right */}
+      <span
+        className="absolute right-2 top-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-black"
+        style={{ background: meta.accent, borderRadius: 2 }}
+      >
+        {meta.medal}
+      </span>
+      {isYou && (
+        <span
+          className="absolute left-2 top-2 inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.22em] text-white"
+          style={{
+            background: 'rgba(255,255,255,0.12)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            borderRadius: 2,
+          }}
+        >
+          YOU
+        </span>
+      )}
+
+      <Frame
+        slug={player.equipped_frame ?? null}
+        size={avatarSize}
+        userStats={userStats}
+      >
+        {player.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={player.avatar_url}
+            alt=""
+            className="h-full w-full rounded-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full overflow-hidden rounded-full border border-white/15">
+            <AvatarFallback
+              seed={player.display_name}
+              textClassName={isFirst ? 'text-2xl' : 'text-lg'}
+            />
+          </span>
+        )}
+      </Frame>
+
+      <div className="flex items-baseline gap-1.5">
+        <span
+          className={`font-num font-black leading-none tabular-nums ${
+            isFirst ? 'text-6xl sm:text-7xl' : 'text-4xl'
+          }`}
+          style={{
+            color,
+            textShadow: `0 0 28px ${color}55`,
+          }}
+        >
+          {animatedScore}
+        </span>
+        <span
+          className={`font-num font-black uppercase ${
+            isFirst ? 'text-2xl' : 'text-lg'
+          }`}
+          style={tierTextStyle(player.final_score)}
+        >
+          {tier.letter}
+        </span>
+      </div>
+
+      <div
+        className={`flex items-center gap-1.5 ${
+          isFirst ? 'text-base' : 'text-sm'
+        }`}
+      >
+        <span className="truncate font-bold text-white">
+          <NameFx
+            slug={player.equipped_name_fx ?? null}
+            userStats={userStats}
+          >
+            @{player.display_name}
+          </NameFx>
+        </span>
+        {player.equipped_flair && (
+          <Badge
+            slug={player.equipped_flair}
+            size={isFirst ? 22 : 16}
+            userStats={userStats}
+          />
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function HonorableMentionRow({
+  rank,
+  player,
+  isYou,
+}: {
+  rank: number;
+  player: ResultParticipant;
+  isYou: boolean;
+}) {
+  const userStats = participantUserStats(player);
+  const color = getScoreColor(player.final_score);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.7 + (rank - 4) * 0.08 }}
+      className="flex items-center gap-3 border border-white/15 bg-white/[0.02] px-3 py-2"
+      style={{ borderRadius: 2 }}
+    >
+      <span className="font-num text-[14px] font-black tabular-nums text-white/60">
+        {rank}.
+      </span>
+      <Frame slug={player.equipped_frame ?? null} size={28} userStats={userStats}>
+        {player.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={player.avatar_url}
+            alt=""
+            className="h-full w-full rounded-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full overflow-hidden rounded-full border border-white/15">
+            <AvatarFallback seed={player.display_name} textClassName="text-[10px]" />
+          </span>
+        )}
+      </Frame>
+      <span className="flex-1 min-w-0 truncate text-sm text-white">
+        <NameFx slug={player.equipped_name_fx ?? null} userStats={userStats}>
+          @{player.display_name}
+        </NameFx>
+      </span>
+      {player.equipped_flair && (
+        <Badge
+          slug={player.equipped_flair}
+          size={14}
+          userStats={userStats}
+        />
+      )}
+      <span
+        className="font-num text-[18px] font-black tabular-nums"
+        style={{ color }}
+      >
+        {player.final_score}
+      </span>
+      {isYou && (
+        <span
+          className="border border-white/25 bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.22em] text-white"
+          style={{ borderRadius: 2 }}
+        >
+          YOU
+        </span>
+      )}
+    </motion.div>
+  );
+}
+
+function AlsoPlayedRow({
+  rank,
+  player,
+  isYou,
+}: {
+  rank: number;
+  player: ResultParticipant;
+  isYou: boolean;
+}) {
+  const userStats = participantUserStats(player);
+  const color = getScoreColor(player.final_score);
+  return (
+    <motion.li
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, delay: 0.9 + (rank - 6) * 0.05 }}
+      className="flex items-center gap-2 border-l-2 border-white/10 bg-white/[0.01] px-2 py-1.5"
+    >
+      <span className="font-num w-6 text-center text-[12px] font-bold tabular-nums text-white/50">
+        {rank}
+      </span>
+      <span className="flex-1 min-w-0 truncate text-[13px] text-white/85">
+        <NameFx slug={player.equipped_name_fx ?? null} userStats={userStats}>
+          @{player.display_name}
+        </NameFx>
+        {isYou && (
+          <span className="ml-1.5 text-[9px] font-bold uppercase tracking-[0.22em] text-white/50">
+            (you)
+          </span>
+        )}
+      </span>
+      <span
+        className="font-num text-[14px] font-bold tabular-nums"
+        style={{ color }}
+      >
+        {player.final_score}
+      </span>
+    </motion.li>
   );
 }
