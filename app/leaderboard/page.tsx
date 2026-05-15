@@ -257,13 +257,27 @@ function ScansTab({ initial }: { initial: ScanApiResponse | null }) {
       </div>
     );
   }
+  const podium = entries.slice(0, 3);
+  const rest = entries.slice(3);
   return (
     <>
-      <ol className="flex flex-col gap-2">
-        {entries.map((row, i) => (
-          <ScanRow key={row.id} row={row} rank={i + 1} />
-        ))}
-      </ol>
+      <ScansPodium entries={podium} />
+      {rest.length > 0 && (
+        <>
+          <div className="mb-2 mt-2 flex items-center gap-2">
+            <span className="h-px flex-1 bg-white/15" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+              RANKS 4+
+            </span>
+            <span className="h-px flex-1 bg-white/15" />
+          </div>
+          <ol className="flex flex-col gap-2">
+            {rest.map((row, i) => (
+              <ScanRow key={row.id} row={row} rank={i + 4} />
+            ))}
+          </ol>
+        </>
+      )}
 
       {hasMore && (
         <div
@@ -359,13 +373,27 @@ function BattlesTab({ initial }: { initial: BattleApiResponse | null }) {
       </div>
     );
   }
+  const podium = entries.slice(0, 3);
+  const rest = entries.slice(3);
   return (
     <>
-      <ol className="flex flex-col gap-2">
-        {entries.map((row, i) => (
-          <BattleRow key={row.user_id} row={row} rank={i + 1} />
-        ))}
-      </ol>
+      <BattlesPodium entries={podium} />
+      {rest.length > 0 && (
+        <>
+          <div className="mb-2 mt-2 flex items-center gap-2">
+            <span className="h-px flex-1 bg-white/15" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+              RANKS 4+
+            </span>
+            <span className="h-px flex-1 bg-white/15" />
+          </div>
+          <ol className="flex flex-col gap-2">
+            {rest.map((row, i) => (
+              <BattleRow key={row.user_id} row={row} rank={i + 4} />
+            ))}
+          </ol>
+        </>
+      )}
 
       {hasMore && (
         <div
@@ -408,6 +436,244 @@ function InitialAvatar({ name }: { name: string }) {
     >
       {initial}
     </div>
+  );
+}
+
+// ---- Podium (top 3) --------------------------------------------------------
+//
+// Both leaderboard tabs surface their top 3 entries as a podium tower
+// before the regular row list. The podium reuses the same visual
+// language as the battle-finish podium in MogResultScreen — gold
+// border on 1st, silver on 2nd, bronze on 3rd, all in a 2-row stack
+// where 1st is full-width and 2nd + 3rd are side-by-side.
+//
+// Both tab data shapes (LeaderboardRow + BattleRow) feed into a
+// shared LeaderboardPodium via small `kind`-aware adapters so the
+// visual is identical across scans + battles even though the
+// headline metric differs (tier letter vs ELO number).
+
+const PODIUM_META: Record<
+  1 | 2 | 3,
+  { accent: string; medal: string; label: string }
+> = {
+  1: { accent: '#fbbf24', medal: '1ST', label: 'GOLD' },
+  2: { accent: '#cbd5e1', medal: '2ND', label: 'SILVER' },
+  3: { accent: '#fb923c', medal: '3RD', label: 'BRONZE' },
+};
+
+function ScansPodium({ entries }: { entries: LeaderboardRow[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="mb-5 flex flex-col gap-3">
+      {entries[0] && <ScanPodiumSpot rank={1} row={entries[0]} />}
+      {(entries[1] || entries[2]) && (
+        <div className="grid grid-cols-2 gap-3">
+          {entries[1] && <ScanPodiumSpot rank={2} row={entries[1]} />}
+          {entries[2] && <ScanPodiumSpot rank={3} row={entries[2]} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScanPodiumSpot({ rank, row }: { rank: 1 | 2 | 3; row: LeaderboardRow }) {
+  const isFirst = rank === 1;
+  const meta = PODIUM_META[rank];
+  const tier = getTier(row.overall);
+  const tierStyle: React.CSSProperties = tier.isGradient
+    ? {
+        backgroundImage: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
+        WebkitBackgroundClip: 'text',
+        backgroundClip: 'text',
+        color: 'transparent',
+        textTransform: 'uppercase',
+      }
+    : { color: tier.color, textTransform: 'uppercase' };
+  const photoSrc = row.image_url ?? row.avatar_url ?? null;
+  const userStats: UserStats = {
+    bestScanOverall: row.overall,
+    currentStreak: row.current_streak ?? null,
+    currentWinStreak: row.current_streak ?? null,
+    matchesWon: row.matches_won ?? null,
+  };
+  return (
+    <Link
+      href={`/@${row.name}`}
+      className={`relative flex flex-col items-center gap-2 border-2 bg-black px-3 py-4 text-center transition-colors hover:bg-white/[0.03] ${
+        isFirst ? '' : 'gap-1.5 py-3'
+      }`}
+      style={{
+        borderColor: meta.accent,
+        borderRadius: 2,
+        boxShadow: isFirst
+          ? `0 0 56px -14px ${meta.accent}88, inset 0 0 0 1px ${meta.accent}33`
+          : `0 0 24px -12px ${meta.accent}55`,
+      }}
+    >
+      <span
+        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-black"
+        style={{ background: meta.accent, borderRadius: 2 }}
+      >
+        {meta.medal}
+      </span>
+      <Frame
+        slug={row.equipped_frame ?? null}
+        size={isFirst ? 88 : 56}
+        userStats={userStats}
+      >
+        {photoSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoSrc}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <InitialAvatar name={row.name} />
+        )}
+      </Frame>
+      <div
+        className={`font-num font-black leading-none uppercase ${
+          isFirst ? 'text-6xl' : 'text-4xl'
+        }`}
+        style={tierStyle}
+      >
+        {row.tier}
+      </div>
+      <div
+        className={`font-num font-bold leading-none tabular-nums ${
+          isFirst ? 'text-2xl' : 'text-lg'
+        }`}
+        style={{ color: getScoreColor(row.overall) }}
+      >
+        {row.overall}
+      </div>
+      <div
+        className={`flex items-center gap-1 truncate ${
+          isFirst ? 'text-sm' : 'text-xs'
+        }`}
+      >
+        <span className="truncate font-bold text-white">
+          <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
+            {row.name}
+          </NameFx>
+        </span>
+        {row.equipped_flair && (
+          <Badge
+            slug={row.equipped_flair}
+            size={isFirst ? 18 : 14}
+            userStats={userStats}
+          />
+        )}
+      </div>
+      {isFirst && (
+        <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+          j {row.jawline} · e {row.eyes} · s {row.skin} · c {row.cheekbones}
+        </div>
+      )}
+    </Link>
+  );
+}
+
+function BattlesPodium({ entries }: { entries: BattleRow[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="mb-5 flex flex-col gap-3">
+      {entries[0] && <BattlePodiumSpot rank={1} row={entries[0]} />}
+      {(entries[1] || entries[2]) && (
+        <div className="grid grid-cols-2 gap-3">
+          {entries[1] && <BattlePodiumSpot rank={2} row={entries[1]} />}
+          {entries[2] && <BattlePodiumSpot rank={3} row={entries[2]} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BattlePodiumSpot({ rank, row }: { rank: 1 | 2 | 3; row: BattleRow }) {
+  const isFirst = rank === 1;
+  const meta = PODIUM_META[rank];
+  const losses = Math.max(0, row.matches_played - row.matches_won);
+  const userStats: UserStats = {
+    elo: row.elo,
+    matchesWon: row.matches_won,
+    currentStreak: row.current_streak ?? null,
+    currentWinStreak: row.current_streak ?? null,
+  };
+  return (
+    <Link
+      href={`/@${row.display_name}`}
+      className={`relative flex flex-col items-center gap-2 border-2 bg-black px-3 py-4 text-center transition-colors hover:bg-white/[0.03] ${
+        isFirst ? '' : 'gap-1.5 py-3'
+      }`}
+      style={{
+        borderColor: meta.accent,
+        borderRadius: 2,
+        boxShadow: isFirst
+          ? `0 0 56px -14px ${meta.accent}88, inset 0 0 0 1px ${meta.accent}33`
+          : `0 0 24px -12px ${meta.accent}55`,
+      }}
+    >
+      <span
+        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-black"
+        style={{ background: meta.accent, borderRadius: 2 }}
+      >
+        {meta.medal}
+      </span>
+      <Frame
+        slug={row.equipped_frame ?? null}
+        size={isFirst ? 88 : 56}
+        userStats={userStats}
+      >
+        {row.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={row.avatar_url}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <InitialAvatar name={row.display_name} />
+        )}
+      </Frame>
+      <div
+        className={`font-num font-black leading-none tabular-nums text-white ${
+          isFirst ? 'text-6xl' : 'text-4xl'
+        }`}
+      >
+        {row.elo}
+      </div>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-white/50">
+        elo · peak {row.peak_elo}
+      </div>
+      <div
+        className={`flex items-center gap-1 truncate ${
+          isFirst ? 'text-sm' : 'text-xs'
+        }`}
+      >
+        <span className="truncate font-bold text-white">
+          <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
+            {row.display_name}
+          </NameFx>
+        </span>
+        {row.equipped_flair && (
+          <Badge
+            slug={row.equipped_flair}
+            size={isFirst ? 18 : 14}
+            userStats={userStats}
+          />
+        )}
+      </div>
+      {isFirst && (
+        <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+          {row.matches_played === 0
+            ? 'unranked'
+            : `${row.matches_won}w / ${losses}l`}
+        </div>
+      )}
+    </Link>
   );
 }
 
