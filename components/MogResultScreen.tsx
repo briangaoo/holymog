@@ -140,6 +140,50 @@ export function MogResultScreen({
     };
   }, [isPrivate, result.battle_id, onRematch, onRematchInvite]);
 
+  // Polling fallback — Realtime broadcasts have been flaky on this
+  // project, and the rematch race is the worst-case manifestation:
+  // each player creates their own battle, both end up alone with 0
+  // peaks. Idempotent server-side rematch makes the race safe; this
+  // poll auto-transitions the receiver even when the broadcast drops
+  // entirely, so they never have to click rematch themselves and risk
+  // a stale window. Fires once a second, stops the moment the
+  // transition fires (parent unmounts the result screen).
+  useEffect(() => {
+    if (!isPrivate) return;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(
+          `/api/battle/${result.battle_id}/state`,
+          { cache: 'no-store' },
+        );
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          rematch_battle_id?: string | null;
+          rematch_code?: string | null;
+        };
+        if (
+          data.rematch_battle_id &&
+          data.rematch_code &&
+          !cancelled
+        ) {
+          if (onRematchInvite) onRematchInvite(data.rematch_battle_id, data.rematch_code);
+          else if (onRematch)
+            onRematch(data.rematch_battle_id, data.rematch_code, false);
+        }
+      } catch {
+        // Network blip — try again next tick.
+      }
+    };
+    void tick();
+    const id = window.setInterval(tick, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isPrivate, result.battle_id, onRematch, onRematchInvite]);
+
   const onShare = useCallback(async () => {
     if (!me || !opponent) return;
     setSharing(true);
