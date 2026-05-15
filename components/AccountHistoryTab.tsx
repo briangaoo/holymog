@@ -451,10 +451,10 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   const { rank, total } = computeRank(entry.peak_score, entry.opponents);
   const rankStyle = rankBadgeStyle(rank, total);
 
-  // Expanded row reveals every participant + the user's own row,
-  // sorted high-to-low by peak_score. Closed by default — open via
-  // click on the chevron/row.
-  const [expanded, setExpanded] = useState(false);
+  // Expansion is pure CSS via `group` + `group-hover` — no React
+  // state, no click handler. Cursor hovers the row → full
+  // participant standings reveal below. Closed when the cursor
+  // moves off.
 
   const opponentNode = (() => {
     if (entry.opponents.length === 0) return <>—</>;
@@ -505,14 +505,8 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   const canExpand = total > 2;
 
   return (
-    <li className="border-t border-white/5 transition-colors hover:bg-white/[0.015]">
-      <button
-        type="button"
-        onClick={() => canExpand && setExpanded((e) => !e)}
-        disabled={!canExpand}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] disabled:cursor-default"
-        style={{ touchAction: 'manipulation' }}
-      >
+    <li className="group border-t border-white/5 transition-colors hover:bg-white/[0.015]">
+      <div className="flex w-full items-center gap-3 px-4 py-3 text-[13px]">
         <span
           className="inline-flex h-6 min-w-[24px] flex-shrink-0 items-center justify-center px-1.5 font-num text-[11px] font-bold tabular-nums"
           style={{
@@ -554,9 +548,9 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
         <span className="font-num w-12 text-right text-[11px] tabular-nums text-zinc-500">
           {dateLabel}
         </span>
-      </button>
-      {expanded && canExpand && (
-        <ul className="flex flex-col gap-px bg-black px-4 pb-3">
+      </div>
+      {canExpand && (
+        <ul className="hidden flex-col gap-px bg-black px-4 pb-3 group-hover:flex">
           {standings.map((p, idx) => {
             const placeRank = idx + 1;
             const placeStyle = rankBadgeStyle(placeRank, total);

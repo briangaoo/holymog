@@ -851,7 +851,6 @@ function BattleActivityRow({
 }: {
   battle: PublicProfileData['recent_battles'][number];
 }) {
-  const [expanded, setExpanded] = useState(false);
   const { rank, total } = computeRankFromOpponents(
     battle.peak_score,
     battle.opponents,
@@ -871,15 +870,12 @@ function BattleActivityRow({
     })),
   ].sort((a, b) => b.peak_score - a.peak_score);
 
+  // CSS-only hover expansion via `group` + `group-hover`. No state,
+  // no click handler — moving the cursor onto the row reveals every
+  // participant's standings inline below.
   return (
-    <li className="overflow-hidden rounded-sm border border-white/[0.04] bg-white/[0.01] transition-colors hover:bg-white/[0.025]">
-      <button
-        type="button"
-        onClick={() => canExpand && setExpanded((e) => !e)}
-        disabled={!canExpand}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-[14px] disabled:cursor-default"
-        style={{ touchAction: 'manipulation' }}
-      >
+    <li className="group overflow-hidden rounded-sm border border-white/[0.04] bg-white/[0.01] transition-colors hover:bg-white/[0.025]">
+      <div className="flex w-full items-center gap-3 px-3 py-2.5 text-[14px]">
         <span
           className="inline-flex h-7 min-w-[28px] flex-shrink-0 items-center justify-center px-1.5 font-num text-[12px] font-bold tabular-nums"
           style={{
@@ -929,9 +925,9 @@ function BattleActivityRow({
             {formatRelativeShort(battle.finished_at)}
           </span>
         )}
-      </button>
-      {expanded && canExpand && (
-        <ul className="flex flex-col gap-px border-t border-white/10 bg-black/40 px-3 py-2">
+      </div>
+      {canExpand && (
+        <ul className="hidden flex-col gap-px border-t border-white/10 bg-black/40 px-3 py-2 group-hover:flex">
           {standings.map((p, idx) => {
             const placeRank = idx + 1;
             const placeStyle = battleRankStyle(placeRank, total);
