@@ -22,6 +22,7 @@ import { ShareSheet } from '@/components/ShareSheet';
 import { PrivacyModal } from '@/components/PrivacyModal';
 import { LeaderboardButton } from '@/components/LeaderboardButton';
 import { LeaderboardModal } from '@/components/LeaderboardModal';
+import { RecordScanModal } from '@/components/RecordScanModal';
 import { AuthModal } from '@/components/AuthModal';
 import { useUser } from '@/hooks/useUser';
 import { readBackNav } from '@/lib/back-nav';
@@ -98,6 +99,35 @@ const STORAGE_KEY = 'holymog-last-result';
 // the prior informational dialog get re-prompted with the new
 // affirmative-consent surface.
 const PRIVACY_KEY = 'holymog-consent-accepted';
+// Device-local best overall, used to decide whether a freshly-completed
+// scan should trigger the "add to leaderboard?" prompt. Persists across
+// retakes (separate from STORAGE_KEY which is the last result, not the
+// best). Per-device — signed-in users may have a higher server-side
+// `best_scan_overall` from another device, but the prompt is meant to
+// catch the moment-of-pride-on-this-device, not the global best, so
+// localStorage is the right scope.
+const BEST_OVERALL_KEY = 'holymog-best-overall';
+
+function readBestOverall(): number | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(BEST_OVERALL_KEY);
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeBestOverall(value: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(BEST_OVERALL_KEY, String(value));
+  } catch {
+    // ignore — modal will just re-fire next scan
+  }
+}
 
 type SavedResult = {
   scores: FinalScores;
@@ -156,6 +186,15 @@ export default function Home() {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [scanLimit, setScanLimit] = useState<ScanLimit | null>(null);
+  // "New record / first scan" auto-prompt. Fired from handleRevealDone
+  // (i.e. only on a real reveal, not on hydration from cache). The two
+  // metadata bits travel with the open flag because the modal needs
+  // them to render the right copy + colour.
+  const [recordPrompt, setRecordPrompt] = useState<{
+    open: boolean;
+    overall: number;
+    isFirst: boolean;
+  }>({ open: false, overall: 0, isFirst: false });
   const { user: signedInUser } = useUser();
   const isSignedIn = !!signedInUser;
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
@@ -536,8 +575,29 @@ export default function Home() {
   }, []);
 
   const handleRevealDone = useCallback(() => {
+    // Fires once, when the reveal animation finishes (NOT on hydration
+    // from cache — that path skips REVEAL_DONE entirely). Compare the
+    // fresh score against the device-local best; if it's a new record
+    // (or there's no prior best, i.e. first scan ever on this device)
+    // surface the "add to leaderboard?" prompt. Skip on fallback scans
+    // where vision failed — there's no real score to put on the board.
+    if (state.type === 'revealing' && !state.scores.fallback) {
+      const newOverall = state.scores.overall;
+      const previousBest = readBestOverall();
+      const isRecord = previousBest === null || newOverall > previousBest;
+      if (isRecord) {
+        setRecordPrompt({
+          open: true,
+          overall: newOverall,
+          isFirst: previousBest === null,
+        });
+        // Update the local best up front so a retake at the same score
+        // won't re-fire the prompt while this one is still on screen.
+        writeBestOverall(newOverall);
+      }
+    }
     dispatch({ type: 'REVEAL_DONE' });
-  }, [dispatch]);
+  }, [state, dispatch]);
 
   const refetchScanLimit = useCallback(async () => {
     try {
@@ -866,6 +926,23 @@ export default function Home() {
         onClose={() => setAuthOpen(false)}
         context="for unlimited"
         next="/scan"
+      />
+
+      {/* Personal-record auto-prompt — fires from handleRevealDone when
+          the fresh scan beats the device-local best (or there's no prior
+          best). "Yes" hands off to whichever path the existing
+          add-to-leaderboard CTA uses (LeaderboardModal for signed-in,
+          AuthModal for anon). "No" closes silently. */}
+      <RecordScanModal
+        open={recordPrompt.open}
+        overall={recordPrompt.overall}
+        isFirst={recordPrompt.isFirst}
+        onYes={() => {
+          setRecordPrompt((curr) => ({ ...curr, open: false }));
+          if (signedInUser) setLeaderboardOpen(true);
+          else setAuthOpen(true);
+        }}
+        onNo={() => setRecordPrompt((curr) => ({ ...curr, open: false }))}
       />
     </div>
   );
