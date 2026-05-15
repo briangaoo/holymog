@@ -11,6 +11,9 @@ import { motion } from 'framer-motion';
 import { Download, Flag, Loader2 } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
 import { NameFx } from '@/components/customization/NameFx';
+import { Frame } from '@/components/customization/Frame';
+import { Badge } from '@/components/customization/Badge';
+import { AvatarFallback } from '@/components/AvatarFallback';
 import { BattleReportModal } from '@/components/BattleReportModal';
 import type { UserStats } from '@/lib/customization';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
@@ -51,12 +54,15 @@ export type FinishPayload = {
     final_score: number;
     is_winner: boolean;
     is_tie?: boolean;
-    /** Cosmetic + userStats fields the server enriches per participant
-     *  so the result screen can render @opponent with their actual
-     *  equipped name effect (including smart fx that need live stats —
-     *  tier-prefix, streak-flame, elo-king, callout, score-overlay).
-     *  All optional so older runtime payloads (BattleRoom's local type
-     *  trims them) flow through and degrade to plain text. */
+    /** Profile picture URL + cosmetic slugs the server enriches per
+     *  participant so the result screen renders avatars + frames +
+     *  badges + name fx that match what these users look like on
+     *  every other surface in the product. All optional so older
+     *  runtime payloads (BattleRoom's local type trims them) flow
+     *  through and degrade to plain text + fallback avatar. */
+    avatar_url?: string | null;
+    equipped_frame?: string | null;
+    equipped_flair?: string | null;
     equipped_name_fx?: string | null;
     elo?: number | null;
     current_streak?: number | null;
@@ -852,14 +858,41 @@ function ResultPlayer({
         />
       </div>
 
-      <span className="truncate text-sm font-medium text-white">
-        <NameFx
-          slug={entry.equipped_name_fx ?? null}
+      <div className="flex items-center gap-2.5">
+        <Frame
+          slug={entry.equipped_frame ?? null}
+          size={36}
           userStats={participantUserStats(entry)}
         >
-          @{entry.display_name}
-        </NameFx>
-      </span>
+          {entry.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={entry.avatar_url}
+              alt=""
+              className="h-full w-full rounded-full object-cover"
+            />
+          ) : (
+            <span className="flex h-full w-full overflow-hidden rounded-full border border-white/15">
+              <AvatarFallback seed={entry.display_name} textClassName="text-xs" />
+            </span>
+          )}
+        </Frame>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+          <NameFx
+            slug={entry.equipped_name_fx ?? null}
+            userStats={participantUserStats(entry)}
+          >
+            @{entry.display_name}
+          </NameFx>
+        </span>
+        {entry.equipped_flair && (
+          <Badge
+            slug={entry.equipped_flair}
+            size={20}
+            userStats={participantUserStats(entry)}
+          />
+        )}
+      </div>
     </motion.div>
   );
 }

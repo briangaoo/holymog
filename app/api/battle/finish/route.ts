@@ -22,9 +22,13 @@ type ParticipantRow = {
   peak_score: number;
   joined_at: Date;
   // Cosmetic + stats fields needed to render the result screen's
-  // headline + player cards through <NameFx /> so the opponent's
-  // equipped name effect shows in "you cooked @opponent." instead
-  // of plain text. Joined from profiles via the query below.
+  // headline + player cards through <NameFx /> + <Frame /> + <Badge />
+  // so opponents look the same here as everywhere else in the product.
+  // Joined from users (avatar) + profiles (cosmetics + userStats) via
+  // the query below.
+  avatar_url: string | null;
+  equipped_frame: string | null;
+  equipped_flair: string | null;
   equipped_name_fx: string | null;
   elo: number;
   current_streak: number;
@@ -64,6 +68,15 @@ type ResultParticipant = {
   final_score: number;
   is_winner: boolean;
   is_tie: boolean;
+  /** Profile picture URL (users.image). Result screen renders this
+   *  inside the equipped Frame; falls back to AvatarFallback when
+   *  null. */
+  avatar_url: string | null;
+  /** Equipped frame + flair slugs — drive <Frame> wrap + <Badge>
+   *  render on the result screen so opponents look the same here
+   *  as anywhere else in the product. */
+  equipped_frame: string | null;
+  equipped_flair: string | null;
   /** Equipped name effect slug — drives <NameFx> on the result
    *  screen so opponents render with their actual treatment. */
   equipped_name_fx: string | null;
@@ -165,11 +178,14 @@ export async function POST(request: Request) {
     // fx + userStats fields the result-screen <NameFx /> needs.
     const participantsResult = await client.query<ParticipantRow>(
       `select bp.user_id, bp.display_name, bp.peak_score, bp.joined_at,
-              pp.equipped_name_fx, pp.elo, pp.current_streak,
+              u.image as avatar_url,
+              pp.equipped_frame, pp.equipped_flair, pp.equipped_name_fx,
+              pp.elo, pp.current_streak,
               pp.matches_won, pp.best_scan_overall, pp.best_scan,
               pp.subscription_status
          from battle_participants bp
          join profiles pp on pp.user_id = bp.user_id
+         left join users u on u.id = bp.user_id
         where bp.battle_id = $1
         order by bp.peak_score desc, bp.joined_at asc`,
       [battleId],
@@ -379,6 +395,9 @@ export async function POST(request: Request) {
         final_score: p.peak_score,
         is_winner: winnerId !== null && p.user_id === winnerId,
         is_tie: isTie,
+        avatar_url: p.avatar_url,
+        equipped_frame: p.equipped_frame,
+        equipped_flair: p.equipped_flair,
         equipped_name_fx: p.equipped_name_fx,
         elo: p.elo,
         current_streak: p.current_streak,
@@ -480,6 +499,9 @@ async function cachedResult(battleId: string): Promise<Response> {
     final_score: number | null;
     is_winner: boolean;
     peak_score: number;
+    avatar_url: string | null;
+    equipped_frame: string | null;
+    equipped_flair: string | null;
     equipped_name_fx: string | null;
     elo: number;
     current_streak: number;
@@ -489,11 +511,14 @@ async function cachedResult(battleId: string): Promise<Response> {
     subscription_status: string | null;
   }>(
     `select bp.user_id, bp.display_name, bp.final_score, bp.is_winner, bp.peak_score,
-            pp.equipped_name_fx, pp.elo, pp.current_streak,
+            u.image as avatar_url,
+            pp.equipped_frame, pp.equipped_flair, pp.equipped_name_fx,
+            pp.elo, pp.current_streak,
             pp.matches_won, pp.best_scan_overall, pp.best_scan,
             pp.subscription_status
        from battle_participants bp
        join profiles pp on pp.user_id = bp.user_id
+       left join users u on u.id = bp.user_id
       where bp.battle_id = $1
       order by bp.peak_score desc, bp.joined_at asc`,
     [battleId],
@@ -525,6 +550,9 @@ async function cachedResult(battleId: string): Promise<Response> {
           final_score: p.final_score ?? p.peak_score,
           is_winner: p.is_winner,
           is_tie: isTie,
+          avatar_url: p.avatar_url,
+          equipped_frame: p.equipped_frame,
+          equipped_flair: p.equipped_flair,
           equipped_name_fx: p.equipped_name_fx,
           elo: p.elo,
           current_streak: p.current_streak,

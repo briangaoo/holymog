@@ -53,22 +53,44 @@ export async function GET(
     return NextResponse.json({ error: 'not_a_participant' }, { status: 403 });
   }
 
+  // Join users (for the avatar) + profiles (for cosmetics + the
+  // userStats fields that smart name/frame fx consume). Without this
+  // the lobby renders every participant as a generic letter-fallback
+  // avatar even though they have a profile picture + decorations
+  // equipped — which is what they actually look like everywhere else
+  // in the product. Same shape the BattleRoom gets through the
+  // LiveKit token metadata, so the lobby → in-battle transition is
+  // visually continuous.
   const { rows } = await pool.query<{
     user_id: string;
     display_name: string;
+    avatar_url: string | null;
+    equipped_frame: string | null;
+    equipped_flair: string | null;
+    equipped_name_fx: string | null;
+    elo: number | null;
+    current_streak: number | null;
+    matches_won: number | null;
+    best_scan_overall: number | null;
+    subscription_status: string | null;
   }>(
-    // Filter out participants who have auto-left (closed the tab,
-    // navigated away from the lobby, or clicked LEAVE). Without this,
-    // a guest who's wandered off to the homepage still shows in the
-    // lobby + still counts toward min-2-to-start, and the host can
-    // unintentionally start a battle with a ghost. The lobby's
-    // re-join path (POST /join with the same code) clears `left_at`
-    // back to NULL so honest re-joins are not penalised.
-    `select user_id, display_name
-       from battle_participants
-      where battle_id = $1
-        and left_at is null
-      order by joined_at asc`,
+    // left_at IS NULL filters out participants who have auto-left
+    // (closed the tab, navigated away, or clicked LEAVE). Without
+    // this a guest who's wandered off to the homepage still shows in
+    // the lobby + still counts toward min-2-to-start. The re-join
+    // path (POST /join with the same code) clears left_at back to
+    // NULL so honest returns are not penalised.
+    `select bp.user_id, bp.display_name,
+            u.image as avatar_url,
+            p.equipped_frame, p.equipped_flair, p.equipped_name_fx,
+            p.elo, p.current_streak, p.matches_won,
+            p.best_scan_overall, p.subscription_status
+       from battle_participants bp
+       left join users u on u.id = bp.user_id
+       left join profiles p on p.user_id = bp.user_id
+      where bp.battle_id = $1
+        and bp.left_at is null
+      order by bp.joined_at asc`,
     [id],
   );
 
@@ -78,7 +100,21 @@ export async function GET(
   // this project (same pattern as the Storage outage). The poll is the
   // reliable fallback path.
   return NextResponse.json({
-    participants: rows,
+    participants: rows.map((r) => ({
+      user_id: r.user_id,
+      display_name: r.display_name,
+      avatar_url: r.avatar_url,
+      equipped_frame: r.equipped_frame,
+      equipped_flair: r.equipped_flair,
+      equipped_name_fx: r.equipped_name_fx,
+      elo: r.elo,
+      current_streak: r.current_streak,
+      matches_won: r.matches_won,
+      best_scan_overall: r.best_scan_overall,
+      is_subscriber:
+        r.subscription_status === 'active' ||
+        r.subscription_status === 'trialing',
+    })),
     state: allowedResult.rows[0].state,
     started_at: allowedResult.rows[0].started_at
       ? allowedResult.rows[0].started_at.toISOString()

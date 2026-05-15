@@ -24,6 +24,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AppHeader } from '@/components/AppHeader';
 import { AuthModal } from '@/components/AuthModal';
 import { AvatarFallback } from '@/components/AvatarFallback';
+import { Frame } from '@/components/customization/Frame';
+import { Badge } from '@/components/customization/Badge';
+import { NameFx } from '@/components/customization/NameFx';
+import type { UserStats } from '@/lib/customization';
 import { useUser } from '@/hooks/useUser';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import {
@@ -1082,6 +1086,18 @@ function prettyJoinError(code: string): string {
 type LobbyParticipant = {
   user_id: string;
   display_name: string;
+  avatar_url?: string | null;
+  equipped_frame?: string | null;
+  equipped_flair?: string | null;
+  equipped_name_fx?: string | null;
+  /** userStats fields — smart cosmetics (callout, streak-pyre, etc.)
+   *  derive what they render from these so the lobby looks identical
+   *  to every other surface that shows the same user. */
+  elo?: number | null;
+  current_streak?: number | null;
+  matches_won?: number | null;
+  best_scan_overall?: number | null;
+  is_subscriber?: boolean;
 };
 
 function Lobby({
@@ -1365,6 +1381,14 @@ function Lobby({
           {participants.map((p, idx) => {
             const isYou = p.user_id === userId;
             const isHostRow = idx === 0;
+            const userStats: UserStats = {
+              elo: p.elo ?? null,
+              bestScanOverall: p.best_scan_overall ?? null,
+              currentStreak: p.current_streak ?? null,
+              currentWinStreak: p.current_streak ?? null,
+              matchesWon: p.matches_won ?? null,
+              weakestSubScore: null,
+            };
             return (
               <motion.li
                 key={p.user_id}
@@ -1376,18 +1400,42 @@ function Lobby({
                 className="flex items-center gap-3 border border-white/15 bg-white/[0.02] px-3 py-2"
                 style={{ borderRadius: 2 }}
               >
-                <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15">
-                  <AvatarFallback
-                    seed={p.display_name}
-                    textClassName="text-[11px]"
-                  />
-                </span>
+                <Frame
+                  slug={p.equipped_frame ?? null}
+                  size={32}
+                  userStats={userStats}
+                >
+                  {p.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.avatar_url}
+                      alt=""
+                      className="h-full w-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-full w-full overflow-hidden rounded-full border border-white/15">
+                      <AvatarFallback
+                        seed={p.display_name}
+                        textClassName="text-[11px]"
+                      />
+                    </span>
+                  )}
+                </Frame>
                 <Link
                   href={`/@${p.display_name}`}
-                  className="flex-1 truncate text-sm text-white hover:underline underline-offset-2"
+                  className="flex-1 min-w-0 truncate text-sm text-white hover:underline underline-offset-2"
                 >
-                  {p.display_name}
+                  <NameFx slug={p.equipped_name_fx ?? null} userStats={userStats}>
+                    {p.display_name}
+                  </NameFx>
                 </Link>
+                {p.equipped_flair && (
+                  <Badge
+                    slug={p.equipped_flair}
+                    size={18}
+                    userStats={userStats}
+                  />
+                )}
                 <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-white/50">
                   {isHostRow && (
                     <span className="border border-white/30 bg-white/[0.06] px-1.5 py-0.5 text-white" style={{ borderRadius: 2 }}>
