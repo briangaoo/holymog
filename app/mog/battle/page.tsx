@@ -563,7 +563,7 @@ function PublicMatchmaking({
           right: 'max(env(safe-area-inset-right), 16px)',
           borderRadius: 2,
         }}
-        className="absolute z-10 inline-flex h-9 items-center gap-1.5 border-2 border-white/40 bg-black px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
+        className="absolute z-10 inline-flex h-11 items-center gap-1.5 border-2 border-white/40 bg-black px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
       >
         <X size={12} aria-hidden /> CANCEL
       </button>
