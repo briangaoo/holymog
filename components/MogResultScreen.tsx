@@ -1187,7 +1187,7 @@ function ResultPartyBoard({
     <div className="mb-8 flex flex-col items-center gap-6">
       {/* Stair-stepped podium — three columns side by side, 1st in
           the middle on the tallest platform. */}
-      <div className="flex w-full max-w-md items-end justify-center gap-2 sm:gap-3">
+      <div className="flex w-full max-w-lg items-end justify-center gap-2 sm:gap-3">
         {podiumOrder.map(
           ({ rank, player }) =>
             player && (
@@ -1326,7 +1326,11 @@ function PartyPodiumColumn({
         delay: theme.scoreDelay - 0.1,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="flex flex-1 flex-col items-center"
+      // `min-w-0` so the column shrinks to its flex-1 share instead of
+      // expanding around a long display_name. Internal name span has
+      // its own min-w-0 + truncate so the @handle cuts cleanly with
+      // an ellipsis instead of pushing other columns narrower.
+      className="flex min-w-0 flex-1 flex-col items-center"
     >
       {/* Crown above 1st place. */}
       {isFirst && (
@@ -1362,13 +1366,16 @@ function PartyPodiumColumn({
         </Frame>
       </div>
 
-      {/* Name + flair pill. */}
-      <span
-        className={`mt-1.5 flex items-center gap-1 truncate font-semibold text-white ${theme.nameSize}`}
+      {/* Name + flair pill — wrapping div is min-w-0 + w-full so the
+          truncate inside has a parent to cut against. */}
+      <div
+        className={`mt-1.5 flex w-full min-w-0 items-center justify-center gap-1 font-semibold text-white ${theme.nameSize}`}
       >
-        <NameFx slug={player.equipped_name_fx ?? null} userStats={userStats}>
-          @{player.display_name}
-        </NameFx>
+        <span className="block min-w-0 max-w-full truncate">
+          <NameFx slug={player.equipped_name_fx ?? null} userStats={userStats}>
+            @{player.display_name}
+          </NameFx>
+        </span>
         {player.equipped_flair && (
           <Badge
             slug={player.equipped_flair}
@@ -1376,7 +1383,7 @@ function PartyPodiumColumn({
             userStats={userStats}
           />
         )}
-      </span>
+      </div>
 
       {/* Score + tier letter. */}
       <div className="mt-0.5 flex items-baseline gap-1">

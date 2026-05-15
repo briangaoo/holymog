@@ -103,7 +103,7 @@ export default function LeaderboardPage() {
       />
       <AppHeader authNext="/leaderboard" />
 
-      <main className="relative mx-auto w-full max-w-md px-5 pb-12 pt-4">
+      <main className="relative mx-auto w-full max-w-lg px-5 pb-12 pt-4">
         <h1 className="mb-1 bg-gradient-to-br from-white via-violet-100 to-amber-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
           Leaderboard
         </h1>
@@ -537,7 +537,11 @@ function PodiumColumn({
   return (
     <Link
       href={href}
-      className="group flex flex-1 flex-col items-center transition-transform duration-300 hover:-translate-y-0.5"
+      // `flex-1 min-w-0` keeps the three columns equal-width and lets
+      // each shrink as needed so a long display_name + name fx prefix
+      // doesn't blow out one column and squeeze the others. Inner
+      // text spans handle their own truncation via max-w-full.
+      className="group flex min-w-0 flex-1 flex-col items-center transition-transform duration-300 hover:-translate-y-0.5"
       style={{ touchAction: 'manipulation' }}
     >
       {/* Crown sits above the 1st-place avatar with a soft yellow glow. */}
@@ -548,8 +552,11 @@ function PodiumColumn({
           aria-hidden
         />
       )}
-      {/* Header content (avatar, name, score) provided by caller. */}
-      <div className="flex flex-col items-center gap-1.5 px-1 text-center">
+      {/* Header content (avatar, name, score) provided by caller.
+          `w-full` so child elements respect this column's width and
+          truncate against it rather than against their intrinsic
+          content size. */}
+      <div className="flex w-full min-w-0 flex-col items-center gap-1.5 px-1 text-center">
         {children}
       </div>
       {/* Podium platform — tall block with the rank ghosted onto its
@@ -660,12 +667,17 @@ function ScanPodiumColumn({
         frameSlug={row.equipped_frame ?? null}
         userStats={userStats}
       />
-      <span
-        className={`mt-1 flex items-center gap-1 truncate ${theme.nameSize} font-semibold text-white`}
+      {/* Name + flair — wraps a min-w-0 + truncate span so a long
+          display_name + name fx prefix cuts cleanly with an ellipsis
+          inside this column instead of pushing the column wider. */}
+      <div
+        className={`mt-1 flex w-full min-w-0 items-center justify-center gap-1 ${theme.nameSize} font-semibold text-white`}
       >
-        <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
-          @{row.name}
-        </NameFx>
+        <span className="block min-w-0 max-w-full truncate">
+          <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
+            @{row.name}
+          </NameFx>
+        </span>
         {row.equipped_flair && (
           <Badge
             slug={row.equipped_flair}
@@ -673,7 +685,7 @@ function ScanPodiumColumn({
             userStats={userStats}
           />
         )}
-      </span>
+      </div>
       <div className="flex items-baseline gap-1">
         <span
           className={`font-num font-extrabold leading-none tabular-nums ${theme.scoreSize}`}
@@ -734,12 +746,14 @@ function BattlePodiumColumn({
         frameSlug={row.equipped_frame ?? null}
         userStats={userStats}
       />
-      <span
-        className={`mt-1 flex items-center gap-1 truncate ${theme.nameSize} font-semibold text-white`}
+      <div
+        className={`mt-1 flex w-full min-w-0 items-center justify-center gap-1 ${theme.nameSize} font-semibold text-white`}
       >
-        <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
-          @{row.display_name}
-        </NameFx>
+        <span className="block min-w-0 max-w-full truncate">
+          <NameFx slug={row.equipped_name_fx ?? null} userStats={userStats}>
+            @{row.display_name}
+          </NameFx>
+        </span>
         {row.equipped_flair && (
           <Badge
             slug={row.equipped_flair}
@@ -747,7 +761,7 @@ function BattlePodiumColumn({
             userStats={userStats}
           />
         )}
-      </span>
+      </div>
       <span
         className={`font-num font-extrabold leading-none tabular-nums ${theme.scoreSize}`}
         style={{ color: theme.accent }}
