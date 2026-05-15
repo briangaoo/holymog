@@ -731,9 +731,7 @@ function ResultEloDelta({
         {sign}
         {Math.abs(mine.delta)}
       </span>
-      <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-400">
-        elo
-      </span>
+      <span className="text-[12px] font-medium text-zinc-400">ELO</span>
       <span className="text-zinc-600">·</span>
       <span
         className="font-num text-base font-bold tabular-nums text-white"
@@ -864,10 +862,9 @@ function ResultPlayer({
           initial={{ scale: 0, rotate: -10 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ duration: 0.4, delay: 0.7, type: 'spring', stiffness: 280 }}
-          className="absolute right-3 top-3 inline-flex items-center gap-1 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-black"
-          style={{ borderRadius: 2 }}
+          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-amber-200 via-white to-amber-200 px-2 py-0.5 text-[11px] font-semibold text-black shadow-[0_0_18px_-2px_rgba(251,191,36,0.6)]"
         >
-          ✦ WINNER
+          ✦ Winner
         </motion.span>
       )}
       {tied && (
@@ -875,14 +872,12 @@ function ResultPlayer({
           initial={{ scale: 0, rotate: -10 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ duration: 0.4, delay: 0.7, type: 'spring', stiffness: 280 }}
-          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-zinc-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-200"
+          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-zinc-500/25 px-2 py-0.5 text-[11px] font-medium text-zinc-200"
         >
-          = tied
+          = Tied
         </motion.span>
       )}
-      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-        {label}
-      </span>
+      <span className="text-[12px] font-medium text-zinc-500">{label}</span>
 
       <div className="flex items-baseline gap-2">
         <span
@@ -981,7 +976,7 @@ function ResultDelta({
       transition={{ duration: 0.5, delay: 0.6 }}
       className="mb-8 flex items-center justify-center gap-3 text-[12px]"
     >
-      <span className="text-zinc-500 uppercase tracking-[0.18em]">margin</span>
+      <span className="text-zinc-500">Margin</span>
       <span
         className={`font-num text-base font-bold tabular-nums ${
           tied
@@ -993,10 +988,8 @@ function ResultDelta({
       >
         {tied ? '±0' : (youWon ? '+' : '−') + delta}
       </span>
-      <span className="text-zinc-500 uppercase tracking-[0.18em]">·</span>
-      <span className="text-[12px] font-medium uppercase tracking-[0.16em] text-zinc-300">
-        {margin}
-      </span>
+      <span className="text-zinc-500">·</span>
+      <span className="text-[12px] font-medium text-zinc-300">{margin}</span>
     </motion.div>
   );
 }
@@ -1052,14 +1045,14 @@ function ResultActions({
             onClick={onRematch}
             disabled={rematching}
             style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-12 flex-[1.2] items-center justify-center gap-2 rounded-full bg-white text-sm font-bold uppercase tracking-[0.14em] text-black transition-all hover:bg-zinc-100 hover:shadow-[0_8px_32px_-8px_rgba(255,255,255,0.4)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-12 flex-[1.2] items-center justify-center gap-2 rounded-full bg-gradient-to-br from-white via-white to-emerald-200 text-sm font-semibold text-black transition-all hover:shadow-[0_8px_32px_-4px_rgba(16,185,129,0.55)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {rematching ? (
               <>
-                <Loader2 size={14} className="animate-spin" /> rematching…
+                <Loader2 size={14} className="animate-spin" /> Rematching…
               </>
             ) : (
-              <>rematch</>
+              <>Rematch</>
             )}
           </button>
         ) : (
@@ -1067,9 +1060,9 @@ function ResultActions({
             type="button"
             onClick={onFindAnother}
             style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-12 flex-[1.2] items-center justify-center gap-2 rounded-full bg-white text-sm font-bold uppercase tracking-[0.14em] text-black transition-all hover:bg-zinc-100 hover:shadow-[0_8px_32px_-8px_rgba(255,255,255,0.4)]"
+            className="inline-flex h-12 flex-[1.2] items-center justify-center gap-2 rounded-full bg-gradient-to-br from-white via-white to-rose-200 text-sm font-semibold text-black transition-all hover:shadow-[0_8px_32px_-4px_rgba(244,63,94,0.55)]"
           >
-            find another
+            Find another
           </button>
         )}
         <Link
@@ -1151,12 +1144,15 @@ function ResultPartyHeadline({
       className="mb-6 text-center"
     >
       <span
-        className="block text-[11px] font-bold uppercase tracking-[0.28em]"
-        style={{ color: copy.accent }}
+        className="block text-[12px] font-semibold uppercase tracking-[0.18em]"
+        style={{
+          color: copy.accent,
+          textShadow: `0 0 18px ${copy.accent}66`,
+        }}
       >
         {copy.kicker}
       </span>
-      <h1 className="mt-2 text-3xl font-black uppercase leading-tight text-white sm:text-5xl">
+      <h1 className="mt-2 text-3xl font-extrabold leading-tight text-white sm:text-5xl">
         {copy.line}
       </h1>
     </motion.div>
@@ -1212,8 +1208,8 @@ function ResultPartyBoard({
       )}
       {honorable.length > 0 && (
         <div className="mt-2 w-full max-w-lg">
-          <span className="mb-2 block text-center text-[10px] font-bold uppercase tracking-[0.28em] text-white/50">
-            honorable mentions
+          <span className="mb-2 block text-center text-[13px] font-medium text-amber-200/70">
+            Honorable mentions
           </span>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {honorable.map((p, idx) => (
@@ -1229,8 +1225,8 @@ function ResultPartyBoard({
       )}
       {rest.length > 0 && (
         <div className="mt-2 w-full max-w-lg">
-          <span className="mb-2 block text-center text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
-            also played
+          <span className="mb-2 block text-center text-[13px] font-medium text-white/45">
+            Also played
           </span>
           <ul className="flex flex-col gap-1">
             {rest.map((p, idx) => (
