@@ -258,8 +258,8 @@ export function MogResultScreen({
       ) {
         await navWithShare.share({
           files: [file],
-          title: 'holymog battle',
-          text: isTie ? 'we tied' : youWon ? 'i mogged' : 'i got mogged',
+          title: 'holymog',
+          text: isTie ? 'We tied' : youWon ? 'I mogged' : 'I got mogged',
         });
       } else {
         const url = URL.createObjectURL(blob);
@@ -1076,7 +1076,7 @@ function ResultActions({
           href="/"
           className="inline-flex h-12 flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-sm font-medium text-white backdrop-blur-sm hover:bg-white/[0.08]"
         >
-          home
+          Home
         </Link>
       </div>
     </motion.div>

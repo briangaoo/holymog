@@ -187,7 +187,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
             <div className="relative">
               <div className="mb-5 flex items-center justify-between">
                 <h2 id="auth-title" className="text-lg font-semibold text-white">
-                  sign in{context ? ` ${context}` : ''}
+                  Sign in{context ? ` ${context}` : ''}
                 </h2>
                 <button
                   type="button"
@@ -220,7 +220,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                         className="h-5 w-5"
                       />
                     }
-                    label="continue with google"
+                    label="Continue with Google"
                   />
 
                   {/* Apple OAuth — disabled by default. Activate by
@@ -242,7 +242,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                         className="h-5 w-auto object-contain"
                       />
                     }
-                    label="continue with apple"
+                    label="Continue with Apple"
                   />
 
                   <div className="my-1 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
@@ -258,7 +258,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                       style={{ touchAction: 'manipulation' }}
                       className="flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-white/15 bg-white/[0.04] text-sm font-medium text-white transition-colors hover:bg-white/[0.08]"
                     >
-                      <Mail size={14} aria-hidden /> email me a link
+                      <Mail size={14} aria-hidden /> Email me a link
                     </button>
                   ) : (
                     <div className="flex flex-col gap-2">
@@ -281,7 +281,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                         style={{ touchAction: 'manipulation' }}
                         className="h-11 rounded-full bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 disabled:opacity-50"
                       >
-                        {status === 'sending' ? 'sending…' : 'send link'}
+                        {status === 'sending' ? 'Sending…' : 'Send link'}
                       </button>
                     </div>
                   )}
@@ -293,7 +293,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
               )}
 
               <p className="mt-6 text-[10px] leading-relaxed text-zinc-500">
-                by signing in you agree to our{' '}
+                By signing in you agree to our{' '}
                 {/* Same-tab — we drop a back-nav breadcrumb so /terms's
                     back link returns here with the modal re-opened
                     and the half-typed form preserved. */}
@@ -307,7 +307,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                   }
                   className="text-zinc-400 underline-offset-2 hover:text-white hover:underline"
                 >
-                  terms
+                  Terms
                 </Link>{' '}
                 and{' '}
                 <Link
@@ -320,7 +320,7 @@ export function AuthModal({ open, onClose, context, next }: Props) {
                   }
                   className="text-zinc-400 underline-offset-2 hover:text-white hover:underline"
                 >
-                  privacy policy
+                  Privacy Policy
                 </Link>
               </p>
             </div>
@@ -404,13 +404,13 @@ function SentInbox({ email }: { email: string }) {
         <Mail size={22} className="text-white" aria-hidden />
       </div>
       <div className="text-center">
-        <p className="text-sm font-semibold text-white">check your email</p>
+        <p className="text-sm font-semibold text-white">Check your email</p>
         <p className="mt-1 text-xs text-zinc-400">
-          we sent a sign-in link to{' '}
+          We sent a sign-in link to{' '}
           <span className="text-zinc-200">{email}</span>
         </p>
         <p className="mt-2 text-[11px] text-zinc-500">
-          don&apos;t see it? check your spam folder.
+          Don&apos;t see it? Check your spam folder.
         </p>
       </div>
       <div className="grid w-full grid-cols-4 gap-2">

@@ -1229,12 +1229,12 @@ function ScanPaywall({
   const reason = scanLimit?.reason ?? 'anon_lifetime';
   const headline =
     reason === 'auth_daily'
-      ? "you've hit today's scan limit"
-      : "you've used your free scan";
+      ? "You've hit today's scan limit"
+      : "You've used your free scan";
   const sub =
     reason === 'auth_daily'
       ? formatReset(scanLimit?.resetInSeconds ?? null)
-      : 'sign in to keep scanning. accounts get 30 scans / day.';
+      : 'Sign in to keep scanning. Accounts get 30 scans / day.';
   const showSignIn = reason !== 'auth_daily';
 
   return (
@@ -1244,22 +1244,23 @@ function ScanPaywall({
       </span>
       <h1 className="text-lg font-semibold text-white">{headline}</h1>
       <p className="mt-2 max-w-xs text-sm text-zinc-400">{sub}</p>
-      <div className="mt-6 flex flex-col gap-2">
+      <div className="mt-6 flex w-full max-w-xs flex-col gap-2">
         {showSignIn && (
           <button
             type="button"
             onClick={onSignIn}
             style={{ touchAction: 'manipulation' }}
-            className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-zinc-100"
+            className="inline-flex h-12 items-center justify-center rounded-full bg-white px-5 text-sm font-semibold text-black transition-colors hover:bg-zinc-100"
           >
-            sign in / sign up
+            Sign in / Sign up
           </button>
         )}
         <Link
           href="/"
-          className="rounded-full border border-white/15 bg-white/[0.03] px-5 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.07] hover:text-white"
+          style={{ touchAction: 'manipulation' }}
+          className="inline-flex h-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] px-5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.07] hover:text-white"
         >
-          go home
+          Go home
         </Link>
       </div>
     </main>
@@ -1268,14 +1269,14 @@ function ScanPaywall({
 
 function formatReset(secs: number | null): string {
   if (secs === null || secs <= 0) {
-    return "you've reached today's limit. come back soon.";
+    return "You've reached today's limit. Come back soon.";
   }
   const hours = Math.floor(secs / 3600);
   const minutes = Math.floor((secs % 3600) / 60);
   if (hours > 0) {
-    return `your next scan unlocks in ${hours}h ${minutes}m.`;
+    return `Your next scan unlocks in ${hours}h ${minutes}m.`;
   }
-  return `your next scan unlocks in ${Math.max(1, minutes)}m.`;
+  return `Your next scan unlocks in ${Math.max(1, minutes)}m.`;
 }
 
 function Avatar({

@@ -239,7 +239,7 @@ export default function MogPage() {
       <div className="min-h-dvh bg-black">
         <AppHeader authNext="/mog" authContext="to battle" />
         <main className="mx-auto w-full max-w-md px-5 py-8">
-          <p className="text-sm text-white">sign in to battle</p>
+          <p className="text-sm text-white">Sign in to battle</p>
         </main>
         <AuthModal
           open

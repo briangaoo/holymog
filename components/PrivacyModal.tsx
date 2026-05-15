@@ -68,7 +68,7 @@ export function PrivacyModal({ open, onAcknowledge }: Props) {
               Before your first scan
             </h2>
             <p className="mb-4 text-[12px] leading-relaxed text-zinc-500">
-              what happens to your face when you scan.
+              What happens to your face when you scan.
             </p>
 
             <ul className="space-y-2.5 text-[13px] leading-relaxed text-zinc-300">
@@ -202,7 +202,7 @@ export function PrivacyModal({ open, onAcknowledge }: Props) {
               style={{ touchAction: 'manipulation' }}
               className="mt-3 h-12 w-full rounded-full bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
             >
-              {accepted ? 'Accept & continue' : 'check the box to continue'}
+              {accepted ? 'Accept & continue' : 'Check the box to continue'}
             </button>
           </motion.div>
         </motion.div>
