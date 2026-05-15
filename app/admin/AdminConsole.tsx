@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Activity,
   AlertTriangle,
   Ban,
   Check,
-  Eye,
+  Crown,
   Flag,
+  LayoutDashboard,
   Loader2,
   RefreshCw,
   Search,
   ShieldCheck,
   Trash2,
   UserCog,
+  Users,
   X,
 } from 'lucide-react';
 
@@ -22,14 +25,19 @@ import {
  * Every action still re-checks on the server — never trust the gate
  * here alone.
  *
- * Layout (single column, max-w-3xl):
- *   - Lookup bar: paste a @username / email / user_id, get a dossier.
- *   - User dossier card: ban-state banner + identity + counters +
- *     scans list (with per-row DELETE) + leaderboard row (with REMOVE)
- *     + per-user audit history.
- *   - Recent global audit feed at the bottom: last 100 events across
- *     the platform for anomaly spotting.
+ * Layout: top sticky header + tab nav, then one of four tab panes:
+ *   Overview — site-wide metric cards + recent activity peek
+ *   Lookup   — find a user by handle / email / uuid, full dossier
+ *   Reports  — pending battle_reports queue with inline ban/dismiss
+ *   Activity — global audit log (last 100 events)
+ *
+ * Visual language: soft zinc-900 cards on a near-black surface with
+ * 1px zinc-800 borders, rounded-lg corners, generous spacing. Numbers
+ * use the regular sans with tabular-nums (no monospace) so the whole
+ * thing reads like a refined admin tool, not a terminal dashboard.
  */
+
+type Tab = 'overview' | 'lookup' | 'reports' | 'activity';
 
 type LookupResponse =
   | { kind: 'not_found' }
@@ -114,6 +122,7 @@ type PendingReport = {
 };
 
 export function AdminConsole({ adminUserId }: { adminUserId: string }) {
+  const [tab, setTab] = useState<Tab>('overview');
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -477,497 +486,511 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
     [user, refreshUser],
   );
 
+  const pendingReportsCount =
+    reports?.length ?? metrics?.pending_reports ?? 0;
+
   return (
-    <div className="min-h-dvh bg-black text-white">
-      <header className="border-b-2 border-white/15 bg-black">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-3">
+    <div className="min-h-dvh bg-zinc-950 text-zinc-100">
+      {/* Sticky top chrome — brand + operator on row 1, tabs on row 2.
+          Sits in a backdrop-blur container so content scrolls under
+          cleanly. */}
+      <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/85 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 py-3.5">
+          <div className="flex min-w-0 items-center gap-3">
             <span
               aria-hidden
-              className="flex h-9 w-9 items-center justify-center border-2 border-rose-500 bg-black"
-              style={{ borderRadius: 2 }}
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10"
             >
               <ShieldCheck size={16} className="text-rose-400" />
             </span>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-rose-400">
-                STAFF — NO LINKS, NO INDEX
+            <div className="flex min-w-0 flex-col">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-rose-400">
+                Staff
               </span>
-              <h1 className="text-[14px] font-bold uppercase tracking-[0.12em] text-white">
-                HOLYMOG ADMIN
+              <h1 className="truncate text-[14px] font-semibold text-white">
+                Holymog admin
               </h1>
             </div>
           </div>
-          <span className="hidden text-[10px] uppercase tracking-[0.16em] text-white/40 sm:inline">
-            OPERATOR {adminUserId.slice(0, 8)}…
-          </span>
+          <div className="hidden items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900/70 px-2.5 py-1 text-[11px] text-zinc-400 sm:inline-flex">
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+            />
+            <span className="font-mono text-[11px] text-zinc-400">
+              Operator {adminUserId.slice(0, 8)}
+            </span>
+          </div>
         </div>
+        <nav className="mx-auto flex w-full max-w-5xl items-center gap-0.5 overflow-x-auto px-3 pb-1.5">
+          <AdminTabButton
+            active={tab === 'overview'}
+            onClick={() => setTab('overview')}
+            icon={<LayoutDashboard size={13} />}
+            label="Overview"
+          />
+          <AdminTabButton
+            active={tab === 'lookup'}
+            onClick={() => setTab('lookup')}
+            icon={<Users size={13} />}
+            label="Lookup"
+          />
+          <AdminTabButton
+            active={tab === 'reports'}
+            onClick={() => setTab('reports')}
+            icon={<Flag size={13} />}
+            label="Reports"
+            badge={pendingReportsCount > 0 ? pendingReportsCount : undefined}
+          />
+          <AdminTabButton
+            active={tab === 'activity'}
+            onClick={() => setTab('activity')}
+            icon={<Activity size={13} />}
+            label="Activity"
+          />
+        </nav>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-5 py-6">
-        {/* Metrics panel */}
-        <section
-          className="mb-6 border-2 border-white/20 bg-black"
-          style={{ borderRadius: 2 }}
-        >
-          <header className="flex items-center justify-between px-5 pb-3 pt-5">
-            <div className="flex items-center gap-3">
-              <span
-                aria-hidden
-                className="flex h-10 w-10 items-center justify-center border border-white/25 bg-white/[0.04]"
-                style={{ borderRadius: 2 }}
-              >
-                <ShieldCheck size={18} className="text-white" />
-              </span>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[14px] font-bold uppercase tracking-[0.12em] text-white">
-                  SITE METRICS
-                </span>
-                <span className="text-[12px] text-white/50">
-                  live counters · refresh to recompute
-                </span>
+      <main className="mx-auto w-full max-w-5xl px-5 py-6">
+        {/* ---- Overview tab — hero metrics + recent activity ---- */}
+        {tab === 'overview' && (
+          <div className="flex flex-col gap-6">
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-[20px] font-semibold leading-tight text-white">
+                  Overview
+                </h2>
+                <p className="text-[13px] text-zinc-400">
+                  Live counters across the platform — refresh to recompute.
+                </p>
               </div>
+              <AdminGhostButton
+                onClick={refreshMetrics}
+                disabled={metricsLoading}
+                icon={metricsLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              >
+                Refresh
+              </AdminGhostButton>
             </div>
-            <button
-              type="button"
-              onClick={refreshMetrics}
-              disabled={metricsLoading}
-              className="flex items-center gap-1.5 border-2 border-white/30 bg-black px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:border-white disabled:opacity-40"
-              style={{ borderRadius: 2 }}
-            >
-              {metricsLoading ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : (
-                <RefreshCw size={11} />
-              )}
-              REFRESH
-            </button>
-          </header>
-          <div className="border-t border-white/15">
+
             {metrics === null && !metricsLoading ? (
-              <p className="px-5 py-4 text-[12px] text-white/40">
-                couldn't load metrics.
-              </p>
+              <AdminCard>
+                <p className="text-[13px] text-zinc-500">
+                  Couldn&apos;t load metrics. Try refresh.
+                </p>
+              </AdminCard>
             ) : metrics === null ? (
-              <p className="px-5 py-4 text-[12px] text-white/40">loading…</p>
+              <AdminCard>
+                <p className="text-[13px] text-zinc-500">Loading metrics…</p>
+              </AdminCard>
             ) : (
-              <dl className="grid grid-cols-2 gap-px bg-white/15 sm:grid-cols-5">
-                <Stat label="USERS" value={fmt(metrics.total_users)} accent="white" />
-                <Stat
-                  label="SIGNUPS TODAY"
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <MetricCard
+                  label="Users"
+                  value={fmt(metrics.total_users)}
+                  accent="zinc"
+                />
+                <MetricCard
+                  label="Signups today"
                   value={fmt(metrics.signups_today)}
                   accent="sky"
+                  highlight
                 />
-                <Stat label="SCANS" value={fmt(metrics.total_scans)} accent="white" />
-                <Stat
-                  label="SCANS TODAY"
+                <MetricCard
+                  label="Scans"
+                  value={fmt(metrics.total_scans)}
+                  accent="zinc"
+                />
+                <MetricCard
+                  label="Scans today"
                   value={fmt(metrics.scans_today)}
                   accent="emerald"
+                  highlight
                 />
-                <Stat label="BATTLES" value={fmt(metrics.total_battles)} accent="white" />
-                <Stat
-                  label="BATTLES TODAY"
+                <MetricCard
+                  label="Battles"
+                  value={fmt(metrics.total_battles)}
+                  accent="zinc"
+                />
+                <MetricCard
+                  label="Battles today"
                   value={fmt(metrics.battles_today)}
                   accent="emerald"
+                  highlight
                 />
-                <Stat
-                  label="SUBSCRIBERS"
+                <MetricCard
+                  label="Subscribers"
                   value={fmt(metrics.total_subscribers)}
                   accent="amber"
                 />
-                <Stat
-                  label="LEADERBOARD"
+                <MetricCard
+                  label="Leaderboard"
                   value={fmt(metrics.leaderboard_total)}
                   accent="violet"
                 />
-                <Stat
-                  label="PENDING REPORTS"
+                <MetricCard
+                  label="Pending reports"
                   value={fmt(metrics.pending_reports)}
-                  accent={metrics.pending_reports > 0 ? 'rose' : 'white'}
+                  accent={metrics.pending_reports > 0 ? 'rose' : 'zinc'}
+                  highlight={metrics.pending_reports > 0}
                 />
-                <Stat
-                  label="BANNED"
+                <MetricCard
+                  label="Banned"
                   value={fmt(metrics.banned_users)}
                   accent="rose"
                 />
-              </dl>
-            )}
-          </div>
-        </section>
-
-        {/* Pending reports queue */}
-        <section
-          className="mb-6 border-2 border-white/20 bg-black"
-          style={{ borderRadius: 2 }}
-        >
-          <header className="flex items-center justify-between px-5 pb-3 pt-5">
-            <div className="flex items-center gap-3">
-              <span
-                aria-hidden
-                className="flex h-10 w-10 items-center justify-center border border-rose-500/60 bg-rose-500/[0.04]"
-                style={{ borderRadius: 2 }}
-              >
-                <Flag size={18} className="text-rose-400" />
-              </span>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[14px] font-bold uppercase tracking-[0.12em] text-white">
-                  PENDING REPORTS
-                </span>
-                <span className="text-[12px] text-white/50">
-                  oldest first · ban or dismiss inline
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={refreshReports}
-              disabled={reportsLoading}
-              className="flex items-center gap-1.5 border-2 border-white/30 bg-black px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:border-white disabled:opacity-40"
-              style={{ borderRadius: 2 }}
-            >
-              {reportsLoading ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : (
-                <RefreshCw size={11} />
-              )}
-              REFRESH
-            </button>
-          </header>
-          <div className="border-t border-white/15 px-5 py-3">
-            {reports === null && !reportsLoading ? (
-              <p className="text-[12px] text-white/40">couldn't load reports.</p>
-            ) : reports === null ? (
-              <p className="text-[12px] text-white/40">loading…</p>
-            ) : reports.length === 0 ? (
-              <p className="text-[12px] text-emerald-300/80">
-                queue empty — nothing pending.
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {reports.map((r) => {
-                  const state = reportActionState[r.id] ?? 'idle';
-                  const err = reportActionError[r.id];
-                  return (
-                    <li
-                      key={r.id}
-                      className="flex flex-col gap-2 border-2 border-white/15 bg-white/[0.02] px-3 py-2"
-                      style={{ borderRadius: 2 }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-300">
-                            REPORTED @{r.reported_name ?? r.reported_user_id.slice(0, 8)}
-                            {r.reported_already_banned && (
-                              <span className="ml-2 border border-rose-500/60 bg-rose-500/10 px-1.5 py-0.5 text-[9px] text-rose-200">
-                                already banned
-                              </span>
-                            )}
-                          </span>
-                          <span
-                            className="truncate text-[11px] text-white/40"
-                            style={{ textTransform: 'none' }}
-                          >
-                            by @{r.reporter_name ?? r.reporter_user_id.slice(0, 8)} · {shortDateTime(r.created_at)}
-                          </span>
-                        </div>
-                        <div className="flex flex-shrink-0 gap-1">
-                          <button
-                            type="button"
-                            onClick={() => onResolveReport(r.id, 'ban')}
-                            disabled={state === 'pending'}
-                            className="flex items-center gap-1 border-2 border-rose-500 bg-rose-500 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-black transition-colors hover:bg-rose-400 disabled:opacity-40"
-                            style={{ borderRadius: 2 }}
-                          >
-                            {state === 'pending' ? (
-                              <Loader2 size={10} className="animate-spin" />
-                            ) : (
-                              <Ban size={10} />
-                            )}
-                            BAN
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onResolveReport(r.id, 'dismiss')}
-                            disabled={state === 'pending'}
-                            className="flex items-center gap-1 border-2 border-white/30 bg-black px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:border-white disabled:opacity-40"
-                            style={{ borderRadius: 2 }}
-                          >
-                            <X size={10} />
-                            DISMISS
-                          </button>
-                        </div>
-                      </div>
-                      <div
-                        className="border-l-2 border-white/15 pl-2 text-[12px] text-white/80"
-                        style={{ textTransform: 'none' }}
-                      >
-                        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
-                          REASON:
-                        </span>{' '}
-                        {r.reason}
-                        {r.details && (
-                          <>
-                            <br />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
-                              DETAILS:
-                            </span>{' '}
-                            {r.details}
-                          </>
-                        )}
-                      </div>
-                      {err && (
-                        <div className="text-[11px] text-rose-300">
-                          <AlertTriangle size={11} className="mr-1 inline" /> {err}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </section>
-
-        {/* Lookup bar */}
-        <section
-          className="relative border-2 border-white/20 bg-black"
-          style={{ borderRadius: 2 }}
-        >
-          <header className="flex items-center gap-3.5 px-5 pb-3 pt-5">
-            <span
-              aria-hidden
-              className="flex h-10 w-10 flex-shrink-0 items-center justify-center border border-white/25 bg-white/[0.04]"
-              style={{ borderRadius: 2 }}
-            >
-              <Search size={18} className="text-white" />
-            </span>
-            <div className="flex flex-1 flex-col gap-0.5">
-              <span className="text-[14px] font-bold uppercase leading-tight tracking-[0.12em] text-white">
-                LOOKUP
-              </span>
-              <span className="text-[12px] leading-relaxed text-white/50">
-                @username · email · user_id uuid. exact match.
-              </span>
-            </div>
-          </header>
-          <form
-            onSubmit={onSearch}
-            className="flex items-stretch gap-2 border-t border-white/15 px-5 py-4"
-          >
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="@someone, email, or uuid"
-              autoComplete="off"
-              spellCheck={false}
-              className="flex-1 border-2 border-white/30 bg-black px-3 py-2 text-[13px] text-white placeholder:text-white/30 focus:border-white focus:outline-none"
-              style={{ borderRadius: 2, textTransform: 'none' }}
-            />
-            <button
-              type="submit"
-              disabled={searching || !query.trim()}
-              className="border-2 border-white bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ borderRadius: 2 }}
-            >
-              {searching ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                'SEARCH'
-              )}
-            </button>
-          </form>
-          {searchError && (
-            <div className="border-t border-rose-500/40 bg-rose-500/[0.04] px-5 py-3 text-[12px] text-rose-300">
-              <AlertTriangle size={12} className="mr-1 inline" aria-hidden /> {searchError}
-            </div>
-          )}
-          {result?.kind === 'not_found' && (
-            <div className="border-t border-white/15 px-5 py-3 text-[12px] text-white/50">
-              no user matched.
-            </div>
-          )}
-        </section>
-
-        {/* User dossier */}
-        {user && found && (
-          <section
-            className="mt-6 border-2 border-white/20 bg-black"
-            style={{ borderRadius: 2 }}
-          >
-            {/* Ban banner */}
-            {user.banned_at ? (
-              <div className="flex flex-col gap-1 border-b-2 border-rose-500 bg-rose-500/[0.06] px-5 py-3">
-                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-rose-300">
-                  BANNED · {new Date(user.banned_at).toLocaleString()}
-                </span>
-                <span
-                  className="text-[13px] text-rose-100"
-                  style={{ textTransform: 'none' }}
-                >
-                  {user.banned_reason || '(no reason on record)'}
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1 border-b-2 border-emerald-500/60 bg-emerald-500/[0.04] px-5 py-3">
-                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
-                  IN GOOD STANDING
-                </span>
               </div>
             )}
 
-            <header className="flex items-start justify-between gap-3 px-5 pb-3 pt-5">
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate text-[18px] font-bold text-white">
-                  @{user.display_name}
-                </span>
-                <span
-                  className="truncate text-[12px] text-white/50"
-                  style={{ textTransform: 'none' }}
-                >
-                  {user.email ?? '(no email)'}
-                </span>
-                <span
-                  className="truncate font-mono text-[11px] text-white/30"
-                  style={{ textTransform: 'none' }}
-                >
-                  {user.user_id}
-                </span>
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
+            {/* Recent activity peek — last 10 events. Click "Open activity" to
+                jump to the dedicated tab. */}
+            <AdminCard
+              title="Recent activity"
+              description="Last 10 events across the platform."
+              action={
                 <button
                   type="button"
-                  onClick={onViewAs}
-                  disabled={viewAsPending}
-                  className="flex items-center gap-1.5 border-2 border-amber-400 bg-black px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300 transition-colors hover:bg-amber-400/10 disabled:cursor-not-allowed disabled:opacity-40"
-                  style={{ borderRadius: 2 }}
+                  onClick={() => setTab('activity')}
+                  className="text-[12px] font-medium text-zinc-400 transition-colors hover:text-white"
                 >
-                  {viewAsPending ? (
-                    <Loader2 size={11} className="animate-spin" />
-                  ) : (
-                    <UserCog size={11} />
-                  )}
-                  VIEW AS
+                  Open activity →
                 </button>
-                {user.banned_at ? (
-                  <button
-                    type="button"
-                    onClick={onUnban}
-                    disabled={actionState['unban'] === 'pending'}
-                    className="flex items-center gap-1.5 border-2 border-emerald-400 bg-emerald-400 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ borderRadius: 2 }}
-                  >
-                    {actionState['unban'] === 'pending' ? (
-                      <Loader2 size={11} className="animate-spin" />
-                    ) : (
-                      <Check size={11} />
-                    )}
-                    UNBAN
-                  </button>
-                ) : null}
-                {viewAsError && (
-                  <span className="text-[10px] text-rose-300">
-                    {viewAsError}
-                  </span>
+              }
+            >
+              {globalAudit === null ? (
+                <p className="text-[13px] text-zinc-500">Loading…</p>
+              ) : globalAudit.length === 0 ? (
+                <p className="text-[13px] text-zinc-500">
+                  No events yet.
+                </p>
+              ) : (
+                <ul className="-mx-1 flex flex-col">
+                  {globalAudit.slice(0, 10).map((entry) => (
+                    <AuditEventRow key={entry.id} entry={entry} showUser />
+                  ))}
+                </ul>
+              )}
+            </AdminCard>
+          </div>
+        )}
+
+        {/* ---- Reports tab — pending battle reports queue ---- */}
+        {tab === 'reports' && (
+          <div className="flex flex-col gap-6">
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-[20px] font-semibold leading-tight text-white">
+                  Pending reports
+                </h2>
+                <p className="text-[13px] text-zinc-400">
+                  Oldest first. Ban or dismiss inline — both audit-logged.
+                </p>
+              </div>
+              <AdminGhostButton
+                onClick={refreshReports}
+                disabled={reportsLoading}
+                icon={reportsLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              >
+                Refresh
+              </AdminGhostButton>
+            </div>
+
+            <AdminCard noPadding>
+              <div className="px-5 py-4">
+                {reports === null && !reportsLoading ? (
+                  <p className="text-[13px] text-zinc-500">Couldn&apos;t load reports.</p>
+                ) : reports === null ? (
+                  <p className="text-[13px] text-zinc-500">Loading…</p>
+                ) : reports.length === 0 ? (
+                  <div className="flex items-center gap-2 text-[13px] text-emerald-300/90">
+                    <Check size={14} aria-hidden />
+                    Queue empty — nothing pending.
+                  </div>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {reports.map((r) => {
+                      const state = reportActionState[r.id] ?? 'idle';
+                      const err = reportActionError[r.id];
+                      return (
+                        <li
+                          key={r.id}
+                          className="flex flex-col gap-2 rounded-md border border-zinc-800 bg-zinc-900/60 px-4 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 flex-col gap-0.5">
+                              <span className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                                Reported @{r.reported_name ?? r.reported_user_id.slice(0, 8)}
+                                {r.reported_already_banned && (
+                                  <StatusPill tone="rose">Already banned</StatusPill>
+                                )}
+                              </span>
+                              <span className="truncate text-[12px] text-zinc-500">
+                                By @{r.reporter_name ?? r.reporter_user_id.slice(0, 8)} · {shortDateTime(r.created_at)}
+                              </span>
+                            </div>
+                            <div className="flex flex-shrink-0 gap-1.5">
+                              <AdminDangerButton
+                                onClick={() => onResolveReport(r.id, 'ban')}
+                                disabled={state === 'pending'}
+                                icon={state === 'pending' ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+                              >
+                                Ban
+                              </AdminDangerButton>
+                              <AdminGhostButton
+                                onClick={() => onResolveReport(r.id, 'dismiss')}
+                                disabled={state === 'pending'}
+                                icon={<X size={12} />}
+                              >
+                                Dismiss
+                              </AdminGhostButton>
+                            </div>
+                          </div>
+                          <div className="rounded-md border-l-2 border-zinc-700 bg-zinc-950/60 px-3 py-2 text-[13px] text-zinc-200">
+                            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                              Reason
+                            </span>
+                            <span>{r.reason}</span>
+                            {r.details && (
+                              <>
+                                <span className="mt-1.5 block text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                  Details
+                                </span>
+                                <span>{r.details}</span>
+                              </>
+                            )}
+                          </div>
+                          {err && (
+                            <div className="flex items-center gap-1.5 text-[12px] text-rose-300">
+                              <AlertTriangle size={12} aria-hidden /> {err}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
               </div>
-            </header>
+            </AdminCard>
+          </div>
+        )}
 
-            {/* Counters */}
-            <dl className="grid grid-cols-2 gap-px border-t border-white/15 bg-white/15 sm:grid-cols-4">
-              <Stat label="ELO" value={String(user.elo)} accent="amber" />
-              <Stat label="PEAK ELO" value={String(user.peak_elo)} accent="amber" />
-              <Stat
-                label="MATCHES"
-                value={`${user.matches_won}/${user.matches_played}`}
-                accent="sky"
-              />
-              <Stat
-                label="BEST SCAN"
-                value={user.best_scan_overall != null ? String(user.best_scan_overall) : '—'}
-                accent="emerald"
-              />
-              <Stat
-                label="SUBSCRIPTION"
-                value={user.subscription_status ?? 'none'}
-                accent="violet"
-              />
-              <Stat
-                label="SESSIONS"
-                value={String(user.active_sessions)}
-                accent="white"
-              />
-              <Stat
-                label="CREATED"
-                value={shortDate(user.created_at)}
-                accent="white"
-              />
-              <Stat
-                label="UPDATED"
-                value={user.updated_at ? shortDate(user.updated_at) : '—'}
-                accent="white"
-              />
-            </dl>
+        {/* ---- Lookup tab — search + user dossier ---- */}
+        {tab === 'lookup' && (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-[20px] font-semibold leading-tight text-white">
+              Lookup
+            </h2>
+            <p className="text-[13px] text-zinc-400">
+              Find a user by @username, email, or UUID. Exact match only.
+            </p>
+          </div>
+          <AdminCard noPadding>
+            <form
+              onSubmit={onSearch}
+              className="flex items-stretch gap-2 px-4 py-4"
+            >
+              <div className="relative flex-1">
+                <Search
+                  size={14}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                  aria-hidden
+                />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="@someone, email, or uuid"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2.5 pl-9 text-[14px] text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-zinc-600 focus:bg-zinc-900/80 focus:outline-none"
+                  style={{ textTransform: 'none' }}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={searching || !query.trim()}
+                className="inline-flex h-11 items-center gap-1.5 rounded-md bg-white px-4 text-[13px] font-semibold text-black transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {searching ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <>Search</>
+                )}
+              </button>
+            </form>
+            {searchError && (
+              <div className="border-t border-rose-500/30 bg-rose-500/[0.05] px-5 py-3 text-[13px] text-rose-300">
+                <AlertTriangle size={12} className="mr-1 inline" aria-hidden /> {searchError}
+              </div>
+            )}
+            {result?.kind === 'not_found' && (
+              <div className="border-t border-zinc-800 px-5 py-3 text-[13px] text-zinc-500">
+                No user matched.
+              </div>
+            )}
+          </AdminCard>
+        </div>
+        )}
+
+        {/* ---- User dossier (Lookup tab only) ---- */}
+        {tab === 'lookup' && user && found && (
+          <div className="mt-6 flex flex-col gap-4">
+            {/* Status banner — banned in rose, otherwise emerald. */}
+            {user.banned_at ? (
+              <div className="flex items-start gap-3 rounded-lg border border-rose-500/40 bg-rose-500/[0.06] px-4 py-3">
+                <Ban size={16} className="mt-0.5 text-rose-400" aria-hidden />
+                <div className="flex flex-1 flex-col gap-0.5">
+                  <span className="text-[12px] font-semibold text-rose-200">
+                    Banned · {new Date(user.banned_at).toLocaleString()}
+                  </span>
+                  <span className="text-[13px] text-rose-100/90">
+                    {user.banned_reason || '(no reason on record)'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.05] px-4 py-2.5">
+                <Check size={14} className="text-emerald-400" aria-hidden />
+                <span className="text-[13px] text-emerald-200">
+                  In good standing
+                </span>
+              </div>
+            )}
+
+            {/* Identity + action bar */}
+            <AdminCard noPadding>
+              <div className="flex flex-col gap-4 px-5 pb-4 pt-5 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-[20px] font-semibold text-white">
+                      @{user.display_name}
+                    </span>
+                    {user.subscription_status === 'active' ||
+                    user.subscription_status === 'trialing' ? (
+                      <StatusPill tone="amber" icon={<Crown size={10} />}>
+                        Subscriber
+                      </StatusPill>
+                    ) : null}
+                    {user.hide_elo && (
+                      <StatusPill tone="zinc">ELO hidden</StatusPill>
+                    )}
+                    {user.hide_photo_from_leaderboard && (
+                      <StatusPill tone="zinc">Photo hidden</StatusPill>
+                    )}
+                  </div>
+                  <span className="truncate text-[13px] text-zinc-400">
+                    {user.email ?? '(no email on file)'}
+                  </span>
+                  <span className="truncate font-mono text-[11px] text-zinc-600">
+                    {user.user_id}
+                  </span>
+                </div>
+                <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+                  <AdminGhostButton
+                    onClick={onViewAs}
+                    disabled={viewAsPending}
+                    icon={viewAsPending ? <Loader2 size={13} className="animate-spin" /> : <UserCog size={13} />}
+                    accent="amber"
+                  >
+                    View as
+                  </AdminGhostButton>
+                  {user.banned_at && (
+                    <AdminPrimaryButton
+                      onClick={onUnban}
+                      disabled={actionState['unban'] === 'pending'}
+                      icon={actionState['unban'] === 'pending' ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                      tone="emerald"
+                    >
+                      Unban
+                    </AdminPrimaryButton>
+                  )}
+                </div>
+              </div>
+              {viewAsError && (
+                <div className="border-t border-zinc-800 px-5 py-2 text-[12px] text-rose-300">
+                  {viewAsError}
+                </div>
+              )}
+
+              {/* Counters */}
+              <div className="grid grid-cols-2 gap-px border-t border-zinc-800 bg-zinc-800 sm:grid-cols-4">
+                <DossierStat label="ELO" value={String(user.elo)} accent="amber" />
+                <DossierStat label="Peak ELO" value={String(user.peak_elo)} accent="amber" />
+                <DossierStat
+                  label="Matches"
+                  value={`${user.matches_won}/${user.matches_played}`}
+                  accent="sky"
+                />
+                <DossierStat
+                  label="Best scan"
+                  value={user.best_scan_overall != null ? String(user.best_scan_overall) : '—'}
+                  accent="emerald"
+                />
+                <DossierStat
+                  label="Subscription"
+                  value={user.subscription_status ?? 'none'}
+                  accent="violet"
+                />
+                <DossierStat
+                  label="Sessions"
+                  value={String(user.active_sessions)}
+                  accent="zinc"
+                />
+                <DossierStat
+                  label="Created"
+                  value={shortDate(user.created_at)}
+                  accent="zinc"
+                />
+                <DossierStat
+                  label="Updated"
+                  value={user.updated_at ? shortDate(user.updated_at) : '—'}
+                  accent="zinc"
+                />
+              </div>
+            </AdminCard>
 
             {/* Ban form (only when not currently banned) */}
             {!user.banned_at && (
-              <div className="border-t border-white/15 px-5 py-4">
-                <span className="block text-[10px] font-bold uppercase tracking-[0.22em] text-rose-400">
-                  BAN USER
-                </span>
-                <p
-                  className="mt-1 text-[11px] text-white/50"
-                  style={{ textTransform: 'none' }}
-                >
-                  reason is emailed verbatim to the user. their sessions are
-                  killed immediately and signin is blocked.
-                </p>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+              <AdminCard
+                title="Ban user"
+                description="Reason is emailed verbatim to the user. Their sessions are killed immediately and sign-in is blocked."
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                   <input
                     type="text"
                     value={banReason}
                     onChange={(e) => setBanReason(e.target.value)}
-                    placeholder="reason (required, ≤500 chars)"
+                    placeholder="Reason (required, ≤500 chars)"
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={500}
-                    className="flex-1 border-2 border-white/30 bg-black px-3 py-2 text-[13px] text-white placeholder:text-white/30 focus:border-rose-400 focus:outline-none"
-                    style={{ borderRadius: 2, textTransform: 'none' }}
+                    className="flex-1 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-[14px] text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-rose-500/60 focus:bg-zinc-900/80 focus:outline-none"
+                    style={{ textTransform: 'none' }}
                   />
-                  <button
-                    type="button"
+                  <AdminDangerButton
                     onClick={onBan}
                     disabled={banPending || !banReason.trim()}
-                    className="flex items-center justify-center gap-1.5 border-2 border-rose-500 bg-rose-500 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ borderRadius: 2 }}
+                    icon={banPending ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />}
                   >
-                    {banPending ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Ban size={12} />
-                    )}
-                    BAN
-                  </button>
+                    Ban
+                  </AdminDangerButton>
                 </div>
                 {banError && (
-                  <div className="mt-2 text-[11px] text-rose-300">
-                    <AlertTriangle size={11} className="mr-1 inline" aria-hidden />{' '}
-                    {banError}
+                  <div className="mt-2 flex items-center gap-1.5 text-[12px] text-rose-300">
+                    <AlertTriangle size={12} aria-hidden /> {banError}
                   </div>
                 )}
-              </div>
+              </AdminCard>
             )}
 
             {/* Leaderboard entry */}
-            <div className="border-t border-white/15 px-5 py-4">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.22em] text-white/70">
-                LEADERBOARD
-              </span>
+            <AdminCard title="Leaderboard">
               {found.leaderboard ? (
-                <div className="mt-2 flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 flex-col">
-                    <span className="text-[13px] text-white">
-                      OVERALL {found.leaderboard.overall} · submitted{' '}
+                    <span className="text-[14px] text-white">
+                      Overall {found.leaderboard.overall} · submitted{' '}
                       {shortDate(found.leaderboard.created_at)}
                     </span>
                     {found.leaderboard.image_url && (
@@ -975,198 +998,266 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
                         href={found.leaderboard.image_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-300 underline"
-                        style={{ textTransform: 'none' }}
+                        className="mt-1 inline-flex items-center gap-1 text-[12px] text-sky-400 transition-colors hover:text-sky-300 hover:underline"
                       >
-                        <Eye size={11} /> view photo
+                        View submitted photo →
                       </a>
                     )}
                   </div>
-                  <button
-                    type="button"
+                  <AdminDangerButton
                     onClick={onDeleteLeaderboard}
                     disabled={actionState['lb'] === 'pending'}
-                    className="flex items-center gap-1.5 border-2 border-rose-500/70 bg-black px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ borderRadius: 2 }}
+                    icon={actionState['lb'] === 'pending' ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    variant="outline"
                   >
-                    {actionState['lb'] === 'pending' ? (
-                      <Loader2 size={11} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={11} />
-                    )}
-                    REMOVE
-                  </button>
+                    Remove
+                  </AdminDangerButton>
                 </div>
               ) : (
-                <p className="mt-1 text-[12px] text-white/40">
-                  no leaderboard entry.
+                <p className="text-[13px] text-zinc-500">
+                  No leaderboard entry.
                 </p>
               )}
               {actionError['lb'] && (
-                <div className="mt-2 text-[11px] text-rose-300">{actionError['lb']}</div>
+                <div className="mt-2 text-[12px] text-rose-300">{actionError['lb']}</div>
               )}
-            </div>
+            </AdminCard>
 
             {/* Scan history */}
-            <div className="border-t border-white/15 px-5 py-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/70">
-                  SCAN HISTORY · LAST {found.scans.length}
-                </span>
-              </div>
-              {found.scans.length === 0 ? (
-                <p className="mt-2 text-[12px] text-white/40">no scans yet.</p>
-              ) : (
-                <ul className="mt-2 flex flex-col gap-px bg-white/15">
-                  {found.scans.map((scan) => {
-                    const k = `scan:${scan.id}`;
-                    const pending = actionState[k] === 'pending';
-                    return (
-                      <li
-                        key={scan.id}
-                        className="flex items-center justify-between gap-3 bg-black px-3 py-2"
-                      >
-                        <div className="flex min-w-0 flex-1 items-center gap-3">
+            <AdminCard
+              title={`Scan history · last ${found.scans.length}`}
+              noPadding
+            >
+              <div className="px-5 py-4">
+                {found.scans.length === 0 ? (
+                  <p className="text-[13px] text-zinc-500">No scans yet.</p>
+                ) : (
+                  <ul className="-mx-2 flex flex-col">
+                    {found.scans.map((scan) => {
+                      const k = `scan:${scan.id}`;
+                      const pending = actionState[k] === 'pending';
+                      return (
+                        <li
+                          key={scan.id}
+                          className="flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-zinc-800/40"
+                        >
                           <span
-                            className="border border-emerald-400/60 bg-emerald-400/10 px-2 py-0.5 text-[11px] font-bold tabular-nums text-emerald-300"
-                            style={{ borderRadius: 2 }}
+                            className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[12px] font-semibold tabular-nums text-emerald-300"
                           >
                             {scan.overall}
                           </span>
-                          <span className="hidden text-[10px] text-white/40 sm:inline">
+                          <span className="hidden text-[11px] text-zinc-500 sm:inline">
                             J{scan.jawline} · E{scan.eyes} · S{scan.skin} · C{scan.cheekbones}
                           </span>
-                          <span
-                            className="ml-auto truncate text-[10px] text-white/40"
-                            style={{ textTransform: 'none' }}
-                          >
+                          <span className="ml-auto truncate text-[11px] text-zinc-500">
                             {shortDate(scan.created_at)}
                           </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteScan(scan.id)}
-                          disabled={pending}
-                          className="flex items-center gap-1 border border-rose-500/60 bg-black px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-                          style={{ borderRadius: 2 }}
-                          aria-label={`delete scan ${scan.id}`}
-                        >
-                          {pending ? (
-                            <Loader2 size={10} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={10} />
-                          )}
-                          DEL
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteScan(scan.id)}
+                            disabled={pending}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-rose-500/15 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label={`Delete scan ${scan.id}`}
+                          >
+                            {pending ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </AdminCard>
 
             {/* Per-user audit log */}
-            <div className="border-t border-white/15 px-5 py-4">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.22em] text-white/70">
-                AUDIT TRAIL · LAST {found.audit.length}
-              </span>
-              {found.audit.length === 0 ? (
-                <p className="mt-2 text-[12px] text-white/40">
-                  no events for this user.
-                </p>
-              ) : (
-                <ul className="mt-2 flex flex-col gap-1">
-                  {found.audit.map((entry) => (
-                    <AuditRow key={entry.id} entry={entry} />
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
+            <AdminCard
+              title={`Audit trail · last ${found.audit.length}`}
+              noPadding
+            >
+              <div className="px-5 py-4">
+                {found.audit.length === 0 ? (
+                  <p className="text-[13px] text-zinc-500">
+                    No events for this user.
+                  </p>
+                ) : (
+                  <ul className="-mx-1 flex flex-col">
+                    {found.audit.map((entry) => (
+                      <AuditEventRow key={entry.id} entry={entry} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </AdminCard>
+          </div>
         )}
 
-        {/* Global audit feed */}
-        <section
-          className="mt-6 border-2 border-white/20 bg-black"
-          style={{ borderRadius: 2 }}
-        >
-          <header className="flex items-center justify-between px-5 pb-3 pt-5">
-            <div className="flex items-center gap-3">
-              <span
-                aria-hidden
-                className="flex h-10 w-10 items-center justify-center border border-white/25 bg-white/[0.04]"
-                style={{ borderRadius: 2 }}
-              >
-                <Eye size={18} className="text-white" />
-              </span>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[14px] font-bold uppercase tracking-[0.12em] text-white">
-                  RECENT ACTIVITY · GLOBAL
-                </span>
-                <span className="text-[12px] text-white/50">
-                  last 100 events across all users
-                </span>
+        {/* ---- Activity tab — full global audit log ---- */}
+        {tab === 'activity' && (
+          <div className="flex flex-col gap-6">
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-[20px] font-semibold leading-tight text-white">
+                  Activity
+                </h2>
+                <p className="text-[13px] text-zinc-400">
+                  Last 100 events across every user — forensic trail for incident triage.
+                </p>
               </div>
+              <AdminGhostButton
+                onClick={refreshGlobalAudit}
+                disabled={globalAuditLoading}
+                icon={globalAuditLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              >
+                Refresh
+              </AdminGhostButton>
             </div>
-            <button
-              type="button"
-              onClick={refreshGlobalAudit}
-              disabled={globalAuditLoading}
-              className="flex items-center gap-1.5 border-2 border-white/30 bg-black px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:border-white disabled:opacity-40"
-              style={{ borderRadius: 2 }}
-            >
-              {globalAuditLoading ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : (
-                <RefreshCw size={11} />
-              )}
-              REFRESH
-            </button>
-          </header>
-          <div className="border-t border-white/15 px-5 py-3">
-            {globalAudit === null ? (
-              <p className="text-[12px] text-white/40">loading…</p>
-            ) : globalAudit.length === 0 ? (
-              <p className="text-[12px] text-white/40">no events yet.</p>
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {globalAudit.map((entry) => (
-                  <AuditRow key={entry.id} entry={entry} showUser />
-                ))}
-              </ul>
-            )}
+
+            <AdminCard noPadding>
+              <div className="px-5 py-4">
+                {globalAudit === null ? (
+                  <p className="text-[13px] text-zinc-500">Loading…</p>
+                ) : globalAudit.length === 0 ? (
+                  <p className="text-[13px] text-zinc-500">No events yet.</p>
+                ) : (
+                  <ul className="-mx-1 flex flex-col">
+                    {globalAudit.map((entry) => (
+                      <AuditEventRow key={entry.id} entry={entry} showUser />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </AdminCard>
           </div>
-        </section>
+        )}
       </main>
     </div>
   );
 }
 
-function Stat({
+// ---------------------------------------------------------------------
+// Admin design primitives — small, opinionated components shared
+// across the tabs. They commit to one visual language: zinc-900 cards
+// on a near-black surface with 1px zinc-800 borders, rounded-md
+// corners, generous padding, and motion only on hover. Numbers are
+// tabular-nums but NOT monospace — keeps the panel reading like a
+// modern admin tool rather than a terminal dashboard.
+// ---------------------------------------------------------------------
+
+function AdminTabButton({
+  active,
+  onClick,
+  icon,
+  label,
+  badge,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  badge?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ touchAction: 'manipulation' }}
+      className={`relative inline-flex h-10 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium transition-colors ${
+        active
+          ? 'bg-zinc-900 text-white'
+          : 'text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-100'
+      }`}
+    >
+      <span className={active ? 'text-white' : 'text-zinc-500'}>{icon}</span>
+      {label}
+      {badge !== undefined && (
+        <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500/20 px-1 text-[10px] font-bold tabular-nums text-rose-300">
+          {badge}
+        </span>
+      )}
+      {active && (
+        <span
+          aria-hidden
+          className="absolute -bottom-1.5 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-white"
+        />
+      )}
+    </button>
+  );
+}
+
+function AdminCard({
+  title,
+  description,
+  action,
+  noPadding,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  action?: React.ReactNode;
+  noPadding?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-zinc-800 bg-zinc-900/60">
+      {(title || action) && (
+        <header className="flex items-start justify-between gap-3 border-b border-zinc-800 px-5 py-3.5">
+          {title && (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[14px] font-semibold text-white">
+                {title}
+              </span>
+              {description && (
+                <span className="text-[12px] text-zinc-400">{description}</span>
+              )}
+            </div>
+          )}
+          {action}
+        </header>
+      )}
+      <div className={noPadding ? '' : 'px-5 py-4'}>{children}</div>
+    </section>
+  );
+}
+
+const METRIC_ACCENTS = {
+  zinc: 'text-zinc-100',
+  sky: 'text-sky-300',
+  emerald: 'text-emerald-300',
+  amber: 'text-amber-300',
+  violet: 'text-violet-300',
+  rose: 'text-rose-300',
+} as const;
+
+type MetricAccent = keyof typeof METRIC_ACCENTS;
+
+function MetricCard({
   label,
   value,
   accent,
+  highlight,
 }: {
   label: string;
   value: string;
-  accent: 'amber' | 'sky' | 'emerald' | 'violet' | 'rose' | 'white';
+  accent: MetricAccent;
+  highlight?: boolean;
 }) {
-  const accentClass = {
-    amber: 'text-amber-300',
-    sky: 'text-sky-300',
-    emerald: 'text-emerald-300',
-    violet: 'text-violet-300',
-    rose: 'text-rose-300',
-    white: 'text-white',
-  }[accent];
   return (
-    <div className="flex flex-col gap-0.5 bg-black px-4 py-3">
-      <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-white/40">
+    <div
+      className={`flex flex-col gap-1.5 rounded-lg border bg-zinc-900/60 px-4 py-4 transition-colors ${
+        highlight
+          ? 'border-zinc-700/80 hover:border-zinc-600'
+          : 'border-zinc-800 hover:border-zinc-700'
+      }`}
+    >
+      <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-500">
         {label}
       </span>
       <span
-        className={`truncate font-mono text-[13px] tabular-nums ${accentClass}`}
-        style={{ textTransform: 'none' }}
+        className={`text-[26px] font-semibold leading-none tabular-nums ${METRIC_ACCENTS[accent]}`}
       >
         {value}
       </span>
@@ -1174,11 +1265,157 @@ function Stat({
   );
 }
 
+const DOSSIER_STAT_ACCENTS = {
+  zinc: 'text-zinc-200',
+  sky: 'text-sky-300',
+  emerald: 'text-emerald-300',
+  amber: 'text-amber-300',
+  violet: 'text-violet-300',
+} as const;
+
+type DossierStatAccent = keyof typeof DOSSIER_STAT_ACCENTS;
+
+function DossierStat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: DossierStatAccent;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 bg-zinc-900/80 px-4 py-3">
+      <span className="text-[11px] font-medium text-zinc-500">{label}</span>
+      <span
+        className={`truncate text-[15px] font-semibold tabular-nums ${DOSSIER_STAT_ACCENTS[accent]}`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function StatusPill({
+  tone,
+  icon,
+  children,
+}: {
+  tone: 'rose' | 'amber' | 'emerald' | 'zinc';
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const toneClass = {
+    rose: 'border-rose-500/40 bg-rose-500/15 text-rose-200',
+    amber: 'border-amber-500/40 bg-amber-500/15 text-amber-200',
+    emerald: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200',
+    zinc: 'border-zinc-700 bg-zinc-800/60 text-zinc-300',
+  }[tone];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${toneClass}`}
+    >
+      {icon}
+      {children}
+    </span>
+  );
+}
+
+function AdminGhostButton({
+  onClick,
+  disabled,
+  icon,
+  accent,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+  accent?: 'amber';
+  children: React.ReactNode;
+}) {
+  const accentClass = accent === 'amber'
+    ? 'border-amber-500/40 bg-amber-500/[0.05] text-amber-200 hover:bg-amber-500/[0.1]'
+    : 'border-zinc-800 bg-zinc-900/60 text-zinc-200 hover:border-zinc-700 hover:bg-zinc-800';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{ touchAction: 'manipulation' }}
+      className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${accentClass}`}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+function AdminPrimaryButton({
+  onClick,
+  disabled,
+  icon,
+  tone,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+  tone?: 'emerald';
+  children: React.ReactNode;
+}) {
+  const toneClass = tone === 'emerald'
+    ? 'bg-emerald-500 text-black hover:bg-emerald-400'
+    : 'bg-white text-black hover:bg-zinc-200';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{ touchAction: 'manipulation' }}
+      className={`inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+function AdminDangerButton({
+  onClick,
+  disabled,
+  icon,
+  variant = 'solid',
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+  variant?: 'solid' | 'outline';
+  children: React.ReactNode;
+}) {
+  const variantClass = variant === 'outline'
+    ? 'border border-rose-500/50 bg-transparent text-rose-300 hover:bg-rose-500/10'
+    : 'bg-rose-500 text-black hover:bg-rose-400';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{ touchAction: 'manipulation' }}
+      className={`inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${variantClass}`}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
 function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-function AuditRow({
+function AuditEventRow({
   entry,
   showUser,
 }: {
@@ -1186,32 +1423,20 @@ function AuditRow({
   showUser?: boolean;
 }) {
   return (
-    <li
-      className="flex items-center gap-2 border-l-2 border-white/15 bg-white/[0.02] px-2 py-1 text-[11px]"
-      style={{ borderRadius: 2 }}
-    >
-      <span className="font-mono text-[10px] text-white/40" style={{ textTransform: 'none' }}>
+    <li className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] transition-colors hover:bg-zinc-800/40">
+      <span className="font-mono text-[11px] text-zinc-500">
         {shortDateTime(entry.created_at)}
       </span>
-      <span
-        className="border border-white/25 bg-black px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white"
-        style={{ borderRadius: 2 }}
-      >
+      <span className="rounded border border-zinc-700/80 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em] text-zinc-200">
         {entry.action}
       </span>
       {showUser && entry.user_id && (
-        <span
-          className="truncate font-mono text-[10px] text-white/40"
-          style={{ textTransform: 'none' }}
-        >
+        <span className="truncate font-mono text-[11px] text-zinc-500">
           {entry.user_id.slice(0, 8)}…
         </span>
       )}
       {entry.resource && (
-        <span
-          className="truncate font-mono text-[10px] text-white/30"
-          style={{ textTransform: 'none' }}
-        >
+        <span className="ml-auto truncate font-mono text-[11px] text-zinc-600">
           ↳ {entry.resource.slice(0, 12)}
         </span>
       )}
