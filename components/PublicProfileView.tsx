@@ -543,8 +543,8 @@ function TierCard({ data }: { data: PublicProfileData }) {
           )}
 
           <div className="flex flex-col gap-2 text-center sm:text-left">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.20em] text-zinc-400">
-              top scan ever
+            <span className="text-[12px] font-semibold text-zinc-400">
+              Top scan ever
             </span>
             {tier ? (
               <>
@@ -569,7 +569,7 @@ function TierCard({ data }: { data: PublicProfileData }) {
                   </span>
                 </div>
                 {descriptor && (
-                  <span className="text-[14px] uppercase tracking-[0.16em] text-zinc-300">
+                  <span className="text-[14px] font-medium uppercase tracking-[0.12em] text-zinc-300">
                     {descriptor}
                   </span>
                 )}
@@ -610,17 +610,17 @@ function StatStrip({
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
       <StatChip
-        label="elo"
+        label="ELO"
         value={data.elo === null ? '—' : String(data.elo)}
         sub={
           data.peak_elo !== null && data.peak_elo !== data.elo
-            ? `peak ${data.peak_elo}`
+            ? `Peak ${data.peak_elo}`
             : null
         }
         accent={data.elo === null ? 'zinc' : 'sky'}
       />
       <StatChip
-        label="record"
+        label="Record"
         value={
           data.matches_played === 0
             ? '—'
@@ -629,25 +629,25 @@ function StatStrip({
         accent={winRate !== null && winRate >= 50 ? 'emerald' : 'zinc'}
       />
       <StatChip
-        label="win rate"
+        label="Win rate"
         value={winRate === null ? '—' : `${winRate}%`}
         accent={winRate !== null && winRate >= 50 ? 'emerald' : 'zinc'}
       />
       <StatChip
-        label="streak"
+        label="Streak"
         value={String(data.current_streak)}
         sub={
-          data.longest_streak > 0 ? `best ${data.longest_streak}` : null
+          data.longest_streak > 0 ? `Best ${data.longest_streak}` : null
         }
         accent={data.current_streak >= 3 ? 'emerald' : 'zinc'}
       />
       <StatChip
-        label="scans"
+        label="Scans"
         value={String(data.total_scans)}
         accent="zinc"
       />
       <StatChip
-        label="battles"
+        label="Battles"
         value={String(data.matches_played)}
         accent="zinc"
       />
@@ -685,9 +685,7 @@ function StatChip({
         WebkitBackdropFilter: 'blur(12px) saturate(160%)',
       }}
     >
-      <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">
-        {label}
-      </div>
+      <div className="text-[12px] font-medium text-zinc-400">{label}</div>
       <div
         className={`font-num mt-1.5 text-[22px] font-extrabold tabular-nums leading-none ${valueColor}`}
       >
@@ -730,9 +728,9 @@ function ClimbChart({
         <div className="flex flex-col gap-3 p-5">
           <header className="flex items-baseline justify-between gap-3">
             <div className="flex items-center gap-2">
-              <TrendingUp size={15} className="text-white" aria-hidden />
-              <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white">
-                elo climb
+              <TrendingUp size={15} className="text-emerald-300" aria-hidden />
+              <span className="text-[14px] font-semibold text-white">
+                ELO climb
               </span>
             </div>
             <span className="font-num text-[12px] tabular-nums text-zinc-400">
@@ -803,9 +801,9 @@ function BattleActivity({
       >
         <div className="flex flex-col gap-3 p-5">
           <header className="flex items-center gap-2">
-            <Swords size={15} className="text-white/60" aria-hidden />
-            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white/60">
-              recent battles
+            <Swords size={15} className="text-rose-300/80" aria-hidden />
+            <span className="text-[14px] font-semibold text-white/80">
+              Recent battles
             </span>
           </header>
 
@@ -1069,9 +1067,9 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
       >
         <div className="flex flex-col gap-4 p-5">
           <header className="flex items-center gap-2">
-            <Sparkles size={15} className="text-white" aria-hidden />
-            <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white">
-              collection
+            <Sparkles size={15} className="text-amber-300" aria-hidden />
+            <span className="text-[14px] font-semibold text-white">
+              Collection
             </span>
             <span className="ml-auto font-num text-[12px] tabular-nums text-zinc-400">
               {ownedFrames.length + ownedBadges.length} owned
@@ -1080,8 +1078,8 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
 
           {ownedFrames.length > 0 && (
             <div className="flex flex-col gap-2">
-              <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">
-                frames
+              <span className="text-[12px] font-medium text-zinc-400">
+                Frames
               </span>
               <div className="flex flex-wrap gap-3">
                 {ownedFrames.map((slug) => {
@@ -1105,8 +1103,8 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
 
           {ownedBadges.length > 0 && (
             <div className="flex flex-col gap-2">
-              <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">
-                badges
+              <span className="text-[12px] font-medium text-zinc-400">
+                Badges
               </span>
               <div className="flex flex-wrap gap-2">
                 {ownedBadges.map((slug) => {
