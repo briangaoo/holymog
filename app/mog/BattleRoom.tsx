@@ -667,7 +667,7 @@ function BattleInterior({
           they refresh — without this they'd silently score 0. */}
       {cameraWarning && (
         <div
-          className="fixed left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 border-2 border-red-500/80 bg-black px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-red-200"
+          className="fixed left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-md border border-red-500/60 bg-black/85 px-3 py-2 text-[12px] font-semibold text-red-200 backdrop-blur"
           style={{
             top: 'calc(max(env(safe-area-inset-top), 16px) + 40px)',
             borderRadius: 2,
@@ -678,7 +678,7 @@ function BattleInterior({
             <span className="absolute inset-0 animate-ping rounded-full bg-red-500/70" />
             <span className="relative h-2 w-2 rounded-full bg-red-500" />
           </span>
-          CAMERA NOT PUBLISHING · REFRESH TO RETRY
+          Camera not publishing · refresh to retry
         </div>
       )}
 
@@ -759,8 +759,8 @@ function TileContents({
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-zinc-900">
-          <span className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-            camera off
+          <span className="text-[13px] font-medium text-zinc-400">
+            Camera off
           </span>
         </div>
       )}
@@ -773,8 +773,8 @@ function TileContents({
       <ConnectionBars participant={trackRef.participant} />
       {hasLeft && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40">
-          <span className="rounded-full border border-white/15 bg-black/70 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-300 backdrop-blur">
-            left
+          <span className="rounded-full border border-rose-400/40 bg-rose-500/15 px-3 py-1 text-[12px] font-medium text-rose-200 backdrop-blur">
+            Left
           </span>
         </div>
       )}
@@ -795,8 +795,8 @@ function WaitingTile() {
         <span className="absolute inset-0 animate-ping rounded-full bg-white/60" />
         <span className="relative h-4 w-4 rounded-full bg-white/85" />
       </span>
-      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-        waiting for opponent
+      <span className="text-[12px] font-medium text-zinc-500">
+        Waiting for opponent…
       </span>
     </div>
   );
@@ -1350,7 +1350,7 @@ function ScoreOverlay({
             the right. Score is the headline (22px) so it's readable
             from across the screen even on a 130x130 tile. */}
         <div className="flex items-baseline justify-between gap-2">
-          <span className="inline-flex min-w-0 items-center gap-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white">
+          <span className="inline-flex min-w-0 items-center gap-1 text-[12px] font-semibold text-white">
             <span aria-hidden className="relative inline-flex h-1.5 w-1.5 flex-shrink-0">
               <span
                 className="absolute inset-0 animate-ping rounded-full"
@@ -1386,9 +1386,9 @@ function ScoreOverlay({
         </div>
         {/* Row 2: peak + flaw small. Drops gracefully when there's no
             score yet (— in both slots). */}
-        <div className="flex items-baseline justify-between gap-2 text-[9px] uppercase tracking-[0.16em] text-white/60">
+        <div className="flex items-baseline justify-between gap-2 text-[11px] text-white/60">
           <span>
-            peak{' '}
+            Peak{' '}
             <span
               className="font-num font-bold tabular-nums"
               style={{ color: peakColor }}
@@ -1397,7 +1397,7 @@ function ScoreOverlay({
             </span>
           </span>
           {score?.improvement && (
-            <span className="truncate font-bold tracking-[0.18em] text-white/80">
+            <span className="truncate font-semibold text-white/85">
               {score.improvement}
             </span>
           )}
@@ -1418,7 +1418,7 @@ function ScoreOverlay({
     >
       {/* Header: LIVE pip */}
       <div className="relative flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-white">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-white">
           <span aria-hidden className="relative inline-flex h-1.5 w-1.5">
             <span
               className="absolute inset-0 animate-ping rounded-full"
@@ -1429,7 +1429,7 @@ function ScoreOverlay({
               style={{ background: color }}
             />
           </span>
-          LIVE SCORE
+          Live score
         </span>
       </div>
 
@@ -1466,11 +1466,9 @@ function ScoreOverlay({
         />
       </div>
 
-      {/* PEAK row */}
+      {/* Peak row */}
       <div className="relative flex items-baseline justify-between">
-        <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/50">
-          PEAK
-        </span>
+        <span className="text-[11px] font-medium text-white/50">Peak</span>
         <span
           className="font-num text-base font-bold tabular-nums"
           style={{ color: peakColor }}
@@ -1484,10 +1482,8 @@ function ScoreOverlay({
 
       {/* Player handle */}
       <div className="relative flex flex-col gap-0.5">
-        <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/50">
-          PLAYER
-        </span>
-        <span className="truncate text-[14px] font-bold uppercase leading-tight text-white">
+        <span className="text-[11px] font-medium text-white/50">Player</span>
+        <span className="truncate text-[14px] font-semibold leading-tight text-white">
           <NameFx slug={meta.equippedNameFx ?? null} userStats={userStats}>
             {displayName}
           </NameFx>
@@ -1497,10 +1493,8 @@ function ScoreOverlay({
       {/* Improvement (flaw) */}
       {score?.improvement && (
         <div className="relative flex items-baseline justify-between">
-          <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/50">
-            FLAW
-          </span>
-          <span className="text-[12px] font-bold uppercase tracking-[0.18em] text-white">
+          <span className="text-[11px] font-medium text-white/50">Flaw</span>
+          <span className="text-[13px] font-semibold text-white">
             {score.improvement}
           </span>
         </div>
