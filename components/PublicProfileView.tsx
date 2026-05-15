@@ -830,57 +830,206 @@ function BattleActivity({
 
           <ul className="flex flex-col gap-1.5">
             {battles.map((b) => (
-              <li
-                key={b.battle_id}
-                className="flex items-center gap-3 rounded-sm border border-white/[0.04] bg-white/[0.01] px-3 py-2.5 text-[14px] transition-colors hover:bg-white/[0.025]"
-              >
-                <span
-                  className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-sm text-[12px] font-bold uppercase ${
-                    b.is_winner
-                      ? 'bg-white text-white'
-                      : 'bg-white/15 text-white/60'
-                  }`}
-                >
-                  {b.is_winner ? 'W' : 'L'}
-                </span>
-                <span className="flex-1 truncate text-zinc-200">
-                  vs{' '}
-                  {b.opponent_display_name ? (
-                    <Link
-                      href={`/@${b.opponent_display_name}`}
-                      className="text-foreground hover:underline underline-offset-2"
-                    >
-                      @{b.opponent_display_name}
-                    </Link>
-                  ) : (
-                    <span className="text-zinc-500">unknown</span>
-                  )}
-                </span>
-                <span className="font-num flex items-center gap-1 text-[13px] tabular-nums">
-                  <span style={{ color: getScoreColor(b.peak_score) }}>
-                    {b.peak_score}
-                  </span>
-                  <span className="text-zinc-700">·</span>
-                  {b.opponent_peak_score !== null ? (
-                    <span style={{ color: getScoreColor(b.opponent_peak_score) }}>
-                      {b.opponent_peak_score}
-                    </span>
-                  ) : (
-                    <span className="text-zinc-600">—</span>
-                  )}
-                </span>
-                {b.finished_at && (
-                  <span className="font-num w-12 text-right text-[11px] tabular-nums text-zinc-500">
-                    {formatRelativeShort(b.finished_at)}
-                  </span>
-                )}
-              </li>
+              <BattleActivityRow key={b.battle_id} battle={b} />
             ))}
           </ul>
         </div>
       </section>
     </div>
   );
+}
+
+/**
+ * Public-profile counterpart to the AccountHistoryTab row. Same
+ * rank-chip + tap-to-expand pattern, but anchored to a profile
+ * viewer's perspective (i.e. the rank is the OWNER's rank in that
+ * battle, not the viewer's). Replaces the old binary W/L badge —
+ * for 3+ player parties the binary doesn't say enough.
+ */
+function BattleActivityRow({
+  battle,
+}: {
+  battle: PublicProfileData['recent_battles'][number];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const { rank, total } = computeRankFromOpponents(
+    battle.peak_score,
+    battle.opponents,
+  );
+  const rankStyle = battleRankStyle(rank, total);
+  const canExpand = total > 2;
+
+  const firstOpp = battle.opponents[0];
+  const extra = battle.opponents.length - 1;
+
+  const standings = [
+    { display_name: '(owner)', peak_score: battle.peak_score, isOwner: true },
+    ...battle.opponents.map((o) => ({
+      display_name: o.display_name,
+      peak_score: o.peak_score,
+      isOwner: false,
+    })),
+  ].sort((a, b) => b.peak_score - a.peak_score);
+
+  return (
+    <li className="overflow-hidden rounded-sm border border-white/[0.04] bg-white/[0.01] transition-colors hover:bg-white/[0.025]">
+      <button
+        type="button"
+        onClick={() => canExpand && setExpanded((e) => !e)}
+        disabled={!canExpand}
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-[14px] disabled:cursor-default"
+        style={{ touchAction: 'manipulation' }}
+      >
+        <span
+          className="inline-flex h-7 min-w-[28px] flex-shrink-0 items-center justify-center px-1.5 font-num text-[12px] font-bold tabular-nums"
+          style={{
+            background: rankStyle.bg,
+            color: rankStyle.text,
+            borderRadius: 2,
+            border: `1px solid ${rankStyle.border}`,
+          }}
+          title={`${rank} of ${total}`}
+        >
+          {rank}
+        </span>
+        <span className="flex-1 truncate text-zinc-200">
+          {firstOpp ? (
+            <>
+              vs{' '}
+              <Link
+                href={`/@${firstOpp.display_name}`}
+                className="text-foreground hover:underline underline-offset-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{firstOpp.display_name}
+              </Link>
+              {extra > 0 && (
+                <span className="ml-1 text-zinc-400">+{extra}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-zinc-500">solo</span>
+          )}
+        </span>
+        <span className="font-num flex items-center gap-1 text-[13px] tabular-nums">
+          <span style={{ color: getScoreColor(battle.peak_score) }}>
+            {battle.peak_score}
+          </span>
+          {firstOpp && (
+            <>
+              <span className="text-zinc-700">·</span>
+              <span style={{ color: getScoreColor(firstOpp.peak_score) }}>
+                {firstOpp.peak_score}
+              </span>
+            </>
+          )}
+        </span>
+        {battle.finished_at && (
+          <span className="font-num w-12 text-right text-[11px] tabular-nums text-zinc-500">
+            {formatRelativeShort(battle.finished_at)}
+          </span>
+        )}
+      </button>
+      {expanded && canExpand && (
+        <ul className="flex flex-col gap-px border-t border-white/10 bg-black/40 px-3 py-2">
+          {standings.map((p, idx) => {
+            const placeRank = idx + 1;
+            const placeStyle = battleRankStyle(placeRank, total);
+            const sCol = getScoreColor(p.peak_score);
+            return (
+              <li
+                key={`${battle.battle_id}-${p.display_name}-${idx}`}
+                className={`flex items-center gap-2 border-l-2 px-2 py-1.5 text-[12px] ${
+                  p.isOwner ? 'bg-white/[0.05]' : 'bg-white/[0.01]'
+                }`}
+                style={{ borderColor: placeStyle.border }}
+              >
+                <span
+                  className="font-num inline-flex h-5 min-w-[20px] items-center justify-center px-1 text-[10px] font-bold tabular-nums"
+                  style={{
+                    background: placeStyle.bg,
+                    color: placeStyle.text,
+                    borderRadius: 2,
+                  }}
+                >
+                  {placeRank}
+                </span>
+                {p.isOwner ? (
+                  <span className="flex-1 truncate text-white">
+                    owner
+                    <span className="ml-1.5 text-[9px] font-bold uppercase tracking-[0.22em] text-white/40">
+                      (profile)
+                    </span>
+                  </span>
+                ) : (
+                  <Link
+                    href={`/@${p.display_name}`}
+                    className="flex-1 truncate text-zinc-200 hover:text-white hover:underline underline-offset-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    @{p.display_name}
+                  </Link>
+                )}
+                <span
+                  className="font-num text-[13px] font-bold tabular-nums"
+                  style={{ color: sCol }}
+                >
+                  {p.peak_score}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function computeRankFromOpponents(
+  myScore: number,
+  opponents: Array<{ peak_score: number }>,
+): { rank: number; total: number } {
+  const better = opponents.filter((o) => o.peak_score > myScore).length;
+  return { rank: better + 1, total: opponents.length + 1 };
+}
+
+function battleRankStyle(
+  rank: number,
+  total: number,
+): { bg: string; text: string; border: string } {
+  if (rank === 1) {
+    return {
+      bg: 'rgba(16,185,129,0.20)',
+      text: '#6ee7b7',
+      border: 'rgba(16,185,129,0.5)',
+    };
+  }
+  if (rank === total && total >= 2) {
+    return {
+      bg: 'rgba(244,63,94,0.18)',
+      text: '#fda4af',
+      border: 'rgba(244,63,94,0.5)',
+    };
+  }
+  if (rank === 2) {
+    return {
+      bg: 'rgba(226,232,240,0.12)',
+      text: '#e2e8f0',
+      border: 'rgba(226,232,240,0.45)',
+    };
+  }
+  if (rank === 3) {
+    return {
+      bg: 'rgba(251,146,60,0.18)',
+      text: '#fdba74',
+      border: 'rgba(251,146,60,0.5)',
+    };
+  }
+  return {
+    bg: 'rgba(255,255,255,0.06)',
+    text: 'rgba(255,255,255,0.6)',
+    border: 'rgba(255,255,255,0.18)',
+  };
 }
 
 // ---- Collection shelf ----------------------------------------------------

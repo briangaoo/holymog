@@ -448,6 +448,13 @@ function SummaryChip({
 function HistoryRow({ entry }: { entry: HistoryEntry }) {
   const tier = getTier(entry.peak_score);
   const scoreColor = getScoreColor(entry.peak_score);
+  const { rank, total } = computeRank(entry.peak_score, entry.opponents);
+  const rankStyle = rankBadgeStyle(rank, total);
+
+  // Expanded row reveals every participant + the user's own row,
+  // sorted high-to-low by peak_score. Closed by default — open via
+  // click on the chevron/row.
+  const [expanded, setExpanded] = useState(false);
 
   const opponentNode = (() => {
     if (entry.opponents.length === 0) return <>—</>;
@@ -460,9 +467,13 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
           className="text-zinc-200 hover:text-white hover:underline underline-offset-2"
           onClick={(e) => e.stopPropagation()}
         >
-          {first.display_name}
+          @{first.display_name}
         </Link>
-        {extra > 0 && <span className="text-zinc-500"> +{extra}</span>}
+        {extra > 0 && (
+          <span className="ml-1 text-zinc-500">
+            {' '}+{extra}
+          </span>
+        )}
       </>
     );
   })();
@@ -475,49 +486,181 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
       })
     : '—';
 
+  // Inject "you" as a synthetic row so the expanded list is the full
+  // standings rather than only the others. Highlighted with a YOU
+  // chip and the same colour treatment as the row's rank chip.
+  const standings: Array<{
+    display_name: string;
+    peak_score: number;
+    isMe: boolean;
+  }> = [
+    { display_name: '(you)', peak_score: entry.peak_score, isMe: true },
+    ...entry.opponents.map((o) => ({
+      display_name: o.display_name,
+      peak_score: o.peak_score,
+      isMe: false,
+    })),
+  ].sort((a, b) => b.peak_score - a.peak_score);
+
+  const canExpand = total > 2;
+
   return (
-    <li className="flex items-center gap-3 border-t border-white/5 px-4 py-3 text-[13px] transition-colors hover:bg-white/[0.015]">
-      <span
-        className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center text-[11px] font-bold uppercase ${
-          entry.is_winner
-            ? 'bg-emerald-500/25 text-emerald-200'
-            : 'bg-rose-500/20 text-rose-200'
-        }`}
-        style={{ borderRadius: 2 }}
+    <li className="border-t border-white/5 transition-colors hover:bg-white/[0.015]">
+      <button
+        type="button"
+        onClick={() => canExpand && setExpanded((e) => !e)}
+        disabled={!canExpand}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] disabled:cursor-default"
+        style={{ touchAction: 'manipulation' }}
       >
-        {entry.is_winner ? 'W' : 'L'}
-      </span>
-      <span
-        className={`text-[10px] uppercase tracking-[0.16em] ${
-          entry.kind === 'private' ? 'text-amber-300' : 'text-sky-300'
-        } w-12`}
-      >
-        {entry.kind === 'private' ? 'PRIV' : '1V1'}
-      </span>
-      <span className="flex-1 truncate text-zinc-300">vs {opponentNode}</span>
-      <span className="flex items-center gap-1 text-right">
         <span
-          className="font-num text-[14px] font-semibold tabular-nums"
-          style={{ color: scoreColor }}
+          className="inline-flex h-6 min-w-[24px] flex-shrink-0 items-center justify-center px-1.5 font-num text-[11px] font-bold tabular-nums"
+          style={{
+            background: rankStyle.bg,
+            color: rankStyle.text,
+            borderRadius: 2,
+            border: `1px solid ${rankStyle.border}`,
+          }}
+          title={`${rank} of ${total}`}
         >
-          {entry.peak_score}
+          {rank}
         </span>
         <span
-          className="font-num text-[11px] font-bold uppercase"
-          style={
-            tier.isGradient
-              ? { ...gradientStyle(), textTransform: 'uppercase' }
-              : { color: tier.color, textTransform: 'uppercase' }
-          }
+          className={`text-[10px] uppercase tracking-[0.16em] ${
+            entry.kind === 'private' ? 'text-amber-300' : 'text-sky-300'
+          } w-12`}
         >
-          {tier.letter}
+          {entry.kind === 'private' ? 'PRIV' : '1V1'}
         </span>
-      </span>
-      <span className="font-num w-12 text-right text-[11px] tabular-nums text-zinc-500">
-        {dateLabel}
-      </span>
+        <span className="flex-1 truncate text-zinc-300">vs {opponentNode}</span>
+        <span className="flex items-center gap-1 text-right">
+          <span
+            className="font-num text-[14px] font-semibold tabular-nums"
+            style={{ color: scoreColor }}
+          >
+            {entry.peak_score}
+          </span>
+          <span
+            className="font-num text-[11px] font-bold uppercase"
+            style={
+              tier.isGradient
+                ? { ...gradientStyle(), textTransform: 'uppercase' }
+                : { color: tier.color, textTransform: 'uppercase' }
+            }
+          >
+            {tier.letter}
+          </span>
+        </span>
+        <span className="font-num w-12 text-right text-[11px] tabular-nums text-zinc-500">
+          {dateLabel}
+        </span>
+      </button>
+      {expanded && canExpand && (
+        <ul className="flex flex-col gap-px bg-black px-4 pb-3">
+          {standings.map((p, idx) => {
+            const placeRank = idx + 1;
+            const placeStyle = rankBadgeStyle(placeRank, total);
+            const sCol = getScoreColor(p.peak_score);
+            return (
+              <li
+                key={`${entry.battle_id}-${p.display_name}-${idx}`}
+                className={`flex items-center gap-2 border-l-2 px-2 py-1.5 text-[12px] ${
+                  p.isMe ? 'bg-white/[0.04]' : 'bg-white/[0.01]'
+                }`}
+                style={{ borderColor: placeStyle.border }}
+              >
+                <span
+                  className="font-num inline-flex h-5 min-w-[20px] items-center justify-center px-1 text-[10px] font-bold tabular-nums"
+                  style={{
+                    background: placeStyle.bg,
+                    color: placeStyle.text,
+                    borderRadius: 2,
+                  }}
+                >
+                  {placeRank}
+                </span>
+                {p.isMe ? (
+                  <span className="flex-1 truncate text-white">
+                    you
+                    <span className="ml-1.5 text-[9px] font-bold uppercase tracking-[0.22em] text-white/40">
+                      (you)
+                    </span>
+                  </span>
+                ) : (
+                  <Link
+                    href={`/@${p.display_name}`}
+                    className="flex-1 truncate text-zinc-200 hover:text-white hover:underline underline-offset-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    @{p.display_name}
+                  </Link>
+                )}
+                <span
+                  className="font-num text-[13px] font-bold tabular-nums"
+                  style={{ color: sCol }}
+                >
+                  {p.peak_score}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </li>
   );
+}
+
+/**
+ * Place-based color + label for the rank chip on a battle row. 1st
+ * is emerald, last is rose, 2nd silver, 3rd bronze, middle places
+ * land on a neutral zinc. Returns a {bg, text, border} triple that
+ * works against the page's black background.
+ */
+function rankBadgeStyle(
+  rank: number,
+  total: number,
+): { bg: string; text: string; border: string } {
+  if (rank === 1) {
+    return {
+      bg: 'rgba(16,185,129,0.20)',
+      text: '#6ee7b7',
+      border: 'rgba(16,185,129,0.5)',
+    };
+  }
+  if (rank === total && total >= 2) {
+    return {
+      bg: 'rgba(244,63,94,0.18)',
+      text: '#fda4af',
+      border: 'rgba(244,63,94,0.5)',
+    };
+  }
+  if (rank === 2) {
+    return {
+      bg: 'rgba(226,232,240,0.12)',
+      text: '#e2e8f0',
+      border: 'rgba(226,232,240,0.45)',
+    };
+  }
+  if (rank === 3) {
+    return {
+      bg: 'rgba(251,146,60,0.18)',
+      text: '#fdba74',
+      border: 'rgba(251,146,60,0.5)',
+    };
+  }
+  return {
+    bg: 'rgba(255,255,255,0.06)',
+    text: 'rgba(255,255,255,0.6)',
+    border: 'rgba(255,255,255,0.18)',
+  };
+}
+
+function computeRank(
+  myScore: number,
+  opponents: Array<{ peak_score: number }>,
+): { rank: number; total: number } {
+  const better = opponents.filter((o) => o.peak_score > myScore).length;
+  return { rank: better + 1, total: opponents.length + 1 };
 }
 
 function gradientStyle(): React.CSSProperties {

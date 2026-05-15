@@ -65,8 +65,12 @@ export type PublicProfileData = {
     finished_at: string | null;
     is_winner: boolean;
     peak_score: number;
-    opponent_display_name: string | null;
-    opponent_peak_score: number | null;
+    /** Every other participant's display_name + peak_score. Empty
+     *  for a battle that somehow had no other participants. The
+     *  client computes rank by comparing this user's peak_score
+     *  against these — for 3+ player parties the rank conveys more
+     *  than the binary is_winner flag does. */
+    opponents: Array<{ display_name: string; peak_score: number }>;
   }>;
 };
 
@@ -109,8 +113,6 @@ type RecentBattleRow = {
   finished_at: Date | null;
   is_winner: boolean;
   peak_score: number;
-  opponent_display_name: string | null;
-  opponent_peak_score: number | null;
 };
 
 /**
@@ -179,17 +181,7 @@ export async function lookupPublicProfile(
            b.id as battle_id,
            b.finished_at,
            bp.is_winner,
-           bp.peak_score,
-           (select op.display_name
-              from battle_participants op
-             where op.battle_id = b.id and op.user_id <> $1
-             order by op.joined_at asc
-             limit 1) as opponent_display_name,
-           (select op.peak_score
-              from battle_participants op
-             where op.battle_id = b.id and op.user_id <> $1
-             order by op.joined_at asc
-             limit 1) as opponent_peak_score
+           bp.peak_score
            from battle_participants bp
            join battles b on b.id = bp.battle_id
           where bp.user_id = $1
@@ -246,6 +238,34 @@ export async function lookupPublicProfile(
           )
         : Promise.resolve({ rows: [] as Array<{ exists: boolean }> }),
     ]);
+
+  // Fetch every OTHER participant for the page of recent battles so
+  // the client has enough data to compute rank + render the
+  // expanded participant list. Single round-trip; ANY against the
+  // battle_ids array we already have.
+  const recentBattleIds = recent.rows.map((r) => r.battle_id);
+  const opponentsByBattle = new Map<
+    string,
+    Array<{ display_name: string; peak_score: number }>
+  >();
+  if (recentBattleIds.length > 0) {
+    const opp = await pool.query<{
+      battle_id: string;
+      display_name: string;
+      peak_score: number;
+    }>(
+      `select battle_id, display_name, peak_score
+         from battle_participants
+        where battle_id = any($1::uuid[]) and user_id <> $2
+        order by peak_score desc, joined_at asc`,
+      [recentBattleIds, row.user_id],
+    );
+    for (const r of opp.rows) {
+      const list = opponentsByBattle.get(r.battle_id) ?? [];
+      list.push({ display_name: r.display_name, peak_score: r.peak_score });
+      opponentsByBattle.set(r.battle_id, list);
+    }
+  }
 
   const accountAgeMs = Date.now() - new Date(row.created_at).getTime();
   const accountAgeDays = Math.max(0, Math.floor(accountAgeMs / 86_400_000));
@@ -318,8 +338,7 @@ export async function lookupPublicProfile(
         finished_at: r.finished_at?.toISOString() ?? null,
         is_winner: r.is_winner,
         peak_score: r.peak_score,
-        opponent_display_name: r.opponent_display_name,
-        opponent_peak_score: r.opponent_peak_score,
+        opponents: opponentsByBattle.get(r.battle_id) ?? [],
       })),
     },
   };
