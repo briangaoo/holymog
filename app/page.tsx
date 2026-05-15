@@ -42,12 +42,22 @@ export default function HomePage() {
   // block the render — both the activity strip + me chip have a
   // "skeleton" state until the data lands, so the first paint is
   // instant and the strip animates in.
+  //
+  // Pass the browser's IANA timezone so "today" counters use the
+  // user's local midnight instead of UTC midnight (otherwise a US
+  // West Coast user sees their "today" reset at 5pm).
   const [home, setHome] = useState<HomeData | null>(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/home', { cache: 'no-store' });
+        const tz =
+          typeof Intl !== 'undefined'
+            ? Intl.DateTimeFormat().resolvedOptions().timeZone
+            : 'UTC';
+        const res = await fetch(`/api/home?tz=${encodeURIComponent(tz)}`, {
+          cache: 'no-store',
+        });
         if (!res.ok) return;
         const data = (await res.json()) as HomeData;
         if (!cancelled) setHome(data);

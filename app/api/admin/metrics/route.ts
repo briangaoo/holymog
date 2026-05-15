@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin';
 import { getRatelimit } from '@/lib/ratelimit';
+import { validateTimezone } from '@/lib/timezone';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,9 +11,9 @@ export const dynamic = 'force-dynamic';
 /**
  * Site-wide totals for the admin dashboard. All counts come from
  * the primary Postgres so they reflect the canonical state, not
- * any cache. Today-only counters use the database's UTC midnight
- * as the day boundary — admin glance, not analytics, so timezone
- * approximation is fine here.
+ * any cache. Today-only counters use the caller's local midnight
+ * (passed via ?tz=IANA-zone) — defaults to UTC when the param is
+ * missing or invalid.
  *
  * Queries are issued in parallel because none depend on each other.
  * Each is a single indexed count; the heaviest one is
@@ -31,7 +32,7 @@ type Metrics = {
   banned_users: number;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const admin = await requireAdmin();
   if (!admin) notFound();
 
@@ -42,6 +43,13 @@ export async function GET() {
       return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
     }
   }
+
+  const url = new URL(request.url);
+  const tz = validateTimezone(url.searchParams.get('tz'));
+  // Today's boundary in the admin's local time, converted back to
+  // UTC for the timestamptz comparison. Reused across every "today"
+  // counter so they all agree on the same instant.
+  const todayBoundary = `date_trunc('day', now() AT TIME ZONE $1) AT TIME ZONE $1`;
 
   const pool = getPool();
   // One round-trip per metric. We could collapse into a single
@@ -65,15 +73,18 @@ export async function GET() {
     // signup time and avoids us depending on pg-adapter's internal
     // users table column naming.
     pool.query<{ c: string }>(
-      "select count(*)::text as c from profiles where created_at >= date_trunc('day', now())",
+      `select count(*)::text as c from profiles where created_at >= ${todayBoundary}`,
+      [tz],
     ),
     pool.query<{ c: string }>('select count(*)::text as c from scan_history'),
     pool.query<{ c: string }>(
-      "select count(*)::text as c from scan_history where created_at >= date_trunc('day', now())",
+      `select count(*)::text as c from scan_history where created_at >= ${todayBoundary}`,
+      [tz],
     ),
     pool.query<{ c: string }>('select count(*)::text as c from battles'),
     pool.query<{ c: string }>(
-      "select count(*)::text as c from battles where created_at >= date_trunc('day', now())",
+      `select count(*)::text as c from battles where created_at >= ${todayBoundary}`,
+      [tz],
     ),
     pool.query<{ c: string }>(
       "select count(*)::text as c from profiles where subscription_status in ('active','trialing')",

@@ -216,7 +216,16 @@ export function AdminConsole({ adminUserId }: { adminUserId: string }) {
   const refreshMetrics = useCallback(async () => {
     setMetricsLoading(true);
     try {
-      const res = await fetch('/api/admin/metrics', { cache: 'no-store' });
+      // Pass the browser's IANA timezone so "today" counters use the
+      // admin's local midnight instead of UTC midnight.
+      const tz =
+        typeof Intl !== 'undefined'
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : 'UTC';
+      const res = await fetch(
+        `/api/admin/metrics?tz=${encodeURIComponent(tz)}`,
+        { cache: 'no-store' },
+      );
       if (!res.ok) {
         setMetrics(null);
         return;
