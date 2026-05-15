@@ -1208,13 +1208,19 @@ function Lobby({
         void refetchParticipants();
       })
       .on('broadcast', { event: 'battle.starting' }, () => {
-        onStarting();
+        // Use safeOnStarting (not raw onStarting) so the unmount
+        // cleanup below sees startingRef=true and skips the auto-
+        // leave sendBeacon. Without this, a guest whose Realtime
+        // delivered the broadcast first would leave their own
+        // ghost row right as the battle started, and every other
+        // tile would render a stale LEFT pill over their video.
+        safeOnStarting();
       })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [battleId, refetchParticipants, onStarting]);
+  }, [battleId, refetchParticipants, safeOnStarting]);
 
   const onCopy = useCallback(async () => {
     try {

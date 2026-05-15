@@ -68,6 +68,7 @@ export async function GET(
     kind: b.kind,
     state: b.state,
     started_at: b.started_at ? b.started_at.toISOString() : null,
+    host_user_id: b.host_user_id,
     rematch_battle_id: b.rematch_battle_id,
     rematch_code: b.rematch_code,
   });

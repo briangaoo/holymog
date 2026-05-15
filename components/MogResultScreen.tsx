@@ -124,13 +124,24 @@ export function MogResultScreen({
         'broadcast',
         { event: 'battle.rematch' },
         (msg: {
-          payload: { new_battle_id?: string; new_code?: string };
+          payload: {
+            new_battle_id?: string;
+            new_code?: string;
+            host_user_id?: string | null;
+          };
         }) => {
           const id = msg.payload.new_battle_id;
           const code = msg.payload.new_code;
           if (typeof id === 'string' && typeof code === 'string') {
+            // host_user_id rides on the broadcast (rematch route adds
+            // it). Receiver is the host iff their currentUserId
+            // matches. Without this, the receiver's UI would always
+            // show "WAITING FOR HOST" even when they ARE the host
+            // (because the broadcast-arrival path used to hardcode
+            // isHost=false).
+            const isHost = currentUserId === msg.payload.host_user_id;
             if (onRematchInvite) onRematchInvite(id, code);
-            else if (onRematch) onRematch(id, code, false);
+            else if (onRematch) onRematch(id, code, isHost);
           }
         },
       )
@@ -138,7 +149,7 @@ export function MogResultScreen({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [isPrivate, result.battle_id, onRematch, onRematchInvite]);
+  }, [isPrivate, result.battle_id, onRematch, onRematchInvite, currentUserId]);
 
   // Polling fallback — Realtime broadcasts have been flaky on this
   // project, and the rematch race is the worst-case manifestation:
@@ -162,15 +173,19 @@ export function MogResultScreen({
         const data = (await res.json()) as {
           rematch_battle_id?: string | null;
           rematch_code?: string | null;
+          host_user_id?: string | null;
         };
         if (
           data.rematch_battle_id &&
           data.rematch_code &&
           !cancelled
         ) {
+          // host_user_id from /state is the OLD battle's host, which
+          // equals the rematch host (preserved by the rematch route).
+          const isHost = currentUserId === data.host_user_id;
           if (onRematchInvite) onRematchInvite(data.rematch_battle_id, data.rematch_code);
           else if (onRematch)
-            onRematch(data.rematch_battle_id, data.rematch_code, false);
+            onRematch(data.rematch_battle_id, data.rematch_code, isHost);
         }
       } catch {
         // Network blip — try again next tick.
@@ -182,7 +197,7 @@ export function MogResultScreen({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [isPrivate, result.battle_id, onRematch, onRematchInvite]);
+  }, [isPrivate, result.battle_id, onRematch, onRematchInvite, currentUserId]);
 
   const onShare = useCallback(async () => {
     if (!me || !opponent) return;
@@ -256,13 +271,22 @@ export function MogResultScreen({
         setRematching(false);
         return;
       }
-      const data = (await res.json()) as { battle_id: string; code: string };
-      onRematch(data.battle_id, data.code, true);
+      // host_user_id is the original host carried forward by the
+      // server. The clicker is NOT necessarily the host — if a guest
+      // clicked rematch, they're still a guest. Compute isHost from
+      // the server's authoritative field, not from "I clicked = I'm
+      // host", or the wrong tile gets the START button.
+      const data = (await res.json()) as {
+        battle_id: string;
+        code: string;
+        host_user_id: string | null;
+      };
+      onRematch(data.battle_id, data.code, currentUserId === data.host_user_id);
     } catch {
       setRematchError('network error');
       setRematching(false);
     }
-  }, [result.battle_id, onRematch]);
+  }, [result.battle_id, onRematch, currentUserId]);
 
   if (!me || !opponent) {
     return (

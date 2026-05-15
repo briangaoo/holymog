@@ -70,8 +70,15 @@ export async function POST(request: Request) {
       kind: string;
       state: string;
       rematch_battle_id: string | null;
+      host_user_id: string | null;
     }>(
-      `select b.kind, b.state, b.rematch_battle_id
+      // host_user_id is preserved into the rematch battle below — the
+      // original host stays host across rematches regardless of who
+      // clicked the button. Without this, a guest who happened to win
+      // the rematch race would hijack the host slot, which means
+      // they'd then be the only one allowed to click START on the
+      // next round.
+      `select b.kind, b.state, b.rematch_battle_id, b.host_user_id
          from battles b
          join battle_participants p on p.battle_id = b.id
         where b.id = $1 and p.user_id = $2
@@ -119,6 +126,7 @@ export async function POST(request: Request) {
           battle_id: ex.id,
           code: ex.code,
           livekit_room: ex.livekit_room,
+          host_user_id: oldRow.host_user_id,
           already_existed: true,
         });
       }
@@ -157,6 +165,12 @@ export async function POST(request: Request) {
     let newCode: string | null = null;
     let livekitRoom: string | null = null;
 
+    // Carry the original host through. Fall back to the caller only if
+    // the old battle somehow has no host_user_id (shouldn't happen for
+    // a private battle — the create route always sets it — but a
+    // defensive default beats throwing on a stale row).
+    const newHostUserId = oldRow.host_user_id ?? user.id;
+
     for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
       const candidate = generateBattleCode();
       await client.query('savepoint try_insert');
@@ -168,7 +182,7 @@ export async function POST(request: Request) {
           `insert into battles (kind, code, host_user_id, livekit_room, state)
              values ('private', $1, $2, $3, 'lobby')
              returning id, livekit_room`,
-          [candidate, user.id, `private-${candidate}`],
+          [candidate, newHostUserId, `private-${candidate}`],
         );
         newBattleId = inserted.rows[0].id;
         newCode = candidate;
@@ -188,8 +202,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'code_generation_failed' }, { status: 500 });
     }
 
-    // Re-add every previous participant (including the caller — who is
-    // now the host of the new battle).
+    // Re-add every previous participant (the original host stays host;
+    // see newHostUserId above).
     for (const p of participants.rows) {
       await client.query(
         `insert into battle_participants (battle_id, user_id, display_name)
@@ -210,17 +224,21 @@ export async function POST(request: Request) {
     // Tell anyone still on the old result screen to follow into the
     // new lobby. Realtime is the fast path; the result screen also
     // polls /api/battle/[id]/state for the rematch_battle_id as the
-    // reliable backup when broadcasts drop.
+    // reliable backup when broadcasts drop. host_user_id rides with
+    // the broadcast so receivers can compute isHost correctly without
+    // a separate fetch.
     void broadcastBattleEvent(oldBattleId, 'battle.rematch', {
       old_battle_id: oldBattleId,
       new_battle_id: newBattleId,
       new_code: newCode,
+      host_user_id: newHostUserId,
     });
 
     return NextResponse.json({
       battle_id: newBattleId,
       code: newCode,
       livekit_room: livekitRoom,
+      host_user_id: newHostUserId,
     });
   } catch (err) {
     await client.query('rollback').catch(() => {});
