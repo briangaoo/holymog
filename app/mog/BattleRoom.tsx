@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   LiveKitRoom,
@@ -245,25 +245,58 @@ function BattleInterior({
   // video.readyState=0, returned null, and the entire scoring loop
   // silently no-op'd (battle finished with 0/0 peak scores).
   //
-  // Driving off the `tracks` array (from useTracks above) fixes it:
-  // useTracks subscribes to publication events, so the local camera
-  // appears here the moment LiveKit publishes it.
-  useEffect(() => {
-    const localTrackRef = tracks.find(
+  // The next bug was that `useTracks()` returns a fresh array reference
+  // on every parent re-render, so a useEffect with `[tracks]` as the
+  // dep would tear down + reattach srcObject on every render — and any
+  // captureFrame call during that gap returned null. Memoising the
+  // local mediaStreamTrack out of the array (so the effect only re-
+  // fires when the actual track object changes) closes that race.
+  const localCameraTrack = useMemo(() => {
+    const ref = tracks.find(
       (t) => t.participant.isLocal && t.source === Track.Source.Camera,
     );
-    const mediaStreamTrack = localTrackRef?.publication?.track?.mediaStreamTrack;
-    if (!mediaStreamTrack) return;
+    return ref?.publication?.track?.mediaStreamTrack ?? null;
+  }, [tracks]);
+
+  // Track readiness state — drives the "your camera isn't publishing"
+  // banner AND gates the score-call timer schedule below so timers
+  // don't fire into a black video element on slow LiveKit publishes.
+  // Ref mirror so callbacks don't need to close over the state.
+  const [localTrackReady, setLocalTrackReady] = useState(false);
+  const localTrackReadyRef = useRef(false);
+
+  useEffect(() => {
+    if (!localCameraTrack) {
+      setLocalTrackReady(false);
+      localTrackReadyRef.current = false;
+      return;
+    }
     const v = captureVideoRef.current;
     if (!v) return;
     const ms = new MediaStream();
-    ms.addTrack(mediaStreamTrack);
+    ms.addTrack(localCameraTrack);
     v.srcObject = ms;
-    void v.play().catch(() => {});
-    return () => {
-      v.srcObject = null;
+
+    const markReady = () => {
+      if (v.videoWidth > 0 && v.readyState >= 2) {
+        setLocalTrackReady(true);
+        localTrackReadyRef.current = true;
+      }
     };
-  }, [tracks]);
+    v.addEventListener('loadedmetadata', markReady);
+    v.addEventListener('canplay', markReady);
+    void v.play().catch(() => {});
+    if (v.videoWidth > 0 && v.readyState >= 2) markReady();
+
+    return () => {
+      v.removeEventListener('loadedmetadata', markReady);
+      v.removeEventListener('canplay', markReady);
+      // Don't null srcObject here — if React re-runs this effect with
+      // the same track (it shouldn't, but guard anyway), we'd briefly
+      // tear down a working pipeline. The next assignment overwrites
+      // safely.
+    };
+  }, [localCameraTrack]);
 
   /** Capture a frame from the off-screen video, return a JPEG data URL. */
   const captureFrame = useCallback((): string | null => {
@@ -281,26 +314,48 @@ function BattleInterior({
     return c.toDataURL('image/jpeg', 0.85);
   }, []);
 
-  /** Send one frame to /api/battle/score. Best-effort; no UI update here
-   *  (the broadcast that fires after the call resolves drives the UI). */
-  const sendScoreCall = useCallback(async () => {
-    if (!connected) return;
-    const image = captureFrame();
-    if (!image) return;
-    try {
-      await fetch('/api/battle/score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ battle_id: battleId, imageBase64: image }),
-      });
-    } catch {
-      // best-effort
-    }
-  }, [battleId, captureFrame, connected]);
+  /** Send one frame to /api/battle/score. Best-effort. The broadcast
+   *  that fires after the call resolves drives the UI; the polling
+   *  fallback below catches the case where the broadcast is dropped.
+   *
+   *  Retry-on-null-capture: if the off-screen video isn't ready yet
+   *  (LiveKit publish race), re-attempt up to 3 times with 200ms backoff
+   *  so a slow publish doesn't silently cost a score call. The retries
+   *  aren't tracked in the parent's timer cleanup; if the parent
+   *  unmounts mid-retry, `connected` is already false and the early
+   *  return short-circuits the work. */
+  const sendScoreCall = useCallback(
+    async (attempt = 0): Promise<void> => {
+      if (!connected) return;
+      const image = captureFrame();
+      if (!image) {
+        if (attempt < 3) {
+          window.setTimeout(() => void sendScoreCall(attempt + 1), 200);
+        }
+        return;
+      }
+      try {
+        await fetch('/api/battle/score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ battle_id: battleId, imageBase64: image }),
+        });
+      } catch {
+        // best-effort
+      }
+    },
+    [battleId, captureFrame, connected],
+  );
 
   // ---- Schedule the 10 real calls + 10 synthetic mid-calls --------
+  // Gated on `localTrackReady` (not just `connected`) so timers don't
+  // fire into a black off-screen video on a slow LiveKit publish — the
+  // exact failure mode that produced the empty live-score card + 0
+  // peak in user-reported games. When the track lands late, the schedule
+  // re-runs and missed timers fire immediately (Math.max(0, …) clamp).
   useEffect(() => {
     if (!connected) return;
+    if (!localTrackReady) return;
     const startMs = startedAt;
     const timers: number[] = [];
 
@@ -318,7 +373,7 @@ function BattleInterior({
     return () => {
       for (const t of timers) window.clearTimeout(t);
     };
-  }, [connected, startedAt, sendScoreCall]);
+  }, [connected, localTrackReady, startedAt, sendScoreCall]);
 
   // ---- Synthetic jitter on own tile between real updates ----
   // When MY score updates (from server broadcast), schedule a synthetic
@@ -431,6 +486,112 @@ function BattleInterior({
         });
     }
   }, [phase, now, startedAt, battleId, onFinished, playFinishSfx]);
+
+  // ---- Polling fallback for score updates + finished detection ------------
+  // Realtime broadcasts (`score.update`, `battle.finished`) are flaky on
+  // this project — the lobby's start transition already needed a polling
+  // fallback for the same reason (commit 74ceeb4). This is the equivalent
+  // for the active battle phase: poll /api/battle/[id]/scores every 1.5s
+  // during starting/active so peak scores keep updating even when
+  // broadcasts drop, and so the result screen lands when the
+  // `battle.finished` broadcast is missed.
+  //
+  // Local `scores` state is merged via MAX — we don't pull down a
+  // synthetic-jitter overall that's briefly higher than the persisted
+  // peak. Server peak is the floor.
+  useEffect(() => {
+    if (phase !== 'starting' && phase !== 'active') return;
+    let cancelled = false;
+    let finishedFired = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/battle/${battleId}/scores`, {
+          cache: 'no-store',
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          state: string;
+          finished_at: string | null;
+          participants: Array<{ user_id: string; peak_score: number }>;
+        };
+
+        setScores((prev) => {
+          const next = { ...prev };
+          for (const p of data.participants) {
+            const existing = next[p.user_id];
+            const newPeak = Math.max(existing?.peak ?? 0, p.peak_score);
+            // For the overall display, take MAX so a local synthetic
+            // higher than the server peak doesn't visibly retreat.
+            // Once a real broadcast lands the overall snaps back to
+            // the live value naturally.
+            const newOverall = Math.max(existing?.overall ?? 0, p.peak_score);
+            next[p.user_id] = {
+              overall: newOverall,
+              peak: newPeak,
+              improvement: existing?.improvement ?? '',
+            };
+          }
+          return next;
+        });
+
+        if (data.state === 'finished' && !finishedFired) {
+          finishedFired = true;
+          try {
+            const fr = await fetch('/api/battle/finish', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ battle_id: battleId }),
+            });
+            const fd = (await fr.json()) as {
+              result?: FinishPayload;
+              achievements?: AchievementGrant[];
+            };
+            if (fd.result && !cancelled) {
+              playFinishSfx(fd.result);
+              onFinished(fd.result);
+            }
+            pushAchievements(fd.achievements);
+          } catch {
+            // The phase-transitions effect also fires /finish locally
+            // once the client clock crosses startedAt + SCAN_DURATION;
+            // either path is enough to land the result.
+          }
+        }
+      } catch {
+        // Network blip — try again next tick.
+      }
+    };
+
+    void tick();
+    const id = window.setInterval(tick, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [phase, battleId, onFinished, playFinishSfx]);
+
+  // ---- Camera-not-publishing warning --------------------------------------
+  // If we're connected to LiveKit but the local camera track hasn't
+  // landed in the off-screen video element after 4 seconds, the user's
+  // score calls won't have anything to capture. Surface a banner so they
+  // can refresh / regrant camera permission instead of silently scoring
+  // 0 the whole battle. The 4s threshold is a buffer past normal
+  // publish latency (~500-1500ms on a healthy link).
+  const [cameraWarning, setCameraWarning] = useState(false);
+  useEffect(() => {
+    if (!connected) {
+      setCameraWarning(false);
+      return;
+    }
+    if (localTrackReady) {
+      setCameraWarning(false);
+      return;
+    }
+    const id = window.setTimeout(() => setCameraWarning(true), 4000);
+    return () => window.clearTimeout(id);
+  }, [connected, localTrackReady]);
 
   // ---- Tab close: leave the battle ----------------------------------------
   useEffect(() => {
@@ -561,6 +722,26 @@ function BattleInterior({
           style={{ paddingTop: 'max(env(safe-area-inset-top), 4px)' }}
         >
           {remainingSec}s
+        </div>
+      )}
+
+      {/* Camera-not-publishing warning. Sits near the timer so the user
+          can't miss it. Tells them their score calls are dead until
+          they refresh — without this they'd silently score 0. */}
+      {cameraWarning && (
+        <div
+          className="fixed left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 border-2 border-red-500/80 bg-black px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-red-200"
+          style={{
+            top: 'calc(max(env(safe-area-inset-top), 16px) + 40px)',
+            borderRadius: 2,
+          }}
+          role="alert"
+        >
+          <span aria-hidden className="relative inline-flex h-2 w-2">
+            <span className="absolute inset-0 animate-ping rounded-full bg-red-500/70" />
+            <span className="relative h-2 w-2 rounded-full bg-red-500" />
+          </span>
+          CAMERA NOT PUBLISHING · REFRESH TO RETRY
         </div>
       )}
 

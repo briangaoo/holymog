@@ -1104,6 +1104,54 @@ function Lobby({
   const [copied, setCopied] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
+  // Set to true the instant we know the battle is transitioning into
+  // the joining/active phase (host clicked start OR poll detected the
+  // state change). The unmount cleanup below uses this to distinguish
+  // "user navigated away from the lobby" (auto-leave the party) from
+  // "battle is starting normally" (don't auto-leave — they're about
+  // to be a participant in the active battle).
+  const startingRef = useRef(false);
+  const safeOnStarting = useCallback(() => {
+    startingRef.current = true;
+    onStarting();
+  }, [onStarting]);
+
+  // Auto-leave on navigate-away. Without this, a guest who closes the
+  // tab or wanders back to holymog.com still shows in the host's lobby
+  // + counts toward min-2-to-start, so the host can unintentionally
+  // start a battle with a ghost. The /api/battle/leave route only
+  // marks left_at; participants/start/join all filter that out so the
+  // ghost is invisible to lobby logic. If the guest comes back via
+  // the same code, /api/battle/join clears left_at to re-activate.
+  //
+  // sendBeacon (vs fetch) is essential — fetch initiated during page
+  // navigation gets cancelled by every browser; sendBeacon is
+  // explicitly designed to land at unload/cleanup time.
+  useEffect(() => {
+    const sendLeave = () => {
+      if (typeof navigator === 'undefined' || !navigator.sendBeacon) return;
+      navigator.sendBeacon(
+        '/api/battle/leave',
+        new Blob([JSON.stringify({ battle_id: battleId })], {
+          type: 'application/json',
+        }),
+      );
+    };
+    // Tab close / refresh — always fire, even if the battle is starting.
+    // The route is idempotent + the start path captures the participant
+    // list before anyone could close their tab.
+    window.addEventListener('beforeunload', sendLeave);
+    return () => {
+      window.removeEventListener('beforeunload', sendLeave);
+      // SPA unmount — explicit LEAVE click, parent re-key, or
+      // navigation away from /mog. Skip when the battle is starting:
+      // the user is about to be a participant in BattleRoom and we
+      // don't want to mark them left right as their tile mounts.
+      if (startingRef.current) return;
+      sendLeave();
+    };
+  }, [battleId]);
+
   const refetchParticipants = useCallback(async () => {
     try {
       // Backend route — RLS on battle_participants requires auth.uid()
@@ -1131,12 +1179,12 @@ function Lobby({
         data.state !== 'lobby' &&
         data.state !== 'cancelled'
       ) {
-        onStarting();
+        safeOnStarting();
       }
     } catch {
       // ignore
     }
-  }, [battleId, onStarting]);
+  }, [battleId, safeOnStarting]);
 
   // Initial + periodic refresh — the broadcast subscription below is
   // the fast path, but polling is the reliable fallback in case
@@ -1218,12 +1266,12 @@ function Lobby({
       // that the battle is starting, no reason to add a round-trip.
       // Guests pick up the transition via the participants-poll
       // fallback (refetchParticipants returns state on every tick).
-      onStarting();
+      safeOnStarting();
     } catch {
       setStartError('could not start — try again.');
       setStarting(false);
     }
-  }, [battleId, onStarting]);
+  }, [battleId, safeOnStarting]);
 
   const canStart = isHost && participants.length >= 2 && !starting;
 

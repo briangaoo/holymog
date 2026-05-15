@@ -57,9 +57,17 @@ export async function GET(
     user_id: string;
     display_name: string;
   }>(
+    // Filter out participants who have auto-left (closed the tab,
+    // navigated away from the lobby, or clicked LEAVE). Without this,
+    // a guest who's wandered off to the homepage still shows in the
+    // lobby + still counts toward min-2-to-start, and the host can
+    // unintentionally start a battle with a ghost. The lobby's
+    // re-join path (POST /join with the same code) clears `left_at`
+    // back to NULL so honest re-joins are not penalised.
     `select user_id, display_name
        from battle_participants
       where battle_id = $1
+        and left_at is null
       order by joined_at asc`,
     [id],
   );

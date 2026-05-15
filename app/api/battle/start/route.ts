@@ -54,8 +54,14 @@ export async function POST(request: Request) {
       host_user_id: string | null;
       participant_count: number;
     }>(
+      // participant_count counts only active (non-left) participants —
+      // a guest who navigated away from the lobby gets `left_at` set by
+      // the cleanup in app/mog/page.tsx and is filtered out here so the
+      // host can't accidentally start a battle with a ghost on the
+      // holymog.com homepage.
       `select b.kind, b.state, b.host_user_id,
-              (select count(*)::int from battle_participants p where p.battle_id = b.id) as participant_count
+              (select count(*)::int from battle_participants p
+                where p.battle_id = b.id and p.left_at is null) as participant_count
          from battles b
         where b.id = $1
         for update`,

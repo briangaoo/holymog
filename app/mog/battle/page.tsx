@@ -294,6 +294,17 @@ function PublicMatchmaking({
 }) {
   const [status, setStatus] = useState<MatchStatus>('finding');
   const [cameraError, setCameraError] = useState<string | null>(null);
+  // Bail-out state for the pair → token-fetch handoff. Without a
+  // ceiling, a broken token endpoint (LIVEKIT env missing, network
+  // hiccup, etc.) leaves the user "OPPONENT FOUND · CONNECTING" forever
+  // while the actual battle runs to completion without them. After
+  // MAX_HANDOFF_FAILURES the user sees an explicit error + retry/back.
+  const [handoffError, setHandoffError] = useState<string | null>(null);
+  // Ticked from the polling-effect closure, also used by the retry
+  // handler outside that closure — useState would race the closure's
+  // captured value, so a ref keeps the counter authoritative.
+  const handoffFailuresRef = useRef(0);
+  const MAX_HANDOFF_FAILURES = 3;
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const pairedBattleRef = useRef<string | null>(null);
@@ -346,6 +357,21 @@ function PublicMatchmaking({
   useEffect(() => {
     let cancelled = false;
 
+    const recordFailure = () => {
+      handoffFailuresRef.current++;
+      if (handoffFailuresRef.current >= MAX_HANDOFF_FAILURES) {
+        // Stop trying. Leave pairedBattleRef set so the polling
+        // loop's `if (pairedBattleRef.current) return;` short-
+        // circuits — no more requests until the user clicks
+        // retry or back.
+        setHandoffError(
+          'could not connect to the battle. matchmaking may be backed up.',
+        );
+        return;
+      }
+      pairedBattleRef.current = null;
+    };
+
     const handlePaired = async (battleId: string) => {
       if (cancelled) return;
       if (pairedBattleRef.current === battleId) return;
@@ -357,9 +383,7 @@ function PublicMatchmaking({
           fetch(`/api/battle/${battleId}/state`, { cache: 'no-store' }),
         ]);
         if (cancelled || !tokenRes.ok || !stateRes.ok) {
-          // Allow a future poll tick to retry — pair_two() already
-          // inserted us into the participants table.
-          pairedBattleRef.current = null;
+          recordFailure();
           return;
         }
         const tokenData = (await tokenRes.json()) as { token: string; url: string };
@@ -368,10 +392,14 @@ function PublicMatchmaking({
           ? Date.parse(stateData.started_at)
           : Date.now();
         if (cancelled) return;
+        // Reset the failure counter on success so a later transient
+        // glitch (none of which we expect post-handoff) gets the full
+        // retry budget again.
+        handoffFailuresRef.current = 0;
         setStatus('connecting');
         onReady(battleId, tokenData.token, tokenData.url, startedAt);
       } catch {
-        pairedBattleRef.current = null;
+        recordFailure();
       }
     };
 
@@ -417,6 +445,15 @@ function PublicMatchmaking({
       window.clearInterval(pollId);
     };
   }, [userId, onReady]);
+
+  const onRetryHandoff = () => {
+    handoffFailuresRef.current = 0;
+    pairedBattleRef.current = null;
+    setHandoffError(null);
+    setStatus('finding');
+    // The polling-loop tick will fire on its next 1.5s interval and
+    // re-enter handlePaired. No need to manually kick anything.
+  };
 
   return (
     <div className="fixed inset-0 grid grid-rows-2 bg-black md:grid-cols-2 md:grid-rows-1">
@@ -530,6 +567,49 @@ function PublicMatchmaking({
       >
         <X size={12} aria-hidden /> CANCEL
       </button>
+
+      {/* Handoff-failure overlay — fires when 3 token/state fetches in
+          a row failed. Without this the user sat on "OPPONENT FOUND ·
+          CONNECTING" forever while the actual battle ran to completion
+          without them. Two paths out: TRY AGAIN re-enters the polling
+          flow at the next tick, GO BACK calls onCancel which deletes
+          the queue row and bounces to mode-select. */}
+      {handoffError && (
+        <div
+          className="absolute inset-0 z-20 flex items-center justify-center bg-black/85 px-4 backdrop-blur-md"
+          role="alert"
+        >
+          <div
+            className="flex w-full max-w-sm flex-col gap-4 border-2 border-red-500/60 bg-black p-6 text-center"
+            style={{ borderRadius: 2 }}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-red-300">
+              CONNECTION FAILED
+            </span>
+            <p className="text-base font-semibold text-white normal-case">
+              {handoffError}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                style={{ touchAction: 'manipulation', borderRadius: 2 }}
+                className="inline-flex h-11 flex-1 items-center justify-center border-2 border-white/30 bg-black text-xs font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:border-white hover:bg-white/[0.04]"
+              >
+                GO BACK
+              </button>
+              <button
+                type="button"
+                onClick={onRetryHandoff}
+                style={{ touchAction: 'manipulation', borderRadius: 2 }}
+                className="inline-flex h-11 flex-[1.2] items-center justify-center bg-white text-xs font-bold uppercase tracking-[0.18em] text-black transition-opacity hover:opacity-90"
+              >
+                TRY AGAIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
