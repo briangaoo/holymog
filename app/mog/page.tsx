@@ -282,7 +282,10 @@ export default function MogPage() {
       <main className="relative mx-auto w-full max-w-md px-5 py-6 sm:max-w-2xl">
         <div className="mb-6 flex items-center gap-3">
           <BackButton onBack={onBack} />
-          <h1 className="bg-gradient-to-br from-white via-rose-100 to-rose-300 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
+          <h1
+            className="text-2xl font-bold tracking-tight text-white"
+            style={{ textShadow: '0 0 24px rgba(255,255,255,0.25)' }}
+          >
             Mog battles
           </h1>
         </div>
@@ -409,33 +412,34 @@ function ModeSelect({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Hero "find a battle" — rose ambient glow + pulsing pip to
-          signal LIVE matchmaking. Card lifts on hover and pulls in
-          a soft rose halo so it visibly invites the primary action. */}
+      {/* Hero "find a battle" — black card with a white pulsing pip
+          and a heavy white halo on hover so it pulls the eye without
+          any accent colour. Lifts 2px on hover, brightens the inner
+          gradient subtly. */}
       <button
         type="button"
         onClick={findBattle}
         style={{ touchAction: 'manipulation' }}
-        className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-rose-500/30 bg-gradient-to-br from-rose-500/[0.08] via-black to-black p-7 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-400/70 hover:shadow-[0_0_44px_-6px_rgba(244,63,94,0.55)]"
+        className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-white/20 bg-gradient-to-br from-white/[0.04] via-black to-black p-7 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-white/60 hover:shadow-[0_0_56px_-6px_rgba(255,255,255,0.4),inset_0_1px_0_0_rgba(255,255,255,0.08)]"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <span aria-hidden className="relative flex h-2 w-2">
-                <span className="absolute inset-0 animate-ping rounded-full bg-rose-400/70" />
-                <span className="relative h-2 w-2 rounded-full bg-rose-400" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
+                <span className="relative h-2 w-2 rounded-full bg-white" />
               </span>
-              <span className="text-[11px] font-medium text-rose-300/90">
+              <span className="text-[11px] font-medium text-white/75">
                 Ranked · live
               </span>
             </div>
             <Swords
               size={36}
               aria-hidden
-              className="text-rose-300 transition-transform duration-300 group-hover:scale-110"
+              className="text-white/85 transition-all duration-300 group-hover:scale-110 group-hover:text-white"
             />
             <div className="flex flex-col gap-1">
-              <span className="text-3xl font-bold leading-none tracking-tight text-white transition-colors duration-300 group-hover:text-rose-100">
+              <span className="text-3xl font-bold leading-none tracking-tight text-white transition-all duration-300 group-hover:[text-shadow:0_0_28px_rgba(255,255,255,0.45)]">
                 Find a battle
               </span>
               <span className="text-[12px] text-white/70">
@@ -446,7 +450,7 @@ function ModeSelect({
           <ArrowRight
             size={20}
             aria-hidden
-            className="mt-1 text-rose-300/70 transition-all duration-300 group-hover:translate-x-1 group-hover:text-rose-200"
+            className="mt-1 text-white/60 transition-all duration-300 group-hover:translate-x-1 group-hover:text-white"
           />
         </div>
       </button>
@@ -468,12 +472,12 @@ function ModeSelect({
           type="button"
           onClick={onCreate}
           style={{ touchAction: 'manipulation' }}
-          className="group flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-sky-500/25 bg-gradient-to-br from-sky-500/[0.05] via-black to-black p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-sky-400/70 hover:shadow-[0_0_28px_-6px_rgba(56,189,248,0.5)]"
+          className="group flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-white/[0.03] via-black to-black p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-white/60 hover:shadow-[0_0_32px_-6px_rgba(255,255,255,0.35),inset_0_1px_0_0_rgba(255,255,255,0.08)]"
         >
           <Users
             size={20}
             aria-hidden
-            className="text-sky-300 transition-transform duration-300 group-hover:scale-110"
+            className="text-white/80 transition-all duration-300 group-hover:scale-110 group-hover:text-white"
           />
           <span className="text-base font-semibold tracking-tight text-white">
             Create party
@@ -487,12 +491,12 @@ function ModeSelect({
           type="button"
           onClick={onJoin}
           style={{ touchAction: 'manipulation' }}
-          className="group flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-violet-500/25 bg-gradient-to-br from-violet-500/[0.05] via-black to-black p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-400/70 hover:shadow-[0_0_28px_-6px_rgba(168,85,247,0.5)]"
+          className="group flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-white/[0.03] via-black to-black p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-white/60 hover:shadow-[0_0_32px_-6px_rgba(255,255,255,0.35),inset_0_1px_0_0_rgba(255,255,255,0.08)]"
         >
           <Search
             size={20}
             aria-hidden
-            className="text-violet-300 transition-transform duration-300 group-hover:scale-110"
+            className="text-white/80 transition-all duration-300 group-hover:scale-110 group-hover:text-white"
           />
           <span className="text-base font-semibold tracking-tight text-white">
             Join party
@@ -1320,16 +1324,12 @@ function Lobby({
 
   return (
     <div className="flex flex-col gap-4">
-      <div
-        className="relative overflow-hidden rounded-xl border border-sky-500/25 bg-gradient-to-br from-sky-500/[0.06] via-black to-black px-5 py-7"
-      >
+      <div className="relative overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-white/[0.04] via-black to-black px-5 py-7 shadow-[0_0_32px_-12px_rgba(255,255,255,0.25),inset_0_1px_0_0_rgba(255,255,255,0.05)]">
         <div className="flex flex-col items-center gap-1.5 text-center">
-          <span
-            className="inline-flex items-center gap-1.5 rounded-md border border-sky-400/40 bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-200"
-          >
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-white/25 bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-white">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/70" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-sky-400" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
+              <span className="relative h-1.5 w-1.5 rounded-full bg-white" />
             </span>
             Party code
           </span>
@@ -1348,7 +1348,7 @@ function Lobby({
           {cells.map((ch, idx) => (
             <span
               key={idx}
-              className="font-num inline-flex h-14 w-11 items-center justify-center rounded-md border border-sky-400/40 bg-gradient-to-b from-sky-500/[0.05] to-black text-3xl font-extrabold uppercase tabular-nums text-white shadow-[0_0_18px_-6px_rgba(56,189,248,0.45)] transition-all duration-300 group-hover:border-sky-400/80 group-hover:shadow-[0_0_28px_-4px_rgba(56,189,248,0.7)] sm:h-16 sm:w-12 sm:text-[2rem]"
+              className="font-num inline-flex h-14 w-11 items-center justify-center rounded-md border border-white/25 bg-gradient-to-b from-white/[0.04] to-black text-3xl font-extrabold uppercase tabular-nums text-white shadow-[0_0_20px_-6px_rgba(255,255,255,0.35),inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all duration-300 group-hover:border-white/60 group-hover:shadow-[0_0_32px_-4px_rgba(255,255,255,0.55),inset_0_1px_0_0_rgba(255,255,255,0.1)] sm:h-16 sm:w-12 sm:text-[2rem]"
               style={{ textTransform: 'uppercase' }}
             >
               {ch}
@@ -1361,12 +1361,11 @@ function Lobby({
             type="button"
             onClick={onCopy}
             style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-11 items-center gap-2 rounded-md border border-white/20 bg-black/60 px-4 text-[13px] font-medium text-white transition-all duration-200 hover:border-white/50 hover:bg-white/[0.06]"
+            className="inline-flex h-11 items-center gap-2 rounded-md border border-white/20 bg-black/60 px-4 text-[13px] font-medium text-white transition-all duration-200 hover:border-white/50 hover:bg-white/[0.06] hover:shadow-[0_0_20px_-6px_rgba(255,255,255,0.4)]"
           >
             {copied ? (
               <>
-                <Check size={14} aria-hidden className="text-emerald-300" />{' '}
-                Copied
+                <Check size={14} aria-hidden /> Copied
               </>
             ) : (
               <>
@@ -1379,7 +1378,7 @@ function Lobby({
               type="button"
               onClick={onShare}
               style={{ touchAction: 'manipulation' }}
-              className="inline-flex h-11 items-center gap-2 rounded-md bg-white px-4 text-[13px] font-semibold text-black transition-all duration-200 hover:bg-zinc-100 hover:shadow-[0_0_24px_-4px_rgba(255,255,255,0.5)]"
+              className="inline-flex h-11 items-center gap-2 rounded-md bg-white px-4 text-[13px] font-semibold text-black transition-all duration-200 hover:shadow-[0_0_28px_-4px_rgba(255,255,255,0.65)]"
             >
               <Share2 size={14} aria-hidden /> Share
             </button>
@@ -1387,13 +1386,13 @@ function Lobby({
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-zinc-950/60 p-5">
+      <div className="rounded-xl border border-white/15 bg-white/[0.02] p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-[12px] font-medium text-white/55">
             In lobby · {participants.length}/10
           </span>
           {participants.length < 2 && (
-            <span className="text-[11px] text-amber-300/80">
+            <span className="text-[11px] text-white/45">
               Need ≥ 2 to start
             </span>
           )}
@@ -1459,7 +1458,7 @@ function Lobby({
                 )}
                 <span className="flex flex-shrink-0 items-center gap-1.5 text-[11px] text-white/50">
                   {isHostRow && (
-                    <span className="rounded-md border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-200">
+                    <span className="rounded-md border border-white/30 bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-medium text-white">
                       Host
                     </span>
                   )}
@@ -1494,7 +1493,7 @@ function Lobby({
           type="button"
           onClick={onLeave}
           style={{ touchAction: 'manipulation' }}
-          className="inline-flex h-11 flex-1 items-center justify-center rounded-md border border-white/20 bg-black/60 text-[13px] font-medium text-white transition-all duration-200 hover:border-white/40 hover:bg-white/[0.04]"
+          className="inline-flex h-11 flex-1 items-center justify-center rounded-md border border-white/20 bg-black/60 text-[13px] font-medium text-white transition-all duration-200 hover:border-white/50 hover:bg-white/[0.05] hover:shadow-[0_0_20px_-6px_rgba(255,255,255,0.35)]"
         >
           Leave
         </button>
@@ -1504,7 +1503,7 @@ function Lobby({
             onClick={onStart}
             disabled={!canStart}
             style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-md bg-gradient-to-br from-white via-white to-emerald-200 text-[13px] font-semibold text-black transition-all duration-200 hover:shadow-[0_0_28px_-6px_rgba(16,185,129,0.6)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:shadow-none"
+            className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-md bg-white text-[13px] font-semibold text-black transition-all duration-200 hover:shadow-[0_0_36px_-4px_rgba(255,255,255,0.75)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:shadow-none"
           >
             {starting ? (
               <>

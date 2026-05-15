@@ -728,7 +728,7 @@ function ClimbChart({
         <div className="flex flex-col gap-3 p-5">
           <header className="flex items-baseline justify-between gap-3">
             <div className="flex items-center gap-2">
-              <TrendingUp size={15} className="text-emerald-300" aria-hidden />
+              <TrendingUp size={15} className="text-white/80" aria-hidden />
               <span className="text-[14px] font-semibold text-white">
                 ELO climb
               </span>
@@ -801,7 +801,7 @@ function BattleActivity({
       >
         <div className="flex flex-col gap-3 p-5">
           <header className="flex items-center gap-2">
-            <Swords size={15} className="text-rose-300/80" aria-hidden />
+            <Swords size={15} className="text-white/70" aria-hidden />
             <span className="text-[14px] font-semibold text-white/80">
               Recent battles
             </span>
@@ -1067,7 +1067,7 @@ function CollectionShelf({ slugs }: { slugs: string[] }) {
       >
         <div className="flex flex-col gap-4 p-5">
           <header className="flex items-center gap-2">
-            <Sparkles size={15} className="text-amber-300" aria-hidden />
+            <Sparkles size={15} className="text-white/80" aria-hidden />
             <span className="text-[14px] font-semibold text-white">
               Collection
             </span>

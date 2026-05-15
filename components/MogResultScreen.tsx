@@ -1045,7 +1045,7 @@ function ResultActions({
             onClick={onRematch}
             disabled={rematching}
             style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-12 flex-[1.2] items-center justify-center gap-2 rounded-full bg-gradient-to-br from-white via-white to-emerald-200 text-sm font-semibold text-black transition-all hover:shadow-[0_8px_32px_-4px_rgba(16,185,129,0.55)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-12 flex-[1.2] items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black transition-all hover:shadow-[0_8px_36px_-4px_rgba(255,255,255,0.7)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {rematching ? (
               <>
@@ -1060,7 +1060,7 @@ function ResultActions({
             type="button"
             onClick={onFindAnother}
             style={{ touchAction: 'manipulation' }}
-            className="inline-flex h-12 flex-[1.2] items-center justify-center gap-2 rounded-full bg-gradient-to-br from-white via-white to-rose-200 text-sm font-semibold text-black transition-all hover:shadow-[0_8px_32px_-4px_rgba(244,63,94,0.55)]"
+            className="inline-flex h-12 flex-[1.2] items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black transition-all hover:shadow-[0_8px_36px_-4px_rgba(255,255,255,0.7)]"
           >
             Find another
           </button>

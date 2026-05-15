@@ -25,16 +25,15 @@ export default function HomePage() {
 
   return (
     <div className="relative h-dvh overflow-hidden bg-black">
-      {/* Two ambient color washes anchored to the corners — soft
-          enough that they read as atmosphere rather than gradient.
-          Emerald pulls the eye to the SCAN tile, amber to the
-          BATTLES tile. */}
+      {/* Two soft white washes anchored to the corners. Black-with-
+          white-glow only — colour was making the homepage look like
+          a generic crypto landing page. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-0 opacity-70"
+        className="pointer-events-none absolute inset-0 z-0"
         style={{
           background:
-            'radial-gradient(circle at 18% 30%, rgba(16,185,129,0.18) 0%, transparent 45%), radial-gradient(circle at 82% 70%, rgba(251,146,60,0.18) 0%, transparent 45%)',
+            'radial-gradient(circle at 18% 28%, rgba(255,255,255,0.06) 0%, transparent 45%), radial-gradient(circle at 82% 72%, rgba(255,255,255,0.05) 0%, transparent 48%)',
         }}
       />
 
@@ -52,7 +51,6 @@ export default function HomePage() {
               title="Scan"
               subtitle="Rate your face"
               meta="F− → S+"
-              accent="emerald"
             />
             <HomeCard
               href="/mog"
@@ -61,29 +59,28 @@ export default function HomePage() {
               title="Battles"
               subtitle="Live face-offs"
               meta="1v1 or up to 10"
-              accent="amber"
             />
           </div>
 
-          <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+          <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
           <Link
             href="/leaderboard"
-            className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-lg border border-violet-500/25 bg-gradient-to-r from-violet-500/[0.04] via-black to-fuchsia-500/[0.04] px-5 py-4 text-sm text-white transition-all duration-300 hover:border-violet-400/60 hover:shadow-[0_0_28px_-4px_rgba(168,85,247,0.45)]"
+            className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-lg border border-white/20 bg-white/[0.02] px-5 py-4 text-sm text-white transition-all duration-300 hover:border-white/60 hover:bg-white/[0.05] hover:shadow-[0_0_32px_-4px_rgba(255,255,255,0.35),inset_0_1px_0_0_rgba(255,255,255,0.08)]"
             style={{ touchAction: 'manipulation' }}
           >
             <span className="flex items-center gap-2.5">
               <Trophy
                 size={15}
                 aria-hidden
-                className="text-violet-300 transition-transform duration-300 group-hover:scale-110"
+                className="text-white/80 transition-all duration-300 group-hover:scale-110 group-hover:text-white"
               />
               <span className="font-medium">Leaderboard</span>
             </span>
             <ArrowUpRight
               size={16}
               aria-hidden
-              className="text-white/60 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-violet-200"
+              className="text-white/60 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white"
             />
           </Link>
 
@@ -133,36 +130,12 @@ export default function HomePage() {
   );
 }
 
-const ACCENTS = {
-  emerald: {
-    border: 'border-emerald-500/30',
-    hoverBorder: 'hover:border-emerald-400/70',
-    glow: 'hover:shadow-[0_0_44px_-6px_rgba(16,185,129,0.55)]',
-    icon: 'text-emerald-300',
-    titleHover: 'group-hover:text-emerald-200',
-    gradient:
-      'bg-gradient-to-br from-emerald-500/[0.07] via-black to-black',
-    kicker: 'text-emerald-300/80',
-  },
-  amber: {
-    border: 'border-amber-500/30',
-    hoverBorder: 'hover:border-amber-400/70',
-    glow: 'hover:shadow-[0_0_44px_-6px_rgba(251,146,60,0.55)]',
-    icon: 'text-amber-300',
-    titleHover: 'group-hover:text-amber-200',
-    gradient: 'bg-gradient-to-br from-amber-500/[0.07] via-black to-black',
-    kicker: 'text-amber-300/80',
-  },
-} as const;
-
 /**
- * Single tile on the home grid. Inherits an accent palette
- * (emerald for SCAN, amber for BATTLES) that drives the border tint,
- * the hover glow, the icon colour, and a soft gradient wash in the
- * corner. The brutalist hard-edge feeling is gone — these are now
- * inviting, almost button-like surfaces with motion + warmth on
- * hover. Sentence case copy throughout; only F−/S+ tier letters
- * stay literal because the tier system is upper-case by definition.
+ * Single tile on the home grid. Brutalist back-to-basics: black card,
+ * 1px white border, an icon-pill + numbered kicker on top, big title +
+ * subtitle below. The whole tile lifts 2px on hover and pulls in a
+ * heavier white halo via box-shadow so the elevation is felt without
+ * any accent colour. The brand voice carries the visual weight here.
  */
 function HomeCard({
   href,
@@ -171,7 +144,6 @@ function HomeCard({
   title,
   subtitle,
   meta,
-  accent,
 }: {
   href: string;
   icon: React.ReactNode;
@@ -179,25 +151,21 @@ function HomeCard({
   title: string;
   subtitle: string;
   meta: string;
-  accent: keyof typeof ACCENTS;
 }) {
-  const a = ACCENTS[accent];
   return (
     <Link
       href={href}
-      className={`group relative flex min-h-[300px] flex-col justify-between overflow-hidden rounded-xl border ${a.border} ${a.hoverBorder} ${a.glow} ${a.gradient} p-6 transition-all duration-300 hover:-translate-y-0.5 sm:min-h-[360px] sm:p-7`}
+      className="group relative flex min-h-[300px] flex-col justify-between overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-white/[0.03] via-black to-black p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/60 hover:shadow-[0_0_56px_-8px_rgba(255,255,255,0.35),inset_0_1px_0_0_rgba(255,255,255,0.08)] sm:min-h-[360px] sm:p-7"
       style={{ touchAction: 'manipulation' }}
     >
       {/* Top row: icon-pill + kicker text on the left, arrow on the
           right. Arrow lifts on hover. */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2.5">
-          <span
-            className={`flex h-9 w-9 items-center justify-center rounded-lg border ${a.border} bg-black/40 backdrop-blur-sm ${a.icon} transition-transform duration-300 group-hover:scale-110`}
-          >
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/[0.04] text-white/90 backdrop-blur-sm transition-all duration-300 group-hover:scale-110 group-hover:border-white/50 group-hover:bg-white/[0.08] group-hover:text-white">
             {icon}
           </span>
-          <span className={`text-[11px] font-medium ${a.kicker}`}>
+          <span className="text-[11px] font-medium text-white/55">
             {kicker}
           </span>
         </div>
@@ -209,9 +177,7 @@ function HomeCard({
       </div>
 
       <div className="flex flex-col gap-3">
-        <h2
-          className={`text-5xl font-bold leading-[0.92] tracking-tight text-white transition-colors duration-300 sm:text-6xl ${a.titleHover}`}
-        >
+        <h2 className="text-5xl font-bold leading-[0.92] tracking-tight text-white transition-all duration-300 group-hover:[text-shadow:0_0_28px_rgba(255,255,255,0.45)] sm:text-6xl">
           {title}
         </h2>
         <div className="flex flex-col gap-1">

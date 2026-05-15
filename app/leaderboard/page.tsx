@@ -91,20 +91,24 @@ export default function LeaderboardPage() {
 
   return (
     <div className="relative min-h-dvh bg-black">
-      {/* Soft violet wash anchored top-right — sets the leaderboard's
-          podium / royal vibe without adding any geometry. */}
+      {/* Soft white wash anchored top-centre — just enough ambient
+          glow above the podium to feel like stadium lighting without
+          tipping into colour territory. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-80"
+        className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 80% 0%, rgba(168,85,247,0.16) 0%, transparent 50%), radial-gradient(circle at 0% 100%, rgba(251,191,36,0.08) 0%, transparent 55%)',
+            'radial-gradient(circle at 50% 0%, rgba(255,255,255,0.08) 0%, transparent 55%)',
         }}
       />
       <AppHeader authNext="/leaderboard" />
 
       <main className="relative mx-auto w-full max-w-lg px-5 pb-12 pt-4">
-        <h1 className="mb-1 bg-gradient-to-br from-white via-violet-100 to-amber-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
+        <h1
+          className="mb-1 text-2xl font-bold tracking-tight text-white"
+          style={{ textShadow: '0 0 28px rgba(255,255,255,0.3)' }}
+        >
           Leaderboard
         </h1>
         <p className="mb-4 text-[12px] text-white/50">
@@ -804,15 +808,7 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
         style={{ borderRadius: 2 }}
       >
         <div
-          className={`w-7 text-right font-num text-sm font-bold tabular-nums ${
-            rank === 1
-              ? 'text-amber-300'
-              : rank === 2
-                ? 'text-zinc-300'
-                : rank === 3
-                  ? 'text-orange-400'
-                  : 'text-white/50'
-          }`}
+          className="w-7 text-right font-num text-sm font-bold tabular-nums text-white/50"
         >
           {rank}
         </div>
@@ -882,15 +878,7 @@ function BattleRow({ row, rank }: { row: BattleRow; rank: number }) {
         style={{ borderRadius: 2 }}
       >
         <div
-          className={`w-7 text-right font-num text-sm font-bold tabular-nums ${
-            rank === 1
-              ? 'text-amber-300'
-              : rank === 2
-                ? 'text-zinc-300'
-                : rank === 3
-                  ? 'text-orange-400'
-                  : 'text-white/50'
-          }`}
+          className="w-7 text-right font-num text-sm font-bold tabular-nums text-white/50"
         >
           {rank}
         </div>

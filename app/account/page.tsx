@@ -322,7 +322,7 @@ function AccountPageInner() {
                 {active && (
                   <span
                     aria-hidden
-                    className="absolute -bottom-px left-0 right-0 h-0.5 rounded-t bg-gradient-to-r from-emerald-400 via-white to-emerald-400 shadow-[0_0_12px_rgba(255,255,255,0.6)]"
+                    className="absolute -bottom-px left-0 right-0 h-0.5 rounded-t bg-white shadow-[0_0_16px_rgba(255,255,255,0.6)]"
                   />
                 )}
               </button>
