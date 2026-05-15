@@ -9,6 +9,7 @@ import {
   useConnectionQualityIndicator,
   useLocalParticipant,
   useTracks,
+  type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { ConnectionQuality, Track, type Participant } from 'livekit-client';
@@ -614,127 +615,42 @@ function BattleInterior({
   const remainingSec = Math.ceil(remainingMs / 1000);
   const countdownSec = Math.ceil(Math.max(0, startedAt - now) / 1000);
 
-  // Viewport-aware grid. pickGridLayout returns (rows, cols,
-  // lastRowCount) — every tile in the room is rendered with the same
-  // width (= viewport / cols) and same height (= viewport / rows). When
-  // N has orphan slots (rows × cols > N), the last row holds fewer
-  // tiles than `cols`; we anchor the row with justify-center so the
-  // lone tile(s) sit in the middle with symmetric blank space on
-  // either side rather than left-aligned-with-trailing-blanks. Result:
-  // nobody is cramped, every face is the same size, and the only
-  // visual cue that someone is "alone in their row" is the symmetric
-  // breathing space around them.
-  const { rows, cols, lastRowCount } = pickGridLayout(
-    tracks.length,
-    viewport.width,
-    viewport.height,
-  );
-  // Effective render count: at least 2 so we never collapse to a
-  // single full-screen tile while waiting for the remote track to
-  // publish. Slots beyond tracks.length render a "waiting" placeholder.
-  const renderCount = Math.max(2, tracks.length);
-  // Pre-compute tile width as a % of the viewport so the centered last
-  // row uses the same width as full rows (justify-center with flex-
-  // basis ensures the tiles aren't stretched).
-  const tileBasis = `${100 / cols}%`;
+  // Two render paths:
+  //   1v1 / solo (tracks.length <= 2): viewport-aware grid via
+  //     pickGridLayout — top/bottom on phone, left/right on landscape.
+  //     The "centered orphan" rule is moot here because N=2 always
+  //     fills the grid exactly.
+  //   Party (tracks.length >= 3): speaker-view via pickPartyLayout —
+  //     the local participant ("YOU") fills the bottom of the screen
+  //     and every OTHER participant sits in a small square thumbnail
+  //     in the strip on top. Phone screen real estate is finite, so
+  //     when there are many others the strip grows in BOTH rows + cols
+  //     to keep each face at a usable size without ever cropping YOU
+  //     to a sliver. The strip is capped at ~40% of viewport height
+  //     (PARTY_OTHERS_MAX_AREA_FRACTION).
+  const localId = localParticipant?.identity ?? '';
+  const isPartyMode = tracks.length >= 3;
 
   return (
     <div className="relative min-h-dvh bg-black text-white">
       <TileLiquidFilter />
-      <div className="flex h-dvh w-full flex-col">
-        {Array.from({ length: rows }).map((_, rowIdx) => {
-          const isLastRow = rowIdx === rows - 1;
-          const cellsInRow = isLastRow ? lastRowCount : cols;
-          const startIdx = rowIdx * cols;
-          // Center the last row only when it's not full — equal to
-          // `cols` means it visually IS a full row, no need to anchor.
-          const needsCenter = isLastRow && lastRowCount < cols;
-          return (
-            <div
-              key={rowIdx}
-              className={`flex min-h-0 flex-1 ${
-                needsCenter ? 'justify-center' : ''
-              } ${isLastRow ? '' : 'border-b border-white/30'}`}
-            >
-              {Array.from({ length: cellsInRow }, (_, colIdx) => {
-                const idx = startIdx + colIdx;
-                const trackRef = idx < tracks.length ? tracks[idx] : null;
-                const isWaiting = idx >= tracks.length && idx < renderCount;
-                const isLastCellInRow = colIdx === cellsInRow - 1;
-                const key = trackRef
-                  ? `${trackRef.participant.identity}-${rowIdx}-${colIdx}`
-                  : `waiting-${rowIdx}-${colIdx}`;
-                if (!trackRef && !isWaiting) return null;
-                if (!trackRef) {
-                  return (
-                    <div
-                      key={key}
-                      className={`relative min-w-0 overflow-hidden bg-black ${
-                        isLastCellInRow ? '' : 'border-r border-white/30'
-                      }`}
-                      style={{ flexBasis: tileBasis, flexGrow: 0, flexShrink: 0 }}
-                    >
-                      <WaitingTile />
-                    </div>
-                  );
-                }
-                const userId = trackRef.participant.identity;
-                const score = scores[userId];
-                const hasLeft = leftUsers.has(userId);
-                return (
-                  <div
-                    key={key}
-                    className={`relative min-w-0 overflow-hidden bg-black transition-opacity duration-300 ${
-                      isLastCellInRow ? '' : 'border-r border-white/30'
-                    }`}
-                    style={{
-                      flexBasis: tileBasis,
-                      flexGrow: 0,
-                      flexShrink: 0,
-                      opacity: hasLeft ? 0.35 : 1,
-                    }}
-                  >
-                    {isTrackReference(trackRef) ? (
-                      <VideoTrack
-                        trackRef={trackRef}
-                        className="h-full w-full object-cover"
-                        style={
-                          trackRef.participant.identity ===
-                          localParticipant?.identity
-                            ? { transform: 'scaleX(-1)' }
-                            : undefined
-                        }
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-zinc-900">
-                        <span className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                          camera off
-                        </span>
-                      </div>
-                    )}
-                    <ScoreOverlay
-                      displayName={
-                        trackRef.participant.name ||
-                        trackRef.participant.identity
-                      }
-                      score={score}
-                      meta={parseMetadata(trackRef.participant.metadata)}
-                    />
-                    <ConnectionBars participant={trackRef.participant} />
-                    {hasLeft && (
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40">
-                        <span className="rounded-full border border-white/15 bg-black/70 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-300 backdrop-blur">
-                          left
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
+      {isPartyMode ? (
+        <PartyLayoutView
+          tracks={tracks}
+          localId={localId}
+          viewport={viewport}
+          scores={scores}
+          leftUsers={leftUsers}
+        />
+      ) : (
+        <OneVsOneLayoutView
+          tracks={tracks}
+          localId={localId}
+          viewport={viewport}
+          scores={scores}
+          leftUsers={leftUsers}
+        />
+      )}
 
       {/* Active-window timer (top centre). */}
       {phase === 'active' && (
@@ -810,6 +726,56 @@ function BattleInterior({
  * rows when N is odd. For N <= 10 (max private-party size) every
  * layout is hand-tuned; beyond 10 we fall back to a square-ish grid.
  */
+/**
+ * Inner content for one participant tile — video (or camera-off
+ * placeholder), score overlay, connection bars, and the dim/left
+ * overlay. Used by both the 1v1 grid path and the party speaker-view
+ * path so they render identically. The wrapping <div> with its sizing
+ * + border treatment is owned by the caller.
+ */
+function TileContents({
+  trackRef,
+  isLocal,
+  score,
+  hasLeft,
+}: {
+  trackRef: TrackReferenceOrPlaceholder;
+  isLocal: boolean;
+  score: BattleScores[string] | undefined;
+  hasLeft: boolean;
+}) {
+  return (
+    <>
+      {isTrackReference(trackRef) ? (
+        <VideoTrack
+          trackRef={trackRef}
+          className="h-full w-full object-cover"
+          style={isLocal ? { transform: 'scaleX(-1)' } : undefined}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-zinc-900">
+          <span className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+            camera off
+          </span>
+        </div>
+      )}
+      <ScoreOverlay
+        displayName={trackRef.participant.name || trackRef.participant.identity}
+        score={score}
+        meta={parseMetadata(trackRef.participant.metadata)}
+      />
+      <ConnectionBars participant={trackRef.participant} />
+      {hasLeft && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40">
+          <span className="rounded-full border border-white/15 bg-black/70 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-300 backdrop-blur">
+            left
+          </span>
+        </div>
+      )}
+    </>
+  );
+}
+
 function WaitingTile() {
   // Placeholder for a participant slot whose camera track hasn't
   // published yet. Quiet treatment — a single pulsing dot + label so
@@ -830,12 +796,233 @@ function WaitingTile() {
   );
 }
 
+type LayoutViewProps = {
+  tracks: TrackReferenceOrPlaceholder[];
+  localId: string;
+  viewport: Viewport;
+  scores: BattleScores;
+  leftUsers: Set<string>;
+};
+
+/**
+ * 1v1 / solo render path. Two tiles (real + waiting placeholder when
+ * the opponent hasn't published yet) stacked top/bottom on phone and
+ * side-by-side on landscape. Built on top of the existing viewport-
+ * aware grid picker — for N=2 it always picks (rows=2, cols=1) on
+ * portrait and (rows=1, cols=2) on landscape because that hits the
+ * face-friendly tile aspect target.
+ */
+function OneVsOneLayoutView({
+  tracks,
+  localId,
+  viewport,
+  scores,
+  leftUsers,
+}: LayoutViewProps) {
+  const { rows, cols, lastRowCount } = pickGridLayout(
+    tracks.length,
+    viewport.width,
+    viewport.height,
+  );
+  // Always render at least 2 slots so we don't pop from full-screen
+  // to half-screen when the remote track lands.
+  const renderCount = Math.max(2, tracks.length);
+  const tileBasis = `${100 / cols}%`;
+
+  return (
+    <div className="flex h-dvh w-full flex-col">
+      {Array.from({ length: rows }).map((_, rowIdx) => {
+        const isLastRow = rowIdx === rows - 1;
+        const cellsInRow = isLastRow ? lastRowCount : cols;
+        const startIdx = rowIdx * cols;
+        const needsCenter = isLastRow && lastRowCount < cols;
+        return (
+          <div
+            key={rowIdx}
+            className={`flex min-h-0 flex-1 ${
+              needsCenter ? 'justify-center' : ''
+            } ${isLastRow ? '' : 'border-b border-white/30'}`}
+          >
+            {Array.from({ length: cellsInRow }, (_, colIdx) => {
+              const idx = startIdx + colIdx;
+              const trackRef = idx < tracks.length ? tracks[idx] : null;
+              const isWaiting = idx >= tracks.length && idx < renderCount;
+              const isLastCellInRow = colIdx === cellsInRow - 1;
+              const key = trackRef
+                ? `${trackRef.participant.identity}-${rowIdx}-${colIdx}`
+                : `waiting-${rowIdx}-${colIdx}`;
+              if (!trackRef && !isWaiting) return null;
+              if (!trackRef) {
+                return (
+                  <div
+                    key={key}
+                    className={`relative min-w-0 overflow-hidden bg-black ${
+                      isLastCellInRow ? '' : 'border-r border-white/30'
+                    }`}
+                    style={{ flexBasis: tileBasis, flexGrow: 0, flexShrink: 0 }}
+                  >
+                    <WaitingTile />
+                  </div>
+                );
+              }
+              const userId = trackRef.participant.identity;
+              const hasLeft = leftUsers.has(userId);
+              return (
+                <div
+                  key={key}
+                  className={`relative min-w-0 overflow-hidden bg-black transition-opacity duration-300 ${
+                    isLastCellInRow ? '' : 'border-r border-white/30'
+                  }`}
+                  style={{
+                    flexBasis: tileBasis,
+                    flexGrow: 0,
+                    flexShrink: 0,
+                    opacity: hasLeft ? 0.35 : 1,
+                  }}
+                >
+                  <TileContents
+                    trackRef={trackRef}
+                    isLocal={userId === localId}
+                    score={scores[userId]}
+                    hasLeft={hasLeft}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Speaker-view render path for parties of 3+. YOU (the local
+ * participant) gets the lion's share of the screen below; every other
+ * participant is a small square thumbnail in the strip on top.
+ *
+ * The others strip is sized by pickPartyLayout — square tiles, as
+ * large as they can be without the strip exceeding ~40% of viewport
+ * height. When the others count doesn't divide evenly into the picked
+ * column count, the orphans in the last row are centered via
+ * grid-column-start offset so the row is visually balanced.
+ *
+ * If for any reason the local participant isn't found in the tracks
+ * array (extremely brief window during LiveKit connection setup), we
+ * fall back to rendering the first track in the YOU slot so the
+ * screen never goes blank.
+ */
+function PartyLayoutView({
+  tracks,
+  localId,
+  viewport,
+  scores,
+  leftUsers,
+}: LayoutViewProps) {
+  const youTrack =
+    tracks.find((t) => t.participant.identity === localId) ?? tracks[0] ?? null;
+  const otherTracks = tracks.filter(
+    (t) => t.participant.identity !== (youTrack?.participant.identity ?? ''),
+  );
+  const layout = pickPartyLayout(
+    Math.max(1, otherTracks.length),
+    viewport.width,
+    viewport.height,
+  );
+  const lastRowCount =
+    otherTracks.length - (layout.rows - 1) * layout.cols;
+  const lastRowOffset =
+    lastRowCount < layout.cols
+      ? Math.floor((layout.cols - lastRowCount) / 2)
+      : 0;
+
+  return (
+    <div className="flex h-dvh w-full flex-col">
+      {/* Others strip on top — fixed pixel height, square tiles
+          centered horizontally (in case `layout.cols * tileSize` doesn't
+          fill the viewport width on landscape). */}
+      <div
+        className="flex shrink-0 justify-center border-b border-white/30 bg-black"
+        style={{ height: layout.othersAreaHeight }}
+      >
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(${layout.cols}, ${layout.tileSize}px)`,
+            gridAutoRows: `${layout.tileSize}px`,
+          }}
+        >
+          {otherTracks.map((trackRef, idx) => {
+            const inLastRow = idx >= (layout.rows - 1) * layout.cols;
+            const indexInRow = idx - (layout.rows - 1) * layout.cols;
+            // Only the last row needs an explicit column start to
+            // center orphans; full rows auto-place left-to-right.
+            const gridColumnStart =
+              inLastRow && lastRowOffset > 0
+                ? lastRowOffset + indexInRow + 1
+                : undefined;
+            const userId = trackRef.participant.identity;
+            const hasLeft = leftUsers.has(userId);
+            return (
+              <div
+                key={userId}
+                className="relative overflow-hidden bg-black border-r border-white/20 last:border-r-0 transition-opacity duration-300"
+                style={{
+                  gridColumnStart,
+                  opacity: hasLeft ? 0.35 : 1,
+                }}
+              >
+                <TileContents
+                  trackRef={trackRef}
+                  isLocal={false}
+                  score={scores[userId]}
+                  hasLeft={hasLeft}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {/* YOU on bottom — takes the rest of the screen. */}
+      <div
+        className="relative min-h-0 flex-1 overflow-hidden bg-black transition-opacity duration-300"
+        style={{
+          opacity:
+            youTrack && leftUsers.has(youTrack.participant.identity) ? 0.35 : 1,
+        }}
+      >
+        {youTrack ? (
+          <TileContents
+            trackRef={youTrack}
+            isLocal={youTrack.participant.identity === localId}
+            score={scores[youTrack.participant.identity]}
+            hasLeft={leftUsers.has(youTrack.participant.identity)}
+          />
+        ) : (
+          <WaitingTile />
+        )}
+      </div>
+    </div>
+  );
+}
+
 type GridLayout = {
   rows: number;
   cols: number;
   /** Number of tiles in the final row. Equals cols on a full row,
    *  less than cols when there are orphan slots. */
   lastRowCount: number;
+};
+
+type PartyLayout = {
+  cols: number;
+  rows: number;
+  /** Pixel size of each "other" thumbnail tile. Square. */
+  tileSize: number;
+  /** Pixel height of the entire others strip (rows × tileSize). */
+  othersAreaHeight: number;
+  /** Pixel height left for the local "YOU" tile underneath. */
+  youHeight: number;
 };
 
 /**
@@ -870,6 +1057,66 @@ type GridLayout = {
 //   N=4, 6, 8 on phone → uniform 2-col grid
 // Adjust this constant to bias the layout in either direction.
 const TARGET_TILE_ASPECT = 0.65;
+
+/**
+ * Speaker-view layout for 3+ player parties: the local "YOU" tile
+ * fills the bottom of the screen, with a small grid of "others" sitting
+ * on top. Each others tile is square so faces don't get cropped, sized
+ * to fill as much horizontal space as possible without the strip
+ * eating more than ~40% of the viewport height.
+ *
+ * cols/rows are picked by enumerating column counts and choosing the
+ * one that maximises tileSize subject to the height-cap constraint.
+ * Same orphan rule as pickGridLayout — at most cols-1 empty slots in
+ * the last row, which renders centered via grid-column-start offset.
+ *
+ * Phone (390x844) examples:
+ *   N=3 → 2 others in 1×2, 195×195 tiles, YOU = 390×649
+ *   N=5 → 4 others in 2×2, 169×169 tiles, YOU = 390×506
+ *   N=7 → 6 others in 2×3, 130×130 tiles, YOU = 390×584
+ *   N=10 → 9 others in 3×3, 112×112 tiles, YOU = 390×507
+ *
+ * Landscape (1440x900) examples:
+ *   N=3 → 2 others in 1×2, 360×360 tiles, YOU = 1440×540
+ *   N=5 → 4 others in 1×4, 360×360 tiles, YOU = 1440×540
+ *
+ * Caller is responsible for only invoking this when there's >= 1 other
+ * participant — N <= 2 (1v1 / solo) goes through the standard grid path.
+ */
+const PARTY_OTHERS_MAX_AREA_FRACTION = 0.4;
+
+function pickPartyLayout(
+  numOthers: number,
+  vw: number,
+  vh: number,
+): PartyLayout {
+  const maxOthersAreaHeight = vh * PARTY_OTHERS_MAX_AREA_FRACTION;
+
+  let best = { cols: 1, rows: numOthers, tileSize: 0 };
+  for (let cols = 1; cols <= numOthers; cols++) {
+    const rows = Math.ceil(numOthers / cols);
+    // Same orphan tolerance as the grid picker — last row may be short
+    // but not more than cols-1 slots empty.
+    if (rows * cols - numOthers >= cols) continue;
+    const widthPerCol = vw / cols;
+    const heightPerRow = maxOthersAreaHeight / rows;
+    // Square tiles: take the smaller of the two so we stay inside both
+    // the horizontal AND the height-cap bounds.
+    const tileSize = Math.min(widthPerCol, heightPerRow);
+    if (tileSize > best.tileSize) {
+      best = { cols, rows, tileSize };
+    }
+  }
+
+  const othersAreaHeight = best.rows * best.tileSize;
+  return {
+    cols: best.cols,
+    rows: best.rows,
+    tileSize: best.tileSize,
+    othersAreaHeight,
+    youHeight: vh - othersAreaHeight,
+  };
+}
 
 function pickGridLayout(n: number, vw: number, vh: number): GridLayout {
   const effective = Math.max(2, n);
