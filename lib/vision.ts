@@ -1,5 +1,6 @@
 import type { VisionScore } from '@/types';
 import { recordCost } from './costCap';
+import { capScore } from './scoreEngine';
 
 // Google Cloud Vertex AI — Gemini 2.5 Flash Lite via the global
 // generateContent endpoint, authenticated with an API key (Vertex AI
@@ -621,9 +622,9 @@ export async function analyzeQuick(
   });
 
   const parsed = tryParseJSON(text) as { overall?: number } | null;
-  let overall = 50;
+  let overall = 25; // mid-sandbag neutral while sub-50 mode is on
   if (parsed && typeof parsed.overall === 'number' && Number.isFinite(parsed.overall)) {
-    overall = Math.max(0, Math.min(100, Math.round(parsed.overall)));
+    overall = capScore(Math.round(parsed.overall));
   }
   return { overall, tokens };
 }
@@ -701,9 +702,9 @@ export async function analyzeBattle(
     | { overall?: number; improvement?: string }
     | null;
 
-  let overall = 50;
+  let overall = 25; // mid-sandbag neutral while sub-50 mode is on
   if (parsed && typeof parsed.overall === 'number' && Number.isFinite(parsed.overall)) {
-    overall = Math.max(0, Math.min(100, Math.round(parsed.overall)));
+    overall = capScore(Math.round(parsed.overall));
   }
 
   let improvement: BattleImprovement = 'eyes';

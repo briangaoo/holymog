@@ -2,6 +2,22 @@ import type { FinalScores, SubScores, VisionScore } from '@/types';
 
 type SubKey = keyof SubScores;
 
+// =============================================================================
+// TEMP — sub-50 sandbag mode
+// =============================================================================
+// Every output score (overall, sub-scores, presentation, live quick,
+// battle frame) is scaled by SCORE_CAP_RATIO so the maximum possible
+// rating is < 50. Preserves relative ordering — a face that would
+// natively score 92 reads as 45 here; a 40 still beats a 20 — but
+// no one can hit S/A bands while this flag is on.
+//
+// To remove: set SCORE_CAP_RATIO back to 1.0 (or rip the constant +
+// every capScore() call by grepping for "capScore" across lib/).
+export const SCORE_CAP_RATIO = 0.49;
+export function capScore(n: number): number {
+  return Math.round(Math.max(0, Math.min(100, n)) * SCORE_CAP_RATIO);
+}
+
 /**
  * Return the sub-score key with the lowest value. Used by the live-data
  * `name.callout` cosmetic ("(jawline)" suffix on the user's display name)
@@ -116,13 +132,13 @@ export function combineScores(vision: VisionScore): FinalScores {
   }
 
   return {
-    overall: Math.round(finalOverall),
-    presentation: Math.round(presentation),
+    overall: capScore(finalOverall),
+    presentation: capScore(presentation),
     sub: {
-      jawline: Math.round(jawline),
-      eyes: Math.round(eyes),
-      skin: Math.round(skin),
-      cheekbones: Math.round(cheekbones),
+      jawline: capScore(jawline),
+      eyes: capScore(eyes),
+      skin: capScore(skin),
+      cheekbones: capScore(cheekbones),
     },
     vision,
     ...(vision.fallback ? { fallback: true } : {}),
