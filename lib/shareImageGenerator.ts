@@ -58,21 +58,44 @@ export async function generateShareImage(
   ctx.fillRect(0, 0, W, H);
 
   // ---- Top wordmark -----------------------------------------------
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.font = `600 38px ${fonts.mono}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = `600 42px ${fonts.mono}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('holymog', cx, 120);
+  ctx.fillText('holymog', cx, 110);
 
-  // ---- Avatar (captured photo) ------------------------------------
-  const avatarCY = 290;
-  const avatarR = 100;
+  // ---- Avatar (captured photo) -------------------------------------
+  // Bigger than before (140 radius vs 100) so the person is clearly
+  // recognisable in friends' feeds — identity is what drives the
+  // "wait, that's X, let me scan too" reflex.
+  const avatarCY = 360;
+  const avatarR = 140;
   if (capturedImage) {
     const img = await loadImage(capturedImage).catch(() => null);
     if (img) {
+      // Tier-color halo behind the ring — soft glow that bleeds out
+      // into the background. Heavier than a thin ring; reads as a
+      // proper aura.
+      ctx.save();
+      const haloGrad = ctx.createRadialGradient(
+        cx,
+        avatarCY,
+        avatarR * 0.85,
+        cx,
+        avatarCY,
+        avatarR * 2.4,
+      );
+      haloGrad.addColorStop(0, `rgba(${washRgb.r}, ${washRgb.g}, ${washRgb.b}, 0.55)`);
+      haloGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(cx, avatarCY, avatarR * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
       // Tier-color ring.
       ctx.save();
-      ctx.lineWidth = 5;
+      ctx.lineWidth = 6;
       if (tier.isGradient) {
         const ringGrad = ctx.createLinearGradient(
           cx - avatarR,
@@ -87,7 +110,7 @@ export async function generateShareImage(
         ctx.strokeStyle = fallback ? '#71717a' : tier.color;
       }
       ctx.beginPath();
-      ctx.arc(cx, avatarCY, avatarR + 4, 0, Math.PI * 2);
+      ctx.arc(cx, avatarCY, avatarR + 6, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
 
@@ -109,8 +132,11 @@ export async function generateShareImage(
   }
 
   // ---- Huge tier letter -------------------------------------------
-  const letterY = 700;
-  ctx.font = `900 360px ${fonts.num}`;
+  // Pushed down to accommodate the bigger avatar above and bumped to
+  // 400px font for sheer drama. Glow scaled up so the letter "lights
+  // up" the canvas rather than sitting flat.
+  const letterY = 820;
+  ctx.font = `900 400px ${fonts.num}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -127,21 +153,25 @@ export async function generateShareImage(
     lg.addColorStop(0, '#22d3ee');
     lg.addColorStop(1, '#a855f7');
     ctx.fillStyle = lg;
-    if (tier.glow) {
-      ctx.shadowColor = 'rgba(168, 85, 247, 0.8)';
-      ctx.shadowBlur = 70;
-    }
+    ctx.shadowColor = 'rgba(168, 85, 247, 0.95)';
+    ctx.shadowBlur = 110;
     ctx.fillText(tier.letter, cx, letterY);
     ctx.shadowBlur = 0;
   } else {
     ctx.fillStyle = tier.color;
+    ctx.shadowColor = `${tier.color}cc`;
+    ctx.shadowBlur = 80;
     ctx.fillText(tier.letter, cx, letterY);
+    ctx.shadowBlur = 0;
   }
 
   // ---- Big numeric score ------------------------------------------
   ctx.fillStyle = fallback ? '#71717a' : '#ffffff';
-  ctx.font = `900 140px ${fonts.num}`;
-  ctx.fillText(fallback ? 'N/A' : String(scores.overall), cx, 1000);
+  ctx.font = `900 150px ${fonts.num}`;
+  ctx.shadowColor = 'rgba(255,255,255,0.4)';
+  ctx.shadowBlur = 30;
+  ctx.fillText(fallback ? 'N/A' : String(scores.overall), cx, 1130);
+  ctx.shadowBlur = 0;
 
   // ---- Lowercase descriptor ---------------------------------------
   const descColor = fallback
@@ -150,10 +180,13 @@ export async function generateShareImage(
       ? '#a855f7'
       : tier.color;
   ctx.fillStyle = descColor;
-  ctx.font = `500 42px ${fonts.sans}`;
-  ctx.fillText(fallback ? 'unavailable' : descriptor, cx, 1090);
+  ctx.font = `500 44px ${fonts.sans}`;
+  ctx.fillText(fallback ? 'unavailable' : descriptor, cx, 1230);
 
-  // ---- 2×2 sub-score grid -----------------------------------------
+  // ---- 4-cell horizontal sub-score ribbon -------------------------
+  // Compressed to a single row at the bottom so the headline tier
+  // letter dominates the canvas. Each cell still shows label + value
+  // but at a calmer scale.
   const sub = scores.sub;
   const subItems: Array<{ label: string; value: number }> = [
     { label: 'jawline', value: sub.jawline },
@@ -161,44 +194,55 @@ export async function generateShareImage(
     { label: 'skin', value: sub.skin },
     { label: 'cheekbones', value: sub.cheekbones },
   ];
-  const tileW = 440;
-  const tileH = 220;
-  const gridGap = 32;
-  const gridLeft = cx - tileW - gridGap / 2;
-  const gridTop = 1200;
-
+  const ribbonY = 1400;
+  const ribbonGap = 18;
+  const ribbonH = 200;
+  const ribbonTotalW = W - 120;
+  const cellW = (ribbonTotalW - ribbonGap * 3) / 4;
+  const ribbonLeft = (W - ribbonTotalW) / 2;
   for (let i = 0; i < subItems.length; i += 1) {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const x = gridLeft + col * (tileW + gridGap);
-    const y = gridTop + row * (tileH + gridGap);
+    const x = ribbonLeft + i * (cellW + ribbonGap);
     const item = subItems[i];
-
-    roundedRect(ctx, x, y, tileW, tileH, 30);
-    ctx.fillStyle = 'rgba(255,255,255,0.035)';
+    roundedRect(ctx, x, ribbonY, cellW, ribbonH, 24);
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.font = `600 22px ${fonts.mono}`;
-    ctx.textAlign = 'left';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(item.label.toUpperCase(), x + 28, y + 28);
+    ctx.fillText(item.label.toUpperCase(), x + cellW / 2, ribbonY + 24);
 
     ctx.fillStyle = fallback ? '#71717a' : '#ffffff';
-    ctx.font = `900 96px ${fonts.num}`;
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(fallback ? 'N/A' : String(item.value), x + 28, y + 180);
+    ctx.font = `900 84px ${fonts.num}`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(
+      fallback ? 'N/A' : String(item.value),
+      x + cellW / 2,
+      ribbonY + 130,
+    );
   }
 
   // ---- Bottom CTA --------------------------------------------------
-  ctx.fillStyle = 'rgba(255,255,255,0.65)';
-  ctx.font = `500 32px ${fonts.mono}`;
+  // Two-line CTA so the call-to-action lands harder. Kicker = punchy
+  // dare, URL underneath in monospace. The dare scales with tier:
+  // mid/low tiers get "scan yours", high tiers get "beat my tier".
+  const dare = fallback
+    ? 'scan yours'
+    : ['S', 'S+', 'A', 'A+'].includes(tier.letter)
+      ? 'beat my tier'
+      : 'scan yours';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `800 48px ${fonts.sans}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('rate yours at holymog.com', cx, H - 130);
+  ctx.fillText(`${dare} →`, cx, H - 180);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = `500 30px ${fonts.mono}`;
+  ctx.fillText('holymog.com', cx, H - 120);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {

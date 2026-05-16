@@ -206,11 +206,18 @@ export async function generateBattleShareImage(
   }
 
   // ---- Bottom CTA -------------------------------------------------
-  ctx.fillStyle = 'rgba(255,255,255,0.65)';
-  ctx.font = `500 32px ${fonts.mono}`;
+  // Two-line CTA so it lands harder. Dare scales with outcome:
+  // winners challenge friends to beat them, losers / tied get the
+  // softer "scan yours" prompt.
+  const dare = input.won ? 'beat my score' : 'scan yours';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `800 50px ${fonts.sans}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('rate yours at holymog.com', cx, H - 130);
+  ctx.fillText(`${dare} →`, cx, H - 180);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = `500 30px ${fonts.mono}`;
+  ctx.fillText('holymog.com', cx, H - 120);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
