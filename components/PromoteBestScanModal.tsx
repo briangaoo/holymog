@@ -96,12 +96,16 @@ export function PromoteBestScanModal({
         setStatus({ kind: 'error', message: msg });
         return;
       }
+      // Don't call onClose() here — the parent's onPromoted is
+      // responsible for closing the modal (via its own state). Calling
+      // onClose would also persist the "dismissed" sessionStorage
+      // flag, which we want to reserve for the explicit "Not now"
+      // path so a future even-higher scan still re-prompts.
       onPromoted();
-      onClose();
     } catch {
       setStatus({ kind: 'error', message: 'network error' });
     }
-  }, [includePhoto, onClose, onPromoted]);
+  }, [includePhoto, onPromoted]);
 
   if (!mounted) return null;
 

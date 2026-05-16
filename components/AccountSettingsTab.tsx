@@ -63,7 +63,19 @@ export function AccountSettingsTab({
     typeof initial?.entry?.overall === 'number' ? initial.entry.overall : null,
   );
   const [loaded, setLoaded] = useState(initial != null);
-  const [promoteOpen, setPromoteOpen] = useState(false);
+  // Tri-state dismissal lifecycle for the promote-best prompt:
+  //   - 'pending'   — sessionStorage hasn't been read yet (initial render
+  //                   on SSR / first client render). Modal stays hidden
+  //                   so we don't flash it before checking the flag.
+  //   - 'live'      — flag absent, mismatch (if any) opens the modal.
+  //   - 'dismissed' — user clicked "Not now" this session, OR the flag
+  //                   was already set from a previous open. Modal hidden
+  //                   until next browser session.
+  // Derived render avoids the open-state effect → render → effect-runs-
+  // again loop that the first cut had, which was popping the modal then
+  // immediately re-triggering on every parent re-render.
+  const [dismissalState, setDismissalState] =
+    useState<'pending' | 'live' | 'dismissed'>('pending');
 
   // Hydrate from server if the page didn't prefetch.
   const refresh = useCallback(async () => {
@@ -106,33 +118,26 @@ export function AccountSettingsTab({
     );
   }, [initial]);
 
-  // Surface the "your top scan isn't on the board" prompt once per
-  // session whenever the user's all-time best beats their currently
-  // published score. The settings tab is the right place because it's
-  // where Brian's spec lives ("the next time the person opens their
-  // settings, give a pop up"), and it's where the user can also opt
-  // out of the photo via the privacy section if they don't want their
-  // new face published.
-  //
-  // Three guards:
-  //   1. settings tab is loaded
-  //   2. mismatch exists — best_scan_overall > entry.overall, and they
-  //      actually have an entry (first-time publishers see the
-  //      "add to leaderboard" CTA on the scan result screen instead)
-  //   3. they haven't dismissed this session (sessionStorage flag,
-  //      per-user keyed)
+  // One-time read of the sessionStorage dismissal flag. Runs after
+  // hydration so client + server first render match (server has no
+  // sessionStorage, so the flag stays in 'pending' on SSR). Re-runs
+  // only when the user id changes — i.e. sign-out / different user.
   useEffect(() => {
-    if (!loaded || !user || !profile || entryOverall === null) return;
-    const best = profile.best_scan_overall;
-    if (typeof best !== 'number' || best <= entryOverall) return;
-    try {
-      const key = `holymog:promote-prompt-dismissed:${user.id}`;
-      if (window.sessionStorage.getItem(key)) return;
-    } catch {
-      // private mode / quota — fall through and just open
+    if (!user) {
+      setDismissalState('live');
+      return;
     }
-    setPromoteOpen(true);
-  }, [loaded, user, profile, entryOverall]);
+    try {
+      const flag = window.sessionStorage.getItem(
+        `holymog:promote-prompt-dismissed:${user.id}`,
+      );
+      setDismissalState(flag ? 'dismissed' : 'live');
+    } catch {
+      // private mode / quota — treat as live; worst case the modal
+      // re-shows next session, which is the existing fallback.
+      setDismissalState('live');
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dismissPromote = useCallback(() => {
     if (user) {
@@ -145,15 +150,19 @@ export function AccountSettingsTab({
         // ignore
       }
     }
-    setPromoteOpen(false);
+    setDismissalState('dismissed');
   }, [user]);
 
   const onPromoted = useCallback(() => {
-    // Refetch /api/account/me so the new entry.overall + image_url
-    // flow through (and the parent page re-renders too, so header chip
-    // + public profile link see fresh state). The dismissal flag
-    // stays unset — the prompt is satisfied by the success either
-    // way.
+    // Successful publish — close the modal optimistically via the
+    // derived state. We deliberately do NOT set the sessionStorage
+    // "dismissed" flag here: that one is reserved for the explicit
+    // "Not now" path so a user who later scans an even higher score
+    // gets re-prompted on their next browser session. The outer
+    // conditional will also hide the modal once refresh settles
+    // entry.overall to match the new best — this is the snappy
+    // visual close before that refetch lands.
+    setDismissalState('dismissed');
     void refresh();
     if (onRefresh) void onRefresh();
   }, [refresh, onRefresh]);
@@ -309,15 +318,18 @@ export function AccountSettingsTab({
       <HelpSection />
 
       {/* Mismatch prompt — fires once per session when the user's
-          all-time best beats their published leaderboard entry. The
-          modal handles its own dismissal flag in sessionStorage; on
-          success it triggers a refresh so the new entry flows through
-          to the public profile + header chip. */}
+          all-time best beats their published leaderboard entry.
+          Open state is derived (loaded + mismatch + not-yet-dismissed)
+          so there's no setPromoteOpen call inside a useEffect that
+          could re-fire on every parent re-render. dismissalState
+          starts 'pending' until the post-mount sessionStorage read
+          settles, which keeps the modal hidden on first paint and
+          avoids the "flash + close" loop the first cut had. */}
       {entryOverall !== null &&
         typeof profile.best_scan_overall === 'number' &&
         profile.best_scan_overall > entryOverall && (
           <PromoteBestScanModal
-            open={promoteOpen}
+            open={dismissalState === 'live'}
             bestOverall={profile.best_scan_overall}
             publishedOverall={entryOverall}
             hadPhoto={hasLeaderboardPhoto}
