@@ -23,6 +23,7 @@ type PrivacyFlags = { hide_photo: boolean };
 
 type ProfileMergeRow = {
   user_id: string;
+  display_name: string;
   hide_photo_from_leaderboard: boolean;
   equipped_frame: string | null;
   equipped_flair: string | null;
@@ -130,16 +131,25 @@ export async function GET(request: Request) {
 
   // Merge profile data (privacy flag + equipped cosmetics + subscriber +
   // userStats fields for smart cosmetic rendering). Single JOIN query
-  // by user_id for the page's rows. Also pulls `banned_at` so the
-  // filter below can drop any banned-user entries that survived the
-  // ban-removes-leaderboard transaction (direct-SQL bans, etc.).
+  // by user_id for the page's rows.
+  //
+  // Also pulls `display_name` so we can override the denormalized
+  // `leaderboard.name` column at read time. The username PATCH does
+  // sync that column inline but if it ever skips a row (silently
+  // swallowed errors, race with a stale connection, etc.) the stale
+  // name sticks. Live-JOIN override matches what the battle
+  // leaderboard already does — rename reflects instantly.
+  //
+  // Also pulls `banned_at` so the filter below can drop any banned-
+  // user entries that survived the ban-removes-leaderboard
+  // transaction (direct-SQL bans, etc.).
   const userIds = rawEntries.map((r) => r.user_id).filter(Boolean);
   const flagsByUserId = new Map<string, PrivacyFlags>();
   const profileByUserId = new Map<string, ProfileMergeRow>();
   if (userIds.length > 0) {
     const pool = getPool();
     const profileResult = await pool.query<ProfileMergeRow>(
-      `select user_id, hide_photo_from_leaderboard,
+      `select user_id, display_name, hide_photo_from_leaderboard,
               equipped_frame, equipped_flair, equipped_name_fx,
               current_streak, matches_won, subscription_status,
               banned_at
@@ -162,6 +172,8 @@ export async function GET(request: Request) {
   //   - hide_photo_from_leaderboard nulls the submitted leaderboard
   //     photo. Profile picture (avatar_url) is unaffected — that's
   //     identity, not the submission.
+  //   - `name` is overridden from the live profile so renames reflect
+  //     without depending on the denormalized column sync.
   const entries: LeaderboardRow[] = [];
   for (const row of rawEntries) {
     const flags = flagsByUserId.get(row.user_id);
@@ -171,6 +183,7 @@ export async function GET(request: Request) {
       p?.subscription_status === 'active' || p?.subscription_status === 'trialing';
     entries.push({
       ...row,
+      name: p?.display_name ?? row.name,
       image_url: flags?.hide_photo ? null : row.image_url,
       equipped_frame: p?.equipped_frame ?? null,
       equipped_flair: p?.equipped_flair ?? null,
