@@ -4,11 +4,16 @@ import type { ReactNode } from 'react';
 
 /**
  * `name.founder` — exclusive to the founder. A small gold "FOUNDER"
- * chip before the @handle, the handle itself in a deep-crimson-to-gold
- * gradient with a slow shimmer sweep, and a 4-point spark glyph after
- * the name (callback to the spark inside the `o` of the holymog
- * wordmark). Reduced-motion: shimmer + spark pulse both disable, static
- * gradient stays.
+ * chip before the @handle and the handle itself in a deep-crimson-to-
+ * gold gradient with a slow shimmer sweep. Reduced-motion: shimmer
+ * disables, static gradient stays.
+ *
+ * Earlier cuts had a 4-point spark glyph after the name + an amber
+ * drop-shadow halo on the text, but the halo bled out and made the
+ * surrounding area read as a coloured background (especially against
+ * the brutalist black surfaces this app commits to), and the spark
+ * got clipped on narrow containers because the inline-flex wouldn't
+ * wrap. Both removed.
  *
  * Entitlement: gated by `user_inventory` ownership of `name.founder`
  * + `founder_only` flag on catalog_items. Not earnable through any
@@ -24,38 +29,6 @@ export default function NameFounder({ children }: { children: ReactNode }) {
         FOUNDER
       </span>
       <span className="name-fx-founder-text">{children}</span>
-      <span className="name-fx-founder-spark" aria-hidden>
-        <svg
-          viewBox="0 0 12 12"
-          width="11"
-          height="11"
-          style={{
-            display: 'inline-block',
-            verticalAlign: 'baseline',
-            transform: 'translateY(-1px)',
-          }}
-        >
-          {/* 4-point star, same silhouette as the wordmark's `o`-spark. */}
-          <path
-            d="M6 0 L7.1 4.9 L12 6 L7.1 7.1 L6 12 L4.9 7.1 L0 6 L4.9 4.9 Z"
-            fill="url(#name-fx-founder-spark-grad)"
-          />
-          <defs>
-            <linearGradient
-              id="name-fx-founder-spark-grad"
-              x1="0"
-              y1="0"
-              x2="12"
-              y2="12"
-              gradientUnits="userSpaceOnUse"
-            >
-              <stop offset="0%" stopColor="#fef3c7" />
-              <stop offset="50%" stopColor="#fbbf24" />
-              <stop offset="100%" stopColor="#b45309" />
-            </linearGradient>
-          </defs>
-        </svg>
-      </span>
       <style>{`
         .name-fx-founder {
           position: relative;
@@ -75,8 +48,7 @@ export default function NameFounder({ children }: { children: ReactNode }) {
           background: linear-gradient(135deg, #7c2d12 0%, #b45309 50%, #92400e 100%);
           box-shadow:
             inset 0 1px 0 rgba(255, 230, 170, 0.4),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.4),
-            0 1px 4px rgba(180, 83, 9, 0.45);
+            inset 0 -1px 0 rgba(0, 0, 0, 0.4);
           text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
           line-height: 1;
           position: relative;
@@ -95,14 +67,6 @@ export default function NameFounder({ children }: { children: ReactNode }) {
           color: transparent;
           font-weight: 900;
           letter-spacing: -0.01em;
-          filter:
-            drop-shadow(0 1px 0 rgba(120, 53, 15, 0.5))
-            drop-shadow(0 0 12px rgba(251, 191, 36, 0.25));
-        }
-        .name-fx-founder-spark {
-          display: inline-flex;
-          align-items: center;
-          filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.65));
         }
         @media (prefers-reduced-motion: no-preference) {
           .name-fx-founder-text {
@@ -127,23 +91,10 @@ export default function NameFounder({ children }: { children: ReactNode }) {
             background-blend-mode: lighten;
             animation: name-fx-founder-shine 5.5s ease-in-out infinite;
           }
-          .name-fx-founder-spark {
-            animation: name-fx-founder-pulse 3.2s ease-in-out infinite;
-          }
         }
         @keyframes name-fx-founder-shine {
           0%, 100% { background-position: 0 0, -220% 0; }
           55% { background-position: 0 0, 220% 0; }
-        }
-        @keyframes name-fx-founder-pulse {
-          0%, 100% {
-            transform: scale(1);
-            filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.55));
-          }
-          50% {
-            transform: scale(1.15);
-            filter: drop-shadow(0 0 11px rgba(251, 191, 36, 0.95));
-          }
         }
       `}</style>
     </span>
