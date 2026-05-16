@@ -56,9 +56,17 @@ export type LeaderboardRow = {
   equipped_flair?: string | null;
   equipped_name_fx?: string | null;
   is_subscriber?: boolean;
-  // userStats fields for smart cosmetics rendering on rows.
+  // userStats fields for smart cosmetics rendering on rows. These mirror
+  // the live profile values (not the denormalised leaderboard.overall)
+  // so name fx like tier-prefix / elo-king render the user's actual
+  // current tier and ELO instead of whatever was on the row at the
+  // last leaderboard submit. Without this, a user with published 88
+  // but lifetime best 95 would see "S-" tier-prefix on the leaderboard
+  // and "S+" everywhere else.
   current_streak?: number | null;
   matches_won?: number | null;
+  best_scan_overall?: number | null;
+  elo?: number | null;
 };
 
 export const UPLOADS_BUCKET = 'holymog-uploads';

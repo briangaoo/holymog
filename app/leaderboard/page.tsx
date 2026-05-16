@@ -35,6 +35,7 @@ type BattleRow = {
   equipped_flair?: string | null;
   equipped_name_fx?: string | null;
   current_streak?: number | null;
+  best_scan_overall?: number | null;
   is_subscriber?: boolean;
 };
 
@@ -656,8 +657,14 @@ function ScanPodiumColumn({
       }
     : { color: tier.color, textTransform: 'uppercase' };
   const photoSrc = row.image_url ?? row.avatar_url ?? null;
+  // Smart name fx read the user's LIVE profile values (merged into the
+  // row server-side), not the denormalised row.overall — so tier-prefix
+  // renders the user's actual current tier even when the published
+  // entry score is from an older, lower scan. See lib/supabase.ts
+  // LeaderboardRow type for the merge contract.
   const userStats: UserStats = {
-    bestScanOverall: row.overall,
+    bestScanOverall: row.best_scan_overall ?? row.overall,
+    elo: row.elo ?? null,
     currentStreak: row.current_streak ?? null,
     currentWinStreak: row.current_streak ?? null,
     matchesWon: row.matches_won ?? null,
@@ -735,8 +742,12 @@ function BattlePodiumColumn({
   row: BattleRow;
 }) {
   const theme = PODIUM_THEME[rank];
+  // bestScanOverall comes from the live profile (server-merged) so the
+  // tier-prefix cosmetic renders the user's actual scan tier on the
+  // ELO board too — otherwise tier-prefix would be empty here.
   const userStats: UserStats = {
     elo: row.elo,
+    bestScanOverall: row.best_scan_overall ?? null,
     matchesWon: row.matches_won,
     currentStreak: row.current_streak ?? null,
     currentWinStreak: row.current_streak ?? null,
@@ -789,13 +800,14 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
       }
     : { color: tier.color, textTransform: 'uppercase' };
   const photoSrc = row.image_url ?? row.avatar_url ?? null;
-  // Smart cosmetics on the scan-leaderboard row know the user's best
-  // overall (= row.overall) and their current_streak / matches_won
-  // (from the profile JOIN). Smart cosmetics with no available data
-  // (e.g., name.callout needs weakestSubScore — not fetched here)
-  // gracefully render their empty state.
+  // Smart name fx read the user's LIVE profile values (merged into the
+  // row server-side), not the denormalised row.overall — keeps
+  // tier-prefix etc consistent with what the same user shows on every
+  // other surface (settings, account, public profile). See
+  // lib/supabase.ts LeaderboardRow for the merge contract.
   const userStats: UserStats = {
-    bestScanOverall: row.overall,
+    bestScanOverall: row.best_scan_overall ?? row.overall,
+    elo: row.elo ?? null,
     currentStreak: row.current_streak ?? null,
     currentWinStreak: row.current_streak ?? null,
     matchesWon: row.matches_won ?? null,
@@ -860,12 +872,12 @@ function ScanRow({ row, rank }: { row: LeaderboardRow; rank: number }) {
 
 function BattleRow({ row, rank }: { row: BattleRow; rank: number }) {
   const losses = Math.max(0, row.matches_played - row.matches_won);
-  // Battle leaderboard knows elo + matches_won + current_streak.
-  // name.elo-king renders here. name.streak-flame renders here.
-  // bestScanOverall / weakestSubScore not available — smart fx that
-  // need those render empty state.
+  // bestScanOverall comes from the live profile (server-merged) so
+  // tier-prefix renders consistently here too. elo-king + streak-flame
+  // already had what they need.
   const userStats: UserStats = {
     elo: row.elo,
+    bestScanOverall: row.best_scan_overall ?? null,
     matchesWon: row.matches_won,
     currentStreak: row.current_streak ?? null,
     currentWinStreak: row.current_streak ?? null,

@@ -30,6 +30,12 @@ type ProfileMergeRow = {
   equipped_name_fx: string | null;
   current_streak: number | null;
   matches_won: number | null;
+  // Live values from the profile — these override the row's
+  // denormalised counterparts so smart name fx (tier-prefix, elo-king)
+  // render the user's actual current state, not whatever was on the
+  // leaderboard at submit time.
+  best_scan_overall: number | null;
+  elo: number | null;
   subscription_status: string | null;
   banned_at: Date | null;
 };
@@ -151,8 +157,9 @@ export async function GET(request: Request) {
     const profileResult = await pool.query<ProfileMergeRow>(
       `select user_id, display_name, hide_photo_from_leaderboard,
               equipped_frame, equipped_flair, equipped_name_fx,
-              current_streak, matches_won, subscription_status,
-              banned_at
+              current_streak, matches_won,
+              best_scan_overall, elo,
+              subscription_status, banned_at
          from profiles
         where user_id = any($1::uuid[])`,
       [userIds],
@@ -190,6 +197,8 @@ export async function GET(request: Request) {
       equipped_name_fx: p?.equipped_name_fx ?? null,
       current_streak: p?.current_streak ?? null,
       matches_won: p?.matches_won ?? null,
+      best_scan_overall: p?.best_scan_overall ?? null,
+      elo: p?.elo ?? null,
       is_subscriber,
     });
   }

@@ -19,6 +19,11 @@ export type BattleLeaderboardRow = {
   equipped_flair: string | null;
   equipped_name_fx: string | null;
   current_streak: number | null;
+  // Pulled from profiles so smart name fx (tier-prefix specifically)
+  // render the user's actual scan tier on the ELO board too — without
+  // this it'd show up empty on /leaderboard?tab=battles even though
+  // it renders correctly on the scan tab.
+  best_scan_overall: number | null;
   is_subscriber: boolean;
 };
 
@@ -72,6 +77,7 @@ export async function GET(request: Request) {
          p.equipped_flair,
          p.equipped_name_fx,
          p.current_streak,
+         p.best_scan_overall,
          p.subscription_status
        from profiles p
        join users u on u.id = p.user_id
@@ -93,6 +99,7 @@ export async function GET(request: Request) {
       equipped_flair: r.equipped_flair,
       equipped_name_fx: r.equipped_name_fx,
       current_streak: r.current_streak,
+      best_scan_overall: r.best_scan_overall,
       is_subscriber:
         r.subscription_status === 'active' || r.subscription_status === 'trialing',
     }));
