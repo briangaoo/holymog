@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { Camera, Crown, Swords } from 'lucide-react';
 import { getTier } from '@/lib/tier';
 import { getScoreColor } from '@/lib/scoreColor';
@@ -474,60 +475,47 @@ const PODIUM_THEME: Record<
   1 | 2 | 3,
   {
     accent: string;
-    accentRgb: string;
     platformHeight: string;
     avatarSize: number;
     scoreSize: string;
     nameSize: string;
     bgGradient: string;
     borderColor: string;
-    shadow: string;
     rankNumberColor: string;
-    avatarShadow: string;
   }
 > = {
   1: {
     accent: '#fbbf24',
-    accentRgb: '251, 191, 36',
     platformHeight: 'h-56 sm:h-64',
     avatarSize: 108,
     scoreSize: 'text-3xl sm:text-5xl',
     nameSize: 'text-sm sm:text-base',
-    // Saturated enough to read against the page bg without the radial
-    // wash from above swallowing it. Top half carries most of the
-    // colour, fades to near-black at the base so the rank numeral
-    // pops on the lower part of the face.
-    bgGradient: 'bg-gradient-to-b from-amber-500/55 via-amber-700/30 to-amber-950/70',
-    borderColor: 'border-amber-400/80',
-    shadow: 'shadow-[0_-20px_80px_-8px_rgba(251,191,36,0.7),inset_0_2px_0_0_rgba(255,243,199,0.5)]',
+    bgGradient:
+      'bg-gradient-to-b from-amber-500/45 via-amber-700/20 to-amber-950/65',
+    borderColor: 'border-amber-400/85',
     rankNumberColor: 'text-amber-200/65',
-    avatarShadow: 'drop-shadow-[0_0_36px_rgba(251,191,36,0.85)]',
   },
   2: {
     accent: '#e2e8f0',
-    accentRgb: '226, 232, 240',
     platformHeight: 'h-40 sm:h-48',
     avatarSize: 80,
     scoreSize: 'text-2xl sm:text-4xl',
     nameSize: 'text-[13px] sm:text-sm',
-    bgGradient: 'bg-gradient-to-b from-zinc-200/45 via-zinc-500/20 to-zinc-950/70',
-    borderColor: 'border-zinc-200/60',
-    shadow: 'shadow-[0_-14px_56px_-10px_rgba(226,232,240,0.55),inset_0_2px_0_0_rgba(248,250,252,0.45)]',
+    bgGradient:
+      'bg-gradient-to-b from-zinc-200/35 via-zinc-500/15 to-zinc-950/65',
+    borderColor: 'border-zinc-200/65',
     rankNumberColor: 'text-zinc-100/55',
-    avatarShadow: 'drop-shadow-[0_0_24px_rgba(226,232,240,0.55)]',
   },
   3: {
     accent: '#fb923c',
-    accentRgb: '251, 146, 60',
     platformHeight: 'h-32 sm:h-36',
     avatarSize: 72,
     scoreSize: 'text-2xl sm:text-4xl',
     nameSize: 'text-[13px] sm:text-sm',
-    bgGradient: 'bg-gradient-to-b from-orange-500/50 via-orange-700/25 to-orange-950/70',
-    borderColor: 'border-orange-400/65',
-    shadow: 'shadow-[0_-12px_44px_-10px_rgba(251,146,60,0.65),inset_0_2px_0_0_rgba(254,215,170,0.45)]',
+    bgGradient:
+      'bg-gradient-to-b from-orange-500/40 via-orange-700/20 to-orange-950/65',
+    borderColor: 'border-orange-400/70',
     rankNumberColor: 'text-orange-200/60',
-    avatarShadow: 'drop-shadow-[0_0_22px_rgba(251,146,60,0.65)]',
   },
 };
 
@@ -557,13 +545,17 @@ function PodiumColumn({
       className="group flex min-w-0 flex-1 flex-col items-center transition-transform duration-300 hover:-translate-y-0.5"
       style={{ touchAction: 'manipulation' }}
     >
-      {/* Crown sits above the 1st-place avatar with a soft yellow glow. */}
+      {/* Crown above 1st — solid medal colour, slow sway animation
+          replaces the previous heavy drop-shadow glow. */}
       {isFirst && (
-        <Crown
-          size={26}
-          className="mb-1.5 text-amber-300 drop-shadow-[0_0_14px_rgba(251,191,36,0.95)]"
+        <motion.div
           aria-hidden
-        />
+          className="mb-1.5"
+          animate={{ y: [0, -2, 0], rotate: [-2, 2, -2] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <Crown size={26} className="text-amber-300" />
+        </motion.div>
       )}
       {/* Header content (avatar, name, score) provided by caller.
           `w-full` so child elements respect this column's width and
@@ -572,26 +564,39 @@ function PodiumColumn({
       <div className="flex w-full min-w-0 flex-col items-center gap-1.5 px-1 text-center">
         {children}
       </div>
-      {/* Podium platform — tall block with the rank ghosted onto its
-          face. 2px medal-coloured border + an inset top-edge highlight
-          (from theme.shadow) so each step reads as a polished stage,
-          not a flat tile. Rounded-top only so the row of three flows
-          as a single tiered stage. */}
+      {/* Podium platform — 2px medal-coloured border, hard medal-coloured
+          stripe at the top edge for the "stage step" cue (no glow),
+          diagonal hatch texture for surface depth, and a slow shimmer
+          sweep on 1st place only. Rounded-top only so the row of three
+          flows as a single tiered stage. */}
       <div
-        className={`relative mt-3 flex w-full items-center justify-center overflow-hidden rounded-t-xl border-2 ${theme.borderColor} ${theme.bgGradient} ${theme.shadow} ${theme.platformHeight} transition-all duration-300 group-hover:brightness-110`}
+        className={`relative mt-3 flex w-full items-center justify-center overflow-hidden rounded-t-xl border-2 ${theme.borderColor} ${theme.bgGradient} ${theme.platformHeight} transition-colors duration-300 group-hover:brightness-110`}
       >
-        {/* Inner radial wash centered on the lower face so the big
-            rank numeral sits in a tier-coloured pool of light. */}
+        {/* Top accent stripe — visual stage-top edge */}
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0"
+          className="pointer-events-none absolute inset-x-0 top-0 h-1"
+          style={{ background: theme.accent }}
+        />
+        {/* Diagonal hatch texture for surface depth — security-paper
+            feel without any glow. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.05]"
           style={{
-            background: `radial-gradient(ellipse at 50% 60%, rgba(${theme.accentRgb}, 0.18) 0%, transparent 70%)`,
+            backgroundImage:
+              'repeating-linear-gradient(135deg, #fff 0 1px, transparent 1px 10px)',
           }}
         />
+        {/* Slow shimmer sweep — 1st place only, no glow. */}
+        {isFirst && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 podium-shimmer-sweep"
+          />
+        )}
         <span
           className={`relative font-num text-7xl font-black leading-none tabular-nums sm:text-8xl ${theme.rankNumberColor}`}
-          style={{ textShadow: `0 4px 32px ${theme.accent}66, 0 0 8px rgba(0,0,0,0.5)` }}
         >
           {rank}
         </span>
@@ -620,7 +625,7 @@ function PodiumAvatar({
 }) {
   const theme = PODIUM_THEME[rank];
   return (
-    <div className={`${theme.avatarShadow}`}>
+    <div>
       <Frame slug={frameSlug} size={theme.avatarSize} userStats={userStats}>
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element

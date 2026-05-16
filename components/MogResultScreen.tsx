@@ -1255,71 +1255,57 @@ function ResultPartyBoard({
 
 // Per-rank theming for the stair-stepped podium. Numbers + classes
 // chosen so 1st sits dramatically higher than the other two without
-// overflowing a phone-portrait viewport. Avatar shadow + drop-shadow
-// pull in a subtle medal-coloured halo around the face.
+// overflowing a phone-portrait viewport. Glow stripped out — each
+// platform reads via a hard medal-coloured top stripe + diagonal
+// hatch + (1st only) a slow shimmer sweep instead.
 const PARTY_PODIUM_THEME: Record<
   1 | 2 | 3,
   {
     accent: string;
-    accentRgb: string;
     platformHeight: string;
     avatarSize: number;
     scoreSize: string;
     nameSize: string;
     bgGradient: string;
     borderColor: string;
-    shadow: string;
     rankNumberColor: string;
-    avatarShadow: string;
     scoreDelay: number;
   }
 > = {
   1: {
     accent: '#fbbf24',
-    accentRgb: '251, 191, 36',
     platformHeight: 'h-56 sm:h-64',
     avatarSize: 104,
     scoreSize: 'text-3xl sm:text-5xl',
     nameSize: 'text-sm sm:text-base',
     bgGradient:
-      'bg-gradient-to-b from-amber-500/55 via-amber-700/30 to-amber-950/70',
-    borderColor: 'border-amber-400/80',
-    shadow:
-      'shadow-[0_-20px_80px_-8px_rgba(251,191,36,0.7),inset_0_2px_0_0_rgba(255,243,199,0.5)]',
+      'bg-gradient-to-b from-amber-500/45 via-amber-700/20 to-amber-950/65',
+    borderColor: 'border-amber-400/85',
     rankNumberColor: 'text-amber-200/65',
-    avatarShadow: 'drop-shadow-[0_0_36px_rgba(251,191,36,0.85)]',
     scoreDelay: 0.2,
   },
   2: {
     accent: '#e2e8f0',
-    accentRgb: '226, 232, 240',
     platformHeight: 'h-40 sm:h-48',
     avatarSize: 76,
     scoreSize: 'text-2xl sm:text-4xl',
     nameSize: 'text-[13px] sm:text-sm',
     bgGradient:
-      'bg-gradient-to-b from-zinc-200/45 via-zinc-500/20 to-zinc-950/70',
-    borderColor: 'border-zinc-200/60',
-    shadow:
-      'shadow-[0_-14px_56px_-10px_rgba(226,232,240,0.55),inset_0_2px_0_0_rgba(248,250,252,0.45)]',
+      'bg-gradient-to-b from-zinc-200/35 via-zinc-500/15 to-zinc-950/65',
+    borderColor: 'border-zinc-200/65',
     rankNumberColor: 'text-zinc-100/55',
-    avatarShadow: 'drop-shadow-[0_0_24px_rgba(226,232,240,0.55)]',
     scoreDelay: 0.5,
   },
   3: {
     accent: '#fb923c',
-    accentRgb: '251, 146, 60',
     platformHeight: 'h-32 sm:h-36',
     avatarSize: 68,
     scoreSize: 'text-2xl sm:text-4xl',
     nameSize: 'text-[13px] sm:text-sm',
     bgGradient:
-      'bg-gradient-to-b from-orange-500/50 via-orange-700/25 to-orange-950/70',
-    borderColor: 'border-orange-400/65',
-    shadow:
-      'shadow-[0_-12px_44px_-10px_rgba(251,146,60,0.65),inset_0_2px_0_0_rgba(254,215,170,0.45)]',
+      'bg-gradient-to-b from-orange-500/40 via-orange-700/20 to-orange-950/65',
+    borderColor: 'border-orange-400/70',
     rankNumberColor: 'text-orange-200/60',
-    avatarShadow: 'drop-shadow-[0_0_22px_rgba(251,146,60,0.65)]',
     scoreDelay: 0.65,
   },
 };
@@ -1354,17 +1340,19 @@ function PartyPodiumColumn({
       // an ellipsis instead of pushing other columns narrower.
       className="flex min-w-0 flex-1 flex-col items-center"
     >
-      {/* Crown above 1st place. */}
+      {/* Crown above 1st place — gentle sway, no glow. */}
       {isFirst && (
-        <Crown
-          size={22}
-          className="mb-1 text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.9)]"
-          aria-hidden
-        />
+        <motion.div
+          animate={{ y: [0, -2, 0], rotate: [-2, 2, -2] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="mb-1"
+        >
+          <Crown size={22} className="text-amber-300" aria-hidden />
+        </motion.div>
       )}
 
-      {/* Avatar with frame + medal-tinted halo. */}
-      <div className={theme.avatarShadow}>
+      {/* Avatar with frame — no medal-tinted halo. */}
+      <div>
         <Frame
           slug={player.equipped_frame ?? null}
           size={theme.avatarSize}
@@ -1434,25 +1422,35 @@ function PartyPodiumColumn({
         </span>
       )}
 
-      {/* Podium platform — 2px medal-coloured border, inset top-edge
-          highlight, big rank numeral on a tier-coloured radial wash so
-          each step reads as a polished stage step rather than a flat
-          tile. Mirrors the leaderboard podium treatment. */}
+      {/* Podium platform — 2px medal-coloured border, hard medal-color
+          top stripe + diagonal hatch texture. Shimmer sweep only on
+          1st place. No drop-shadow glow, no radial wash, no text
+          shadow on the rank numeral. Mirrors the leaderboard podium
+          treatment. */}
       <div
-        className={`relative mt-3 flex w-full items-center justify-center overflow-hidden rounded-t-xl border-2 ${theme.borderColor} ${theme.bgGradient} ${theme.shadow} ${theme.platformHeight}`}
+        className={`relative mt-3 flex w-full items-center justify-center overflow-hidden rounded-t-xl border-2 ${theme.borderColor} ${theme.bgGradient} ${theme.platformHeight}`}
       >
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background: `radial-gradient(ellipse at 50% 60%, rgba(${theme.accentRgb}, 0.18) 0%, transparent 70%)`,
-          }}
+          className="pointer-events-none absolute inset-x-0 top-0 h-1"
+          style={{ background: theme.accent }}
         />
         <span
-          className={`relative font-num text-7xl font-black leading-none tabular-nums sm:text-8xl ${theme.rankNumberColor}`}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.05]"
           style={{
-            textShadow: `0 4px 32px ${theme.accent}66, 0 0 8px rgba(0,0,0,0.5)`,
+            backgroundImage:
+              'repeating-linear-gradient(135deg, #fff 0 1px, transparent 1px 10px)',
           }}
+        />
+        {isFirst && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 podium-shimmer-sweep"
+          />
+        )}
+        <span
+          className={`relative font-num text-7xl font-black leading-none tabular-nums sm:text-8xl ${theme.rankNumberColor}`}
         >
           {rank}
         </span>

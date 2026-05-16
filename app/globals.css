@@ -105,6 +105,40 @@ body {
   }
 }
 
+/* Podium 1st-place platform shimmer — translucent band that sweeps
+ * horizontally across the face every 5s. Uses background-position
+ * (not transform) so the band stays inside the overflow:hidden
+ * container without needing an outer wrapper. Replaces the heavy
+ * drop-shadow glow that previously sat on the platform — same
+ * visual cue (something special is happening here) at a fraction
+ * of the visual noise. */
+.podium-shimmer-sweep {
+  background-image: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 42%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 58%,
+    transparent 100%
+  );
+  background-size: 300% 100%;
+  background-position: -150% 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .podium-shimmer-sweep {
+    animation: podium-shimmer-traverse 5s ease-in-out infinite;
+  }
+}
+@keyframes podium-shimmer-traverse {
+  0%,
+  100% {
+    background-position: -150% 0;
+  }
+  50% {
+    background-position: 150% 0;
+  }
+}
+
 .glow-S {
   animation: glow-soft 2.4s ease-in-out infinite;
 }
