@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   AtSign,
   Calendar,
+  Check,
   Hash,
   MapPin,
   Scan,
@@ -377,13 +378,15 @@ function ShareButton({ displayName }: { displayName: string }) {
   );
   const onShare = async () => {
     const url = `${window.location.origin}/@${displayName}`;
+    const text = `Beat @${displayName} on holymog →`;
     const navWithShare = navigator as Navigator & {
-      share?: (data: { url: string; title: string }) => Promise<void>;
+      share?: (data: { url: string; title: string; text?: string }) => Promise<void>;
     };
     if (typeof navWithShare.share === 'function') {
       try {
         await navWithShare.share({
           title: `@${displayName} on holymog`,
+          text,
           url,
         });
         return;
@@ -395,7 +398,7 @@ function ShareButton({ displayName }: { displayName: string }) {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       if (timer.current) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setCopied(false), 1500);
+      timer.current = window.setTimeout(() => setCopied(false), 1800);
     } catch {
       // ignore
     }
@@ -405,10 +408,19 @@ function ShareButton({ displayName }: { displayName: string }) {
       type="button"
       onClick={onShare}
       style={{ touchAction: 'manipulation' }}
-      aria-label={copied ? 'link copied' : 'share profile'}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-zinc-200 transition-colors hover:bg-white/[0.10] hover:text-foreground"
+      aria-label={copied ? 'Link copied' : 'Share profile'}
+      title={copied ? 'Link copied' : 'Share profile'}
+      className="group inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/[0.04] text-zinc-200 transition-all duration-200 hover:border-white/50 hover:bg-white/[0.1] hover:text-white hover:shadow-[0_0_20px_-4px_rgba(255,255,255,0.45)]"
     >
-      <Share2 size={14} aria-hidden />
+      {copied ? (
+        <Check size={14} aria-hidden className="text-white" />
+      ) : (
+        <Share2
+          size={14}
+          aria-hidden
+          className="transition-transform duration-300 group-hover:rotate-[8deg]"
+        />
+      )}
     </button>
   );
 }
