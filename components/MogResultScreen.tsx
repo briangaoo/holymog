@@ -1261,6 +1261,7 @@ const PARTY_PODIUM_THEME: Record<
   1 | 2 | 3,
   {
     accent: string;
+    accentRgb: string;
     platformHeight: string;
     avatarSize: number;
     scoreSize: string;
@@ -1275,44 +1276,50 @@ const PARTY_PODIUM_THEME: Record<
 > = {
   1: {
     accent: '#fbbf24',
-    platformHeight: 'h-48 sm:h-56',
-    avatarSize: 88,
-    scoreSize: 'text-3xl sm:text-4xl',
-    nameSize: 'text-sm',
+    accentRgb: '251, 191, 36',
+    platformHeight: 'h-56 sm:h-64',
+    avatarSize: 104,
+    scoreSize: 'text-3xl sm:text-5xl',
+    nameSize: 'text-sm sm:text-base',
     bgGradient:
-      'bg-gradient-to-b from-amber-500/30 via-amber-500/12 to-amber-950/40',
-    borderColor: 'border-amber-500/45',
-    shadow: 'shadow-[0_-16px_60px_-14px_rgba(251,191,36,0.6)]',
-    rankNumberColor: 'text-amber-500/30',
-    avatarShadow: 'drop-shadow-[0_0_28px_rgba(251,191,36,0.7)]',
+      'bg-gradient-to-b from-amber-500/55 via-amber-700/30 to-amber-950/70',
+    borderColor: 'border-amber-400/80',
+    shadow:
+      'shadow-[0_-20px_80px_-8px_rgba(251,191,36,0.7),inset_0_2px_0_0_rgba(255,243,199,0.5)]',
+    rankNumberColor: 'text-amber-200/65',
+    avatarShadow: 'drop-shadow-[0_0_36px_rgba(251,191,36,0.85)]',
     scoreDelay: 0.2,
   },
   2: {
     accent: '#e2e8f0',
-    platformHeight: 'h-32 sm:h-40',
-    avatarSize: 64,
-    scoreSize: 'text-2xl sm:text-3xl',
-    nameSize: 'text-[13px]',
+    accentRgb: '226, 232, 240',
+    platformHeight: 'h-40 sm:h-48',
+    avatarSize: 76,
+    scoreSize: 'text-2xl sm:text-4xl',
+    nameSize: 'text-[13px] sm:text-sm',
     bgGradient:
-      'bg-gradient-to-b from-zinc-300/15 via-zinc-400/5 to-zinc-950/40',
-    borderColor: 'border-zinc-400/30',
-    shadow: 'shadow-[0_-12px_36px_-12px_rgba(226,232,240,0.4)]',
-    rankNumberColor: 'text-zinc-400/35',
-    avatarShadow: 'drop-shadow-[0_0_18px_rgba(226,232,240,0.4)]',
+      'bg-gradient-to-b from-zinc-200/45 via-zinc-500/20 to-zinc-950/70',
+    borderColor: 'border-zinc-200/60',
+    shadow:
+      'shadow-[0_-14px_56px_-10px_rgba(226,232,240,0.55),inset_0_2px_0_0_rgba(248,250,252,0.45)]',
+    rankNumberColor: 'text-zinc-100/55',
+    avatarShadow: 'drop-shadow-[0_0_24px_rgba(226,232,240,0.55)]',
     scoreDelay: 0.5,
   },
   3: {
     accent: '#fb923c',
-    platformHeight: 'h-24 sm:h-28',
-    avatarSize: 60,
-    scoreSize: 'text-2xl sm:text-3xl',
-    nameSize: 'text-[13px]',
+    accentRgb: '251, 146, 60',
+    platformHeight: 'h-32 sm:h-36',
+    avatarSize: 68,
+    scoreSize: 'text-2xl sm:text-4xl',
+    nameSize: 'text-[13px] sm:text-sm',
     bgGradient:
-      'bg-gradient-to-b from-orange-500/22 via-orange-600/8 to-orange-950/40',
-    borderColor: 'border-orange-500/35',
-    shadow: 'shadow-[0_-8px_28px_-12px_rgba(251,146,60,0.5)]',
-    rankNumberColor: 'text-orange-500/40',
-    avatarShadow: 'drop-shadow-[0_0_16px_rgba(251,146,60,0.45)]',
+      'bg-gradient-to-b from-orange-500/50 via-orange-700/25 to-orange-950/70',
+    borderColor: 'border-orange-400/65',
+    shadow:
+      'shadow-[0_-12px_44px_-10px_rgba(251,146,60,0.65),inset_0_2px_0_0_rgba(254,215,170,0.45)]',
+    rankNumberColor: 'text-orange-200/60',
+    avatarShadow: 'drop-shadow-[0_0_22px_rgba(251,146,60,0.65)]',
     scoreDelay: 0.65,
   },
 };
@@ -1427,13 +1434,25 @@ function PartyPodiumColumn({
         </span>
       )}
 
-      {/* Podium platform with rank number ghosted onto its face. */}
+      {/* Podium platform — 2px medal-coloured border, inset top-edge
+          highlight, big rank numeral on a tier-coloured radial wash so
+          each step reads as a polished stage step rather than a flat
+          tile. Mirrors the leaderboard podium treatment. */}
       <div
-        className={`relative mt-2 flex w-full items-start justify-center overflow-hidden rounded-t-xl border ${theme.borderColor} ${theme.bgGradient} ${theme.shadow} ${theme.platformHeight}`}
+        className={`relative mt-3 flex w-full items-center justify-center overflow-hidden rounded-t-xl border-2 ${theme.borderColor} ${theme.bgGradient} ${theme.shadow} ${theme.platformHeight}`}
       >
         <span
-          className={`pt-3 font-num text-5xl font-black leading-none tabular-nums sm:text-6xl ${theme.rankNumberColor}`}
-          style={{ textShadow: `0 2px 24px ${theme.accent}55` }}
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: `radial-gradient(ellipse at 50% 60%, rgba(${theme.accentRgb}, 0.18) 0%, transparent 70%)`,
+          }}
+        />
+        <span
+          className={`relative font-num text-7xl font-black leading-none tabular-nums sm:text-8xl ${theme.rankNumberColor}`}
+          style={{
+            textShadow: `0 4px 32px ${theme.accent}66, 0 0 8px rgba(0,0,0,0.5)`,
+          }}
         >
           {rank}
         </span>

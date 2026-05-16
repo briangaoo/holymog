@@ -105,7 +105,7 @@ export default function LeaderboardPage() {
       />
       <AppHeader authNext="/leaderboard" />
 
-      <main className="relative mx-auto w-full max-w-lg px-5 pb-12 pt-4">
+      <main className="relative mx-auto w-full max-w-2xl px-5 pb-12 pt-4">
         <h1
           className="mb-1 text-2xl font-bold tracking-tight text-white"
           style={{ textShadow: '0 0 28px rgba(255,255,255,0.3)' }}
@@ -474,6 +474,7 @@ const PODIUM_THEME: Record<
   1 | 2 | 3,
   {
     accent: string;
+    accentRgb: string;
     platformHeight: string;
     avatarSize: number;
     scoreSize: string;
@@ -487,39 +488,46 @@ const PODIUM_THEME: Record<
 > = {
   1: {
     accent: '#fbbf24',
-    platformHeight: 'h-44 sm:h-52',
-    avatarSize: 88,
-    scoreSize: 'text-3xl sm:text-4xl',
-    nameSize: 'text-sm',
-    bgGradient: 'bg-gradient-to-b from-amber-500/25 via-amber-500/10 to-amber-950/40',
-    borderColor: 'border-amber-500/40',
-    shadow: 'shadow-[0_-12px_56px_-12px_rgba(251,191,36,0.55)]',
-    rankNumberColor: 'text-amber-500/30',
-    avatarShadow: 'drop-shadow-[0_0_24px_rgba(251,191,36,0.6)]',
+    accentRgb: '251, 191, 36',
+    platformHeight: 'h-56 sm:h-64',
+    avatarSize: 108,
+    scoreSize: 'text-3xl sm:text-5xl',
+    nameSize: 'text-sm sm:text-base',
+    // Saturated enough to read against the page bg without the radial
+    // wash from above swallowing it. Top half carries most of the
+    // colour, fades to near-black at the base so the rank numeral
+    // pops on the lower part of the face.
+    bgGradient: 'bg-gradient-to-b from-amber-500/55 via-amber-700/30 to-amber-950/70',
+    borderColor: 'border-amber-400/80',
+    shadow: 'shadow-[0_-20px_80px_-8px_rgba(251,191,36,0.7),inset_0_2px_0_0_rgba(255,243,199,0.5)]',
+    rankNumberColor: 'text-amber-200/65',
+    avatarShadow: 'drop-shadow-[0_0_36px_rgba(251,191,36,0.85)]',
   },
   2: {
     accent: '#e2e8f0',
-    platformHeight: 'h-32 sm:h-40',
-    avatarSize: 64,
-    scoreSize: 'text-2xl sm:text-3xl',
-    nameSize: 'text-[13px]',
-    bgGradient: 'bg-gradient-to-b from-zinc-300/15 via-zinc-400/5 to-zinc-950/40',
-    borderColor: 'border-zinc-400/30',
-    shadow: 'shadow-[0_-8px_36px_-12px_rgba(226,232,240,0.35)]',
-    rankNumberColor: 'text-zinc-400/35',
-    avatarShadow: 'drop-shadow-[0_0_16px_rgba(226,232,240,0.35)]',
+    accentRgb: '226, 232, 240',
+    platformHeight: 'h-40 sm:h-48',
+    avatarSize: 80,
+    scoreSize: 'text-2xl sm:text-4xl',
+    nameSize: 'text-[13px] sm:text-sm',
+    bgGradient: 'bg-gradient-to-b from-zinc-200/45 via-zinc-500/20 to-zinc-950/70',
+    borderColor: 'border-zinc-200/60',
+    shadow: 'shadow-[0_-14px_56px_-10px_rgba(226,232,240,0.55),inset_0_2px_0_0_rgba(248,250,252,0.45)]',
+    rankNumberColor: 'text-zinc-100/55',
+    avatarShadow: 'drop-shadow-[0_0_24px_rgba(226,232,240,0.55)]',
   },
   3: {
     accent: '#fb923c',
-    platformHeight: 'h-24 sm:h-28',
-    avatarSize: 60,
-    scoreSize: 'text-2xl sm:text-3xl',
-    nameSize: 'text-[13px]',
-    bgGradient: 'bg-gradient-to-b from-orange-500/20 via-orange-600/8 to-orange-950/40',
-    borderColor: 'border-orange-500/30',
-    shadow: 'shadow-[0_-8px_28px_-12px_rgba(251,146,60,0.45)]',
-    rankNumberColor: 'text-orange-500/40',
-    avatarShadow: 'drop-shadow-[0_0_14px_rgba(251,146,60,0.4)]',
+    accentRgb: '251, 146, 60',
+    platformHeight: 'h-32 sm:h-36',
+    avatarSize: 72,
+    scoreSize: 'text-2xl sm:text-4xl',
+    nameSize: 'text-[13px] sm:text-sm',
+    bgGradient: 'bg-gradient-to-b from-orange-500/50 via-orange-700/25 to-orange-950/70',
+    borderColor: 'border-orange-400/65',
+    shadow: 'shadow-[0_-12px_44px_-10px_rgba(251,146,60,0.65),inset_0_2px_0_0_rgba(254,215,170,0.45)]',
+    rankNumberColor: 'text-orange-200/60',
+    avatarShadow: 'drop-shadow-[0_0_22px_rgba(251,146,60,0.65)]',
   },
 };
 
@@ -552,8 +560,8 @@ function PodiumColumn({
       {/* Crown sits above the 1st-place avatar with a soft yellow glow. */}
       {isFirst && (
         <Crown
-          size={20}
-          className="mb-1 text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.85)]"
+          size={26}
+          className="mb-1.5 text-amber-300 drop-shadow-[0_0_14px_rgba(251,191,36,0.95)]"
           aria-hidden
         />
       )}
@@ -565,14 +573,25 @@ function PodiumColumn({
         {children}
       </div>
       {/* Podium platform — tall block with the rank ghosted onto its
-          face. Rounded-top only so the row of three reads as a single
-          tiered stage. */}
+          face. 2px medal-coloured border + an inset top-edge highlight
+          (from theme.shadow) so each step reads as a polished stage,
+          not a flat tile. Rounded-top only so the row of three flows
+          as a single tiered stage. */}
       <div
-        className={`relative mt-2 flex w-full items-start justify-center overflow-hidden rounded-t-xl border ${theme.borderColor} ${theme.bgGradient} ${theme.shadow} ${theme.platformHeight} transition-all duration-300 group-hover:brightness-110`}
+        className={`relative mt-3 flex w-full items-center justify-center overflow-hidden rounded-t-xl border-2 ${theme.borderColor} ${theme.bgGradient} ${theme.shadow} ${theme.platformHeight} transition-all duration-300 group-hover:brightness-110`}
       >
+        {/* Inner radial wash centered on the lower face so the big
+            rank numeral sits in a tier-coloured pool of light. */}
         <span
-          className={`pt-3 font-num text-5xl font-black leading-none tabular-nums sm:text-6xl ${theme.rankNumberColor}`}
-          style={{ textShadow: `0 2px 24px ${theme.accent}55` }}
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: `radial-gradient(ellipse at 50% 60%, rgba(${theme.accentRgb}, 0.18) 0%, transparent 70%)`,
+          }}
+        />
+        <span
+          className={`relative font-num text-7xl font-black leading-none tabular-nums sm:text-8xl ${theme.rankNumberColor}`}
+          style={{ textShadow: `0 4px 32px ${theme.accent}66, 0 0 8px rgba(0,0,0,0.5)` }}
         >
           {rank}
         </span>
