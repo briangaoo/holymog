@@ -1142,10 +1142,20 @@ function CompleteView({
           onClick={onShare}
           aria-label="Share your tier"
           style={{ touchAction: 'manipulation' }}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 active:bg-zinc-200"
+          className="group relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-white text-base font-semibold text-black shadow-[0_0_36px_-4px_rgba(255,255,255,0.55)] transition-all duration-300 hover:shadow-[0_0_48px_-2px_rgba(255,255,255,0.75)] active:bg-zinc-200"
         >
-          <Share2 size={16} aria-hidden />
-          share
+          {/* Pulsing halo behind the button — draws the eye to the
+              primary "next action" after a scan reveal lands. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 animate-pulse rounded-full bg-white/30 blur-2xl"
+          />
+          <Share2
+            size={18}
+            aria-hidden
+            className="transition-transform duration-300 group-hover:rotate-[8deg]"
+          />
+          Share
         </button>
 
         <div className="grid w-full grid-cols-3 gap-2">

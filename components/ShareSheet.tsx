@@ -113,7 +113,17 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
     copyImage,
     copyLink,
     toast,
+    previewUrl,
+    ensureBlob,
   } = useShare(scores, capturedImage);
+
+  // Eagerly kick the canvas generator on open so the preview lands
+  // by the time the sheet finishes its slide-up animation. Without
+  // this the preview only renders after a user clicks a platform tile.
+  useEffect(() => {
+    if (!open) return;
+    void ensureBlob();
+  }, [open, ensureBlob]);
 
   // Order: visual social → public posting → closed-circle. 9 platforms,
   // 3×3 grid. Brand colours match official guidelines so the sheet still
@@ -213,17 +223,50 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
             className="w-full max-w-sm rounded-t-3xl border border-white/10 bg-black p-5 sm:rounded-sm"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-white">Share your tier</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <h2 className="text-base font-semibold text-white">
+                  Share your tier
+                </h2>
+                <p className="text-[12px] text-white/55">
+                  Drop it on your story — friends will scan to beat you.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close share sheet"
                 style={{ touchAction: 'manipulation' }}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-white"
               >
                 <X size={18} />
               </button>
+            </div>
+
+            {/* Live preview of the image we're about to post. Lazy
+                generated via ensureBlob() — until it lands we show a
+                pulsing placeholder at the right aspect ratio so the
+                sheet height doesn't snap once the image arrives. */}
+            <div className="mb-4 flex justify-center">
+              <div
+                className="relative overflow-hidden rounded-xl border border-white/15 bg-black shadow-[0_8px_28px_-6px_rgba(255,255,255,0.18)]"
+                style={{ aspectRatio: '9 / 16', width: 168 }}
+              >
+                {previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewUrl}
+                    alt="Share preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full animate-pulse items-center justify-center bg-gradient-to-br from-white/[0.04] via-black to-black">
+                    <span className="text-[10px] text-white/40">
+                      Generating…
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {canNativeShare && (
@@ -232,7 +275,7 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
                 onClick={nativeShare}
                 aria-label="Share via system share sheet"
                 style={{ touchAction: 'manipulation' }}
-                className="mb-4 flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-white text-sm font-semibold text-black transition-colors hover:bg-zinc-100 active:bg-zinc-200"
+                className="mb-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-semibold text-black transition-all duration-200 hover:shadow-[0_0_28px_-4px_rgba(255,255,255,0.6)] active:bg-zinc-200"
               >
                 <Share2 size={16} aria-hidden />
                 Share

@@ -24,11 +24,21 @@ export function useShare(scores: FinalScores, capturedImage?: string) {
   const blobRef = useRef<Blob | null>(null);
   const blobPromiseRef = useRef<Promise<Blob> | null>(null);
   const [canNativeShare, setCanNativeShare] = useState(false);
+  // Object URL of the generated share image, exposed so consumers can
+  // render a live <img> preview inside the share sheet. Object URLs
+  // are revoked on unmount so we don't leak.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
     setCanNativeShare(typeof navigator.share === 'function' && typeof navigator.canShare === 'function');
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const showToast = useCallback((message: string) => {
     const id = Date.now();
@@ -46,6 +56,12 @@ export function useShare(scores: FinalScores, capturedImage?: string) {
         capturedImage,
       }).then((b) => {
         blobRef.current = b;
+        // Expose a preview URL so the share sheet can render the
+        // exact image the user is about to post.
+        setPreviewUrl((curr) => {
+          if (curr) URL.revokeObjectURL(curr);
+          return URL.createObjectURL(b);
+        });
         return b;
       });
     }
@@ -197,5 +213,7 @@ export function useShare(scores: FinalScores, capturedImage?: string) {
     toast,
     shareText,
     appUrl: APP_URL,
+    previewUrl,
+    ensureBlob,
   };
 }

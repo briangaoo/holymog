@@ -1032,15 +1032,25 @@ function ResultActions({
           onClick={onShare}
           disabled={sharing}
           style={{ touchAction: 'manipulation' }}
-          className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+          className="group relative inline-flex h-12 flex-1 items-center justify-center gap-2 overflow-hidden rounded-full border border-white/30 bg-white/[0.06] text-sm font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:border-white/60 hover:bg-white/[0.1] hover:shadow-[0_0_32px_-4px_rgba(255,255,255,0.5)] disabled:cursor-not-allowed disabled:opacity-50"
         >
+          {/* Soft pulsing halo to nudge "this is the next action" */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 animate-pulse rounded-full bg-white/15 blur-xl"
+          />
           {sharing ? (
             <>
-              <Loader2 size={14} className="animate-spin" /> rendering…
+              <Loader2 size={14} className="animate-spin" /> Rendering…
             </>
           ) : (
             <>
-              <Download size={14} aria-hidden /> share
+              <Download
+                size={14}
+                aria-hidden
+                className="transition-transform duration-300 group-hover:translate-y-0.5"
+              />
+              Share
             </>
           )}
         </button>
