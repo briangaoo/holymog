@@ -14,7 +14,7 @@ type Props = {
 export function AppHeader({ authNext, authContext }: Props) {
   return (
     <header
-      className="sticky top-0 z-30 flex items-center justify-between bg-black/70 px-5 py-3 backdrop-blur"
+      className="sticky top-0 z-30 flex items-center justify-between px-5 py-3"
       style={{ paddingTop: 'max(env(safe-area-inset-top), 20px)' }}
     >
       <Link
