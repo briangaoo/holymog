@@ -755,7 +755,7 @@ function ResultVersusBoard({
   tied: boolean;
 }) {
   return (
-    <div className="mb-8 grid grid-cols-[1fr_auto_1fr] items-stretch gap-3 sm:gap-5">
+    <div className="mb-8 flex flex-col items-stretch gap-3 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:gap-5">
       <ResultPlayer
         entry={me}
         won={!tied && youWon}
@@ -795,12 +795,17 @@ function ResultVsDivider({
       >
         {tied ? '=' : 'vs'}
       </motion.span>
+      {/* Decorative top/bottom lines anchor the VS text into the
+          vertical gutter between two side-by-side cards. They only
+          make sense on the side-by-side layout (sm+); on phone the
+          cards are stacked vertically and we drop the lines so the
+          divider is just the typographic "vs". */}
       <motion.span
         aria-hidden
         initial={{ height: 0 }}
         animate={{ height: '40%' }}
         transition={{ duration: 0.6, delay: 0.55 }}
-        className="absolute left-1/2 top-0 w-px -translate-x-1/2 bg-gradient-to-b from-white/20 to-transparent"
+        className="absolute left-1/2 top-0 hidden w-px -translate-x-1/2 bg-gradient-to-b from-white/20 to-transparent sm:block"
         style={{
           transform: winnerOnLeft
             ? 'translateX(-60%) skewX(-8deg)'
@@ -812,7 +817,7 @@ function ResultVsDivider({
         initial={{ height: 0 }}
         animate={{ height: '40%' }}
         transition={{ duration: 0.6, delay: 0.55 }}
-        className="absolute bottom-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-t from-white/20 to-transparent"
+        className="absolute bottom-0 left-1/2 hidden w-px -translate-x-1/2 bg-gradient-to-t from-white/20 to-transparent sm:block"
       />
     </div>
   );

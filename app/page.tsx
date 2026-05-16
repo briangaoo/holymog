@@ -43,7 +43,7 @@ export default function HomePage() {
           className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-12 pt-6 sm:max-w-2xl"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 48px)' }}
         >
-          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3">
             <HomeCard
               href="/scan"
               icon={<Camera size={18} aria-hidden />}
@@ -155,7 +155,7 @@ function HomeCard({
   return (
     <Link
       href={href}
-      className="group relative flex min-h-[300px] flex-col justify-between overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-white/[0.03] via-black to-black p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/60 hover:shadow-[0_0_56px_-8px_rgba(255,255,255,0.35),inset_0_1px_0_0_rgba(255,255,255,0.08)] sm:min-h-[360px] sm:p-7"
+      className="group relative flex min-h-[220px] flex-col justify-between overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-white/[0.03] via-black to-black p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/60 hover:shadow-[0_0_56px_-8px_rgba(255,255,255,0.35),inset_0_1px_0_0_rgba(255,255,255,0.08)] sm:min-h-[360px] sm:p-7"
       style={{ touchAction: 'manipulation' }}
     >
       {/* Top row: icon-pill + kicker text on the left, arrow on the

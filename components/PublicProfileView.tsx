@@ -608,7 +608,7 @@ function StatStrip({
   losses: number;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
       <StatChip
         label="ELO"
         value={data.elo === null ? '—' : String(data.elo)}
