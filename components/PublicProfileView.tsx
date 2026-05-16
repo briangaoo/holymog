@@ -547,6 +547,33 @@ function TierCard({ data }: { data: PublicProfileData }) {
                 }}
               />
             </div>
+          ) : data.avatar_url && tier ? (
+            // Profile picture stands in when the leaderboard photo isn't
+            // available — either the user never published, opted out, or
+            // their best scan beat their published entry and they
+            // haven't re-promoted. Same dimensions + accent treatment as
+            // the leaderboard-photo tile so layout doesn't shift.
+            <div
+              className="relative mx-auto h-32 w-32 flex-shrink-0 overflow-hidden rounded-sm sm:mx-0 sm:h-36 sm:w-36"
+              style={{
+                boxShadow: `0 0 0 2px ${accentColor}60, 0 0 32px ${accentColor}50`,
+              }}
+              aria-label="top scan — published photo not on the public board"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={data.avatar_url}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background: `linear-gradient(180deg, transparent 60%, ${accentColor}40 100%)`,
+                }}
+              />
+            </div>
           ) : tier ? (
             // User has scanned but opted out of publishing their face on
             // the leaderboard. Render a tier-coded placeholder that

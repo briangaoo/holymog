@@ -60,7 +60,7 @@ export type MeData = {
   } | null;
   weakest_sub_score?: 'jawline' | 'eyes' | 'skin' | 'cheekbones' | null;
   is_subscriber?: boolean;
-  entry: { id: string; image_url?: string | null } | null;
+  entry: { id: string; overall?: number; image_url?: string | null } | null;
   total_scans?: number;
   account_age_days?: number;
   highest_overall_ever?: number | null;

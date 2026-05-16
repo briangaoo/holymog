@@ -10,6 +10,7 @@ import { CustomizationSection } from './account/settings/CustomizationSection';
 import { AccountSection } from './account/settings/AccountSection';
 import { DataSection } from './account/settings/DataSection';
 import { HelpSection } from './account/settings/HelpSection';
+import { PromoteBestScanModal } from './PromoteBestScanModal';
 import type { FieldUpdate, SettingsProfile } from './account/settings/shared';
 
 /**
@@ -23,10 +24,16 @@ import type { FieldUpdate, SettingsProfile } from './account/settings/shared';
 
 type ServerProfile = SettingsProfile & {
   display_name: string;
+  // Optional best_scan_overall is read off /api/account/me's profile
+  // payload (the canonical source). SettingsProfile itself doesn't
+  // carry it because every other section in this tab ignores it —
+  // only the promote-best-scan modal trigger needs it.
+  best_scan_overall?: number | null;
 };
 
 type LeaderboardEntryShape = {
   id: string;
+  overall?: number;
   image_url?: string | null;
 };
 
@@ -52,7 +59,11 @@ export function AccountSettingsTab({
   const [hasLeaderboardPhoto, setHasLeaderboardPhoto] = useState<boolean>(
     !!initial?.entry?.image_url,
   );
+  const [entryOverall, setEntryOverall] = useState<number | null>(
+    typeof initial?.entry?.overall === 'number' ? initial.entry.overall : null,
+  );
   const [loaded, setLoaded] = useState(initial != null);
+  const [promoteOpen, setPromoteOpen] = useState(false);
 
   // Hydrate from server if the page didn't prefetch.
   const refresh = useCallback(async () => {
@@ -63,6 +74,9 @@ export function AccountSettingsTab({
       if (data.profile) setProfile(data.profile);
       setHasLeaderboardEntry(!!data.entry);
       setHasLeaderboardPhoto(!!data.entry?.image_url);
+      setEntryOverall(
+        typeof data.entry?.overall === 'number' ? data.entry.overall : null,
+      );
     } catch {
       // best-effort
     } finally {
@@ -87,7 +101,62 @@ export function AccountSettingsTab({
     if (initial.profile) setProfile(initial.profile);
     setHasLeaderboardEntry(!!initial.entry);
     setHasLeaderboardPhoto(!!initial.entry?.image_url);
+    setEntryOverall(
+      typeof initial.entry?.overall === 'number' ? initial.entry.overall : null,
+    );
   }, [initial]);
+
+  // Surface the "your top scan isn't on the board" prompt once per
+  // session whenever the user's all-time best beats their currently
+  // published score. The settings tab is the right place because it's
+  // where Brian's spec lives ("the next time the person opens their
+  // settings, give a pop up"), and it's where the user can also opt
+  // out of the photo via the privacy section if they don't want their
+  // new face published.
+  //
+  // Three guards:
+  //   1. settings tab is loaded
+  //   2. mismatch exists — best_scan_overall > entry.overall, and they
+  //      actually have an entry (first-time publishers see the
+  //      "add to leaderboard" CTA on the scan result screen instead)
+  //   3. they haven't dismissed this session (sessionStorage flag,
+  //      per-user keyed)
+  useEffect(() => {
+    if (!loaded || !user || !profile || entryOverall === null) return;
+    const best = profile.best_scan_overall;
+    if (typeof best !== 'number' || best <= entryOverall) return;
+    try {
+      const key = `holymog:promote-prompt-dismissed:${user.id}`;
+      if (window.sessionStorage.getItem(key)) return;
+    } catch {
+      // private mode / quota — fall through and just open
+    }
+    setPromoteOpen(true);
+  }, [loaded, user, profile, entryOverall]);
+
+  const dismissPromote = useCallback(() => {
+    if (user) {
+      try {
+        window.sessionStorage.setItem(
+          `holymog:promote-prompt-dismissed:${user.id}`,
+          '1',
+        );
+      } catch {
+        // ignore
+      }
+    }
+    setPromoteOpen(false);
+  }, [user]);
+
+  const onPromoted = useCallback(() => {
+    // Refetch /api/account/me so the new entry.overall + image_url
+    // flow through (and the parent page re-renders too, so header chip
+    // + public profile link see fresh state). The dismissal flag
+    // stays unset — the prompt is satisfied by the success either
+    // way.
+    void refresh();
+    if (onRefresh) void onRefresh();
+  }, [refresh, onRefresh]);
 
   // Patches go through here; we apply optimistically so toggles feel
   // instant, then roll back on error.
@@ -238,6 +307,24 @@ export function AccountSettingsTab({
         onDeleteAccount={onDeleteAccount}
       />
       <HelpSection />
+
+      {/* Mismatch prompt — fires once per session when the user's
+          all-time best beats their published leaderboard entry. The
+          modal handles its own dismissal flag in sessionStorage; on
+          success it triggers a refresh so the new entry flows through
+          to the public profile + header chip. */}
+      {entryOverall !== null &&
+        typeof profile.best_scan_overall === 'number' &&
+        profile.best_scan_overall > entryOverall && (
+          <PromoteBestScanModal
+            open={promoteOpen}
+            bestOverall={profile.best_scan_overall}
+            publishedOverall={entryOverall}
+            hadPhoto={hasLeaderboardPhoto}
+            onClose={dismissPromote}
+            onPromoted={onPromoted}
+          />
+        )}
     </div>
   );
 }

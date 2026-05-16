@@ -198,13 +198,22 @@ export async function lookupPublicProfile(
          ) as last_active`,
         [row.user_id],
       ),
-      // Leaderboard photo (skip if user has hide_photo on — already enforced
-      // by row.hide_photo_from_leaderboard upstream).
-      row.hide_photo_from_leaderboard
+      // Leaderboard photo — only surface when it actually represents the
+      // user's all-time best scan. If their leaderboard entry is from a
+      // score they later beat (e.g. promoted 88, then scanned 95 without
+      // re-promoting), the photo is stale relative to the "Top scan ever"
+      // headline. Hiding it falls through to the placeholder hierarchy
+      // on the client (pfp → tier-letter → empty) and the settings
+      // notice nudges the user to re-publish. hide_photo_from_leaderboard
+      // also kills it.
+      row.hide_photo_from_leaderboard || row.best_scan_overall == null
         ? Promise.resolve({ rows: [] as Array<{ image_url: string | null }> })
         : pool.query<{ image_url: string | null }>(
-            `select image_url from leaderboard where user_id = $1 limit 1`,
-            [row.user_id],
+            `select image_url from leaderboard
+              where user_id = $1
+                and overall = $2
+              limit 1`,
+            [row.user_id, row.best_scan_overall],
           ),
       // Up to 30 most recent ELO snapshots, returned oldest-first.
       row.hide_elo
