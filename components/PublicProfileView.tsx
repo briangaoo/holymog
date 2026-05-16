@@ -547,6 +547,69 @@ function TierCard({ data }: { data: PublicProfileData }) {
                 }}
               />
             </div>
+          ) : tier ? (
+            // User has scanned but opted out of publishing their face on
+            // the leaderboard. Render a tier-coded placeholder that
+            // leans into the brand instead of falling back to the
+            // empty-state "no scan yet" tile (which is wrong here — they
+            // HAVE scanned). The tier letter dominates; the score reads
+            // on the right column so we don't repeat it.
+            <div
+              className="group relative mx-auto h-32 w-32 flex-shrink-0 overflow-hidden bg-black sm:mx-0 sm:h-36 sm:w-36"
+              style={{
+                borderRadius: 2,
+                border: `2px solid ${accentColor}`,
+                boxShadow: `0 0 32px ${accentColor}55, inset 0 0 24px ${accentColor}25`,
+              }}
+              aria-label="top scan — private (not on the public board)"
+            >
+              {/* Tier accent radial wash, centered. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background: `radial-gradient(circle at 50% 50%, ${accentColor}40 0%, transparent 70%)`,
+                }}
+              />
+              {/* Diagonal hatch — subtle paper-of-record texture so the
+                  tile reads as designed surface, not blank. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(135deg, #fff 0 1px, transparent 1px 8px)',
+                }}
+              />
+              {/* Corner labels. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute left-2 top-1.5 text-[8px] font-bold uppercase tracking-[0.22em] text-white/55"
+              >
+                Tier
+              </span>
+              <span
+                aria-hidden
+                className="pointer-events-none absolute bottom-1.5 right-2 text-[8px] font-bold uppercase tracking-[0.22em] text-white/40"
+              >
+                Private
+              </span>
+              {/* The big tier letter. */}
+              <span
+                className="font-num absolute inset-0 flex items-center justify-center leading-none"
+                style={{
+                  fontSize: 'clamp(70px, 18vw, 92px)',
+                  fontWeight: 900,
+                  letterSpacing: '-0.04em',
+                  ...tierLetterStyle(tier),
+                  filter: tier.isGradient
+                    ? 'drop-shadow(0 0 18px rgba(168,85,247,0.75)) drop-shadow(0 0 6px rgba(34,211,238,0.55))'
+                    : `drop-shadow(0 0 18px ${accentColor}cc) drop-shadow(0 4px 10px rgba(0,0,0,0.6))`,
+                }}
+              >
+                {tier.letter}
+              </span>
+            </div>
           ) : (
             <div className="mx-auto flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-sm border border-white/10 bg-white/[0.02] sm:mx-0 sm:h-36 sm:w-36">
               <Scan size={20} className="text-zinc-500" aria-hidden />
