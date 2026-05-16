@@ -30,6 +30,7 @@ type ProfileMergeRow = {
   current_streak: number | null;
   matches_won: number | null;
   subscription_status: string | null;
+  banned_at: Date | null;
 };
 
 export const runtime = 'nodejs';
@@ -129,7 +130,9 @@ export async function GET(request: Request) {
 
   // Merge profile data (privacy flag + equipped cosmetics + subscriber +
   // userStats fields for smart cosmetic rendering). Single JOIN query
-  // by user_id for the page's rows.
+  // by user_id for the page's rows. Also pulls `banned_at` so the
+  // filter below can drop any banned-user entries that survived the
+  // ban-removes-leaderboard transaction (direct-SQL bans, etc.).
   const userIds = rawEntries.map((r) => r.user_id).filter(Boolean);
   const flagsByUserId = new Map<string, PrivacyFlags>();
   const profileByUserId = new Map<string, ProfileMergeRow>();
@@ -138,7 +141,8 @@ export async function GET(request: Request) {
     const profileResult = await pool.query<ProfileMergeRow>(
       `select user_id, hide_photo_from_leaderboard,
               equipped_frame, equipped_flair, equipped_name_fx,
-              current_streak, matches_won, subscription_status
+              current_streak, matches_won, subscription_status,
+              banned_at
          from profiles
         where user_id = any($1::uuid[])`,
       [userIds],
@@ -151,15 +155,21 @@ export async function GET(request: Request) {
     }
   }
 
-  // Privacy: when the user has flipped `hide_photo_from_leaderboard`,
-  // null out their submitted leaderboard photo. Profile picture
-  // (avatar_url) is unaffected — that's identity, not the submission.
-  const entries: LeaderboardRow[] = rawEntries.map((row) => {
+  // Privacy + ban-aware merge:
+  //   - banned users are excluded outright (ban paths already delete
+  //     the row inside the ban transaction; this is the read-side
+  //     backstop for direct-SQL bans + pre-existing entries).
+  //   - hide_photo_from_leaderboard nulls the submitted leaderboard
+  //     photo. Profile picture (avatar_url) is unaffected — that's
+  //     identity, not the submission.
+  const entries: LeaderboardRow[] = [];
+  for (const row of rawEntries) {
     const flags = flagsByUserId.get(row.user_id);
     const p = profileByUserId.get(row.user_id);
+    if (p?.banned_at) continue;
     const is_subscriber =
       p?.subscription_status === 'active' || p?.subscription_status === 'trialing';
-    return {
+    entries.push({
       ...row,
       image_url: flags?.hide_photo ? null : row.image_url,
       equipped_frame: p?.equipped_frame ?? null,
@@ -168,8 +178,8 @@ export async function GET(request: Request) {
       current_streak: p?.current_streak ?? null,
       matches_won: p?.matches_won ?? null,
       is_subscriber,
-    };
-  });
+    });
+  }
 
   return NextResponse.json({
     entries,

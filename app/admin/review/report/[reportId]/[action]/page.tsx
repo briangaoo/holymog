@@ -4,6 +4,7 @@ import { recordAudit } from '@/lib/audit';
 import { sendEmail } from '@/lib/email';
 import { banNoticeEmail } from '@/lib/email-templates';
 import { verifyReviewToken, type ReviewAction } from '@/lib/reviewToken';
+import { getSupabaseAdmin, UPLOADS_BUCKET } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -118,6 +119,7 @@ export default async function ReportActionPage({
   const client = await pool.connect();
   let userName = 'player';
   let userEmail: string | null = null;
+  let removedLeaderboardPath: string | null = null;
   try {
     await client.query('begin');
 
@@ -153,6 +155,19 @@ export default async function ReportActionPage({
       report.reported_user_id,
     ]);
 
+    // Strip the public-board surfacing in the same transaction — see
+    // /api/admin/ban for the rationale. Photo cleanup happens after
+    // commit, best-effort.
+    const lbDelete = await client.query<{ image_path: string | null }>(
+      `delete from leaderboard where user_id = $1 returning image_path`,
+      [report.reported_user_id],
+    );
+    removedLeaderboardPath = lbDelete.rows[0]?.image_path ?? null;
+    await client.query(
+      `delete from pending_leaderboard_submissions where user_id = $1`,
+      [report.reported_user_id],
+    );
+
     await client.query(
       `update battle_reports
           set state = 'banned',
@@ -177,11 +192,27 @@ export default async function ReportActionPage({
     client.release();
   }
 
+  // Storage cleanup, best-effort. Orphan is acceptable; the row being
+  // gone is the binding contract.
+  if (removedLeaderboardPath) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      void supabase.storage
+        .from(UPLOADS_BUCKET)
+        .remove([removedLeaderboardPath])
+        .catch(() => {});
+    }
+  }
+
   void recordAudit({
     userId: report.reported_user_id,
     action: 'user_banned',
     resource: reportId,
-    metadata: { reason: report.reason, by: 'email_review' },
+    metadata: {
+      reason: report.reason,
+      by: 'email_review',
+      removed_leaderboard_photo: Boolean(removedLeaderboardPath),
+    },
   });
 
   if (userEmail) {

@@ -7,6 +7,7 @@ import { getRatelimit } from '@/lib/ratelimit';
 import { recordAudit } from '@/lib/audit';
 import { sendEmail } from '@/lib/email';
 import { banNoticeEmail } from '@/lib/email-templates';
+import { getSupabaseAdmin, UPLOADS_BUCKET } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -135,6 +136,7 @@ export async function POST(request: Request) {
   const client = await pool.connect();
   let userName = 'player';
   let userEmail: string | null = null;
+  let removedLeaderboardPath: string | null = null;
   try {
     await client.query('begin');
 
@@ -164,6 +166,18 @@ export async function POST(request: Request) {
       report.reported_user_id,
     ]);
 
+    // Strip the public-board surfacing in the same transaction as the
+    // ban + session purge — see /api/admin/ban for the rationale.
+    const lbDelete = await client.query<{ image_path: string | null }>(
+      `delete from leaderboard where user_id = $1 returning image_path`,
+      [report.reported_user_id],
+    );
+    removedLeaderboardPath = lbDelete.rows[0]?.image_path ?? null;
+    await client.query(
+      `delete from pending_leaderboard_submissions where user_id = $1`,
+      [report.reported_user_id],
+    );
+
     await client.query(
       `update battle_reports
           set state = 'banned',
@@ -187,6 +201,18 @@ export async function POST(request: Request) {
     client.release();
   }
 
+  // Storage cleanup is best-effort, post-commit. Orphan is acceptable;
+  // the row being gone is the binding contract.
+  if (removedLeaderboardPath) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      void supabase.storage
+        .from(UPLOADS_BUCKET)
+        .remove([removedLeaderboardPath])
+        .catch(() => {});
+    }
+  }
+
   void recordAudit({
     userId: report.reported_user_id,
     action: 'user_banned',
@@ -195,6 +221,7 @@ export async function POST(request: Request) {
       reason: banReason,
       by: 'admin_console',
       operator: admin.userId,
+      removed_leaderboard_photo: Boolean(removedLeaderboardPath),
     },
   });
 

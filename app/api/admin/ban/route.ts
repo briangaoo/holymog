@@ -7,6 +7,7 @@ import { getRatelimit } from '@/lib/ratelimit';
 import { recordAudit } from '@/lib/audit';
 import { sendEmail } from '@/lib/email';
 import { banNoticeEmail } from '@/lib/email-templates';
+import { getSupabaseAdmin, UPLOADS_BUCKET } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,8 +24,16 @@ export const dynamic = 'force-dynamic';
  *   - delete every row in `sessions` for that user (immediate sign-out
  *     across every device — the Auth.js signIn callback then refuses
  *     to mint new sessions while banned_at is set)
+ *   - delete the user's `leaderboard` row + any pending submission so
+ *     the public board sheds them inside the same transaction. The
+ *     leaderboard read paths also filter `banned_at is null` as a
+ *     read-side backstop, but committing the delete here keeps the
+ *     storage object owner-of-record consistent.
  *
  * Post-commit (best-effort, swallowed on error):
+ *   - storage remove of the leaderboard photo (object lives in
+ *     holymog-uploads under the path captured from the leaderboard
+ *     row before delete)
  *   - audit-log entry (`user_banned`, by: 'admin_console')
  *   - ban-notice email if the user has an email on file
  */
@@ -88,6 +97,7 @@ export async function POST(request: Request) {
   const client = await pool.connect();
   let userEmail: string | null = null;
   let userName = 'player';
+  let removedLeaderboardPath: string | null = null;
   try {
     await client.query('begin');
 
@@ -120,6 +130,23 @@ export async function POST(request: Request) {
 
     await client.query(`delete from sessions where "userId" = $1`, [userId]);
 
+    // Strip the public-board surfacing in the same transaction. Capture
+    // the photo path on the way out so the post-commit block can
+    // best-effort-remove the storage object (storage isn't part of
+    // the Postgres transaction — orphans are acceptable; the row
+    // being gone is the binding contract). Also drops any pending
+    // submission so the user can't re-promote during a transient
+    // window before sessions die elsewhere.
+    const lbDelete = await client.query<{ image_path: string | null }>(
+      `delete from leaderboard where user_id = $1 returning image_path`,
+      [userId],
+    );
+    removedLeaderboardPath = lbDelete.rows[0]?.image_path ?? null;
+    await client.query(
+      `delete from pending_leaderboard_submissions where user_id = $1`,
+      [userId],
+    );
+
     await client.query('commit');
   } catch (err) {
     await client.query('rollback').catch(() => {});
@@ -134,11 +161,28 @@ export async function POST(request: Request) {
     client.release();
   }
 
+  // Storage cleanup — best-effort, orphan is acceptable. Lives outside
+  // the transaction because Supabase storage isn't transactional.
+  if (removedLeaderboardPath) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      void supabase.storage
+        .from(UPLOADS_BUCKET)
+        .remove([removedLeaderboardPath])
+        .catch(() => {});
+    }
+  }
+
   void recordAudit({
     userId,
     action: 'user_banned',
     resource: userId,
-    metadata: { reason, by: 'admin_console', operator: admin.userId },
+    metadata: {
+      reason,
+      by: 'admin_console',
+      operator: admin.userId,
+      removed_leaderboard_photo: Boolean(removedLeaderboardPath),
+    },
   });
 
   if (userEmail) {

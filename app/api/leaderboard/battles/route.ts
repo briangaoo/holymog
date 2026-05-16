@@ -47,6 +47,15 @@ export async function GET(request: Request) {
     // hide_photo_from_leaderboard does NOT apply here — that toggle
     // hides their submitted *scan* photo, which is a separate
     // surface from this ELO ranking.
+    //
+    // Banned users are excluded outright. The ban paths
+    // (lib/admin*, /api/admin/ban, /api/admin/report-resolve,
+    // /admin/review/report/.../ban) already delete the
+    // `leaderboard` row inside the ban transaction, but this
+    // `banned_at IS NULL` filter is the read-side backstop — it
+    // also catches direct-SQL bans + retroactively hides any
+    // existing banned-user entries that predated the ban-removes-
+    // leaderboard change.
     type Raw = Omit<BattleLeaderboardRow, 'is_subscriber'> & {
       subscription_status: string | null;
     };
@@ -67,6 +76,7 @@ export async function GET(request: Request) {
        from profiles p
        join users u on u.id = p.user_id
        where coalesce(p.hide_elo, false) = false
+         and p.banned_at is null
        order by p.elo desc, p.matches_played desc, p.peak_elo desc
        limit $1 offset $2`,
       [PAGE_SIZE, offset],
