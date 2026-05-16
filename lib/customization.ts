@@ -99,18 +99,10 @@ export type CosmeticKind = Cosmetic['kind'];
 
 // ---- Registry maps -------------------------------------------------------
 
-// Frames mostly deferred to Launch 2, except for `frame.founder` —
-// exclusive to the founder, granted via SQL only.
-export const FRAMES: Record<string, FrameDef> = {
-  'frame.founder': {
-    slug: 'frame.founder',
-    kind: 'frame',
-    name: 'founder',
-    component: dynamic(
-      () => import('@/components/cosmetics/frames/founder'),
-    ) as FrameComponent,
-  },
-};
+// Frames deferred to Launch 2 — every slot stays wired in the schema +
+// API + renderer so designer assets plug in without a migration, but
+// the registry is empty so no frame renders.
+export const FRAMES: Record<string, FrameDef> = {};
 
 // Badges deferred — collided visually with name fx. Slot stays in the
 // data model for Launch 2 designer redesigns; registry is empty so no
@@ -225,7 +217,6 @@ export const NAME_FX: Record<string, NameFxDef> = {
  */
 export const FOUNDER_ONLY_SLUGS: ReadonlySet<string> = new Set<string>([
   'name.founder',
-  'frame.founder',
 ]);
 
 export function isFounderOnlySlug(slug: string): boolean {
