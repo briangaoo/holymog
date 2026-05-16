@@ -98,35 +98,6 @@ const STORAGE_KEY = 'holymog-last-result';
 // the prior informational dialog get re-prompted with the new
 // affirmative-consent surface.
 const PRIVACY_KEY = 'holymog-consent-accepted';
-// Device-local best overall, used to decide whether a freshly-completed
-// scan should trigger the "add to leaderboard?" prompt. Persists across
-// retakes (separate from STORAGE_KEY which is the last result, not the
-// best). Per-device — signed-in users may have a higher server-side
-// `best_scan_overall` from another device, but the prompt is meant to
-// catch the moment-of-pride-on-this-device, not the global best, so
-// localStorage is the right scope.
-const BEST_OVERALL_KEY = 'holymog-best-overall';
-
-function readBestOverall(): number | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(BEST_OVERALL_KEY);
-    if (!raw) return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeBestOverall(value: number): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(BEST_OVERALL_KEY, String(value));
-  } catch {
-    // ignore — modal will just re-fire next scan
-  }
-}
 
 type SavedResult = {
   scores: FinalScores;
@@ -196,6 +167,17 @@ export default function Home() {
   }>({ open: false, overall: 0, isFirst: false });
   const { user: signedInUser } = useUser();
   const isSignedIn = !!signedInUser;
+  // Score on the user's current leaderboard entry. `null` until we've
+  // checked (or when there's no entry / anonymous). Drives the
+  // "put it on the board?" auto-prompt logic below: instead of asking
+  // "did you beat your device-local lifetime best," we ask "did you
+  // beat what's currently published on the leaderboard?" — which is
+  // the comparison that actually matters since the leaderboard is the
+  // public-facing score. Refetched whenever the signed-in user changes
+  // AND after a successful submit so the next scan sees the updated
+  // bar.
+  const [publishedOverall, setPublishedOverall] = useState<number | null>(null);
+  const [publishedChecked, setPublishedChecked] = useState(false);
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
   const [videoSize, setVideoSize] = useState({ width: 720, height: 1280 });
 
@@ -575,28 +557,46 @@ export default function Home() {
 
   const handleRevealDone = useCallback(() => {
     // Fires once, when the reveal animation finishes (NOT on hydration
-    // from cache — that path skips REVEAL_DONE entirely). Compare the
-    // fresh score against the device-local best; if it's a new record
-    // (or there's no prior best, i.e. first scan ever on this device)
-    // surface the "add to leaderboard?" prompt. Skip on fallback scans
-    // where vision failed — there's no real score to put on the board.
-    if (state.type === 'revealing' && !state.scores.fallback) {
+    // from cache — that path skips REVEAL_DONE entirely). The prompt
+    // asks "put this on the board?" — so the comparison that matters
+    // is against the score that's CURRENTLY on the leaderboard, not
+    // against the user's device-local lifetime best (which could be
+    // higher than the published entry if they scanned a high and
+    // never promoted it). Logic:
+    //
+    //   - Anon / no published entry → any score qualifies, isFirst=true
+    //   - Has published entry → fire only if newOverall > entry.overall
+    //
+    // Fallback scans (vision failed) are skipped because there's no
+    // real score to publish. We also wait for publishedChecked so we
+    // don't ever fire the prompt against a stale "we haven't loaded
+    // yet" null.
+    if (
+      state.type === 'revealing' &&
+      !state.scores.fallback &&
+      publishedChecked
+    ) {
       const newOverall = state.scores.overall;
-      const previousBest = readBestOverall();
-      const isRecord = previousBest === null || newOverall > previousBest;
-      if (isRecord) {
+      const hasEntry = publishedOverall !== null;
+      const beatsBoard = hasEntry && newOverall > publishedOverall;
+      const shouldFire = !hasEntry || beatsBoard;
+      if (shouldFire) {
         setRecordPrompt({
           open: true,
           overall: newOverall,
-          isFirst: previousBest === null,
+          isFirst: !hasEntry,
         });
-        // Update the local best up front so a retake at the same score
-        // won't re-fire the prompt while this one is still on screen.
-        writeBestOverall(newOverall);
+        // Optimistically advance the published bar so an immediate
+        // retake at the same score doesn't re-fire the prompt while
+        // this one is still on screen. The next refetch (after the
+        // user actually publishes) will correct the value either way.
+        if (hasEntry) {
+          setPublishedOverall(newOverall);
+        }
       }
     }
     dispatch({ type: 'REVEAL_DONE' });
-  }, [state, dispatch]);
+  }, [state, dispatch, publishedOverall, publishedChecked]);
 
   const refetchScanLimit = useCallback(async () => {
     try {
@@ -634,6 +634,40 @@ export default function Home() {
   useEffect(() => {
     void refetchScanLimit();
   }, [refetchScanLimit, signedInUser?.id]);
+
+  // Pull the user's current leaderboard entry score so the
+  // "put it on the board?" prompt below can compare against it. Anon
+  // users + signed-in-no-entry both leave publishedOverall at null;
+  // the reveal handler treats both as "any score qualifies for the
+  // prompt" (first publish flow).
+  const refetchPublishedOverall = useCallback(async () => {
+    if (!signedInUser) {
+      setPublishedOverall(null);
+      setPublishedChecked(true);
+      return;
+    }
+    try {
+      const res = await fetch('/api/account/me', { cache: 'no-store' });
+      if (!res.ok) {
+        setPublishedChecked(true);
+        return;
+      }
+      const data = (await res.json()) as {
+        entry?: { overall?: number | null } | null;
+      };
+      setPublishedOverall(
+        typeof data.entry?.overall === 'number' ? data.entry.overall : null,
+      );
+    } catch {
+      // best-effort
+    } finally {
+      setPublishedChecked(true);
+    }
+  }, [signedInUser]);
+
+  useEffect(() => {
+    void refetchPublishedOverall();
+  }, [refetchPublishedOverall]);
 
   // Refetch right after a fresh scan completes so the displayed remaining
   // count is up to date. `revealing` is the moment server-side counter
@@ -912,6 +946,12 @@ export default function Home() {
             scores={state.scores}
             capturedImage={state.capturedImage}
             onClose={() => setLeaderboardOpen(false)}
+            onSubmitted={() => {
+              // Refetch the published score so the next scan's
+              // "put it on the board?" prompt compares against the
+              // freshly-published bar instead of the stale one.
+              void refetchPublishedOverall();
+            }}
           />
         </>
       )}

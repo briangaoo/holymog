@@ -78,7 +78,7 @@ export function RecordScanModal({ open, overall, isFirst, onYes, onNo }: Props) 
                 className="text-[10px] font-semibold uppercase tracking-[0.22em]"
                 style={{ color: accent }}
               >
-                {isFirst ? 'FIRST SCAN' : 'NEW PERSONAL RECORD'}
+                {isFirst ? 'FIRST SCAN' : 'BEATS YOUR LEADERBOARD ENTRY'}
               </span>
             </div>
             <h2
@@ -97,7 +97,7 @@ export function RecordScanModal({ open, overall, isFirst, onYes, onNo }: Props) 
               </span>
               {isFirst
                 ? ' on your first scan. add it to the public leaderboard so others can see where you land.'
-                : ' — your highest yet. update your leaderboard entry?'}
+                : ' — higher than your current entry. update it?'}
             </p>
             <div className="flex gap-2">
               <button
