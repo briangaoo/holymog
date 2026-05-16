@@ -87,7 +87,7 @@ export function RecordScanModal({ open, overall, isFirst, onYes, onNo }: Props) 
             >
               {isFirst ? "you're on the board?" : 'put it on the board?'}
             </h2>
-            <p className="mb-6 text-[13px] leading-relaxed text-white/65 normal-case">
+            <p className="mb-6 text-[13px] leading-relaxed text-white/65">
               you scored a{' '}
               <span
                 className="font-num font-bold tabular-nums"

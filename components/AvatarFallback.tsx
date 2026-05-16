@@ -40,7 +40,7 @@ export function AvatarFallback({
   const hue = avatarHue(seed);
   return (
     <span
-      className={`flex items-center justify-center font-semibold text-white normal-case ${textClassName} ${className}`}
+      className={`flex items-center justify-center font-semibold text-white ${textClassName} ${className}`}
       style={{ backgroundColor: `hsl(${hue}, 55%, 38%)` }}
     >
       {avatarInitial(seed)}

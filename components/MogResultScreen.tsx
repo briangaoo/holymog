@@ -683,7 +683,7 @@ function ResultHeadline({
         initial={{ y: 12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.35 }}
-        className={`mt-3 text-base font-medium normal-case sm:mt-4 sm:text-lg ${subColor}`}
+        className={`mt-3 text-base font-medium sm:mt-4 sm:text-lg ${subColor}`}
       >
         {subContent}
       </motion.p>

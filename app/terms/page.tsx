@@ -35,7 +35,7 @@ export default function TermsPage() {
 
       <div className="relative z-10">
         <main
-          className="mx-auto w-full max-w-2xl px-5 pb-16 pt-8 normal-case"
+          className="mx-auto w-full max-w-2xl px-5 pb-16 pt-8"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 64px)' }}
         >
           <LegalBackLink />

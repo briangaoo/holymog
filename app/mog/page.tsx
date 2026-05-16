@@ -1630,7 +1630,7 @@ function Joining({
         <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-red-300">
           CONNECTION FAILED
         </span>
-        <p className="text-base font-semibold text-white normal-case">
+        <p className="text-base font-semibold text-white">
           couldn&apos;t connect to the battle. the host may have just started
           — your link might be a moment behind.
         </p>

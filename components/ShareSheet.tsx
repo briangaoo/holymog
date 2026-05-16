@@ -293,7 +293,7 @@ export function ShareSheet({ open, onClose, scores, capturedImage }: Props) {
                   className="flex flex-col items-center gap-1.5 rounded-sm pt-4 pb-2 transition-colors hover:bg-white/5 active:bg-white/10"
                 >
                   <PlatformTile p={p} />
-                  <span className="text-[11px] normal-case text-zinc-400">
+                  <span className="text-[11px] text-zinc-400">
                     {p.label}
                   </span>
                 </button>

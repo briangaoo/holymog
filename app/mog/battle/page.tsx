@@ -586,7 +586,7 @@ function PublicMatchmaking({
             <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-red-300">
               CONNECTION FAILED
             </span>
-            <p className="text-base font-semibold text-white normal-case">
+            <p className="text-base font-semibold text-white">
               {handoffError}
             </p>
             <div className="mt-2 flex gap-2">

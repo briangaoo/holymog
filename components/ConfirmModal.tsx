@@ -154,7 +154,7 @@ export function ConfirmModal({
                 inputMode={input.inputMode}
                 autoComplete={input.autoComplete ?? 'off'}
                 spellCheck={false}
-                className={`mb-4 w-full rounded-sm border bg-white/[0.02] px-3 py-2 text-[14px] text-white normal-case placeholder:text-zinc-600 focus:outline-none focus:ring-2 ${
+                className={`mb-4 w-full rounded-sm border bg-white/[0.02] px-3 py-2 text-[14px] text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 ${
                   danger
                     ? 'border-red-500/30 focus:border-red-500/50 focus:ring-red-500/15'
                     : 'border-white/10 focus:border-white focus:ring-white/15'
