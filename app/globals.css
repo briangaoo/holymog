@@ -143,6 +143,26 @@ body {
   animation: glow-soft 2.4s ease-in-out infinite;
 }
 
+/* Default-profile-banner starfield. A handful of stars twinkle to give
+ * the banner some life without crossing into "loud". Each twinkling
+ * star sets --twinkle-min / --twinkle-max / --twinkle-dur on its own
+ * element so the same keyframe drives a varied rhythm across the
+ * constellation. Honors prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .banner-star-twinkle {
+    animation: banner-star-twinkle var(--twinkle-dur, 3s) ease-in-out infinite;
+  }
+}
+@keyframes banner-star-twinkle {
+  0%,
+  100% {
+    opacity: var(--twinkle-min, 0.45);
+  }
+  50% {
+    opacity: var(--twinkle-max, 1);
+  }
+}
+
 /* Display digits + tier letter, DM Sans Extra Bold with tabular numerics */
 .font-num {
   font-family: var(--font-dm-sans), system-ui, -apple-system, sans-serif;

@@ -93,7 +93,7 @@ export function PublicProfileView({ data }: { data: PublicProfileData }) {
         }}
       />
 
-      <ProfileHeader data={data} tierAccent={tierAccent} userStats={userStats} />
+      <ProfileHeader data={data} userStats={userStats} />
 
       <MogStats
         data={data}
@@ -110,11 +110,9 @@ export function PublicProfileView({ data }: { data: PublicProfileData }) {
 
 function ProfileHeader({
   data,
-  tierAccent,
   userStats,
 }: {
   data: PublicProfileData;
-  tierAccent: string;
   userStats: UserStats;
 }) {
   const tier =
@@ -132,25 +130,24 @@ function ProfileHeader({
           'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.40)',
       }}
     >
-      {/* Banner. Either the user's banner_url, or a tier-coloured
-          fallback so accounts without a banner still look intentional. */}
-      <div
-        className="relative h-36 w-full overflow-hidden sm:h-44"
-        style={{
-          background: data.banner_url
-            ? undefined
-            : tier?.isGradient
-              ? 'linear-gradient(135deg, #22d3ee 0%, #a855f7 50%, #ec4899 100%)'
-              : `linear-gradient(135deg, ${tierAccent}80 0%, ${tierAccent}20 100%)`,
-        }}
-      >
-        {data.banner_url && (
+      {/* Banner. Either the user's banner_url, or a cosmic starfield
+          fallback so accounts without a banner still look intentional.
+          The previous default was a tier-coloured gradient which read
+          loud and "unfinished" for the F/D/C/B band (most users). The
+          starfield is calm, monochrome, brand-cohesive with the home
+          page's Starfield component, and identical for everyone — so
+          two friends visiting each other's empty profiles don't see
+          the same ugly red wash. */}
+      <div className="relative h-36 w-full overflow-hidden bg-black sm:h-44">
+        {data.banner_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={data.banner_url}
             alt=""
             className="h-full w-full object-cover"
           />
+        ) : (
+          <DefaultBannerStarfield />
         )}
         {/* Soft top sheen to lift the banner off the page bg */}
         <span
@@ -1335,4 +1332,148 @@ function formatCount(n: number): string {
   if (n < 10_000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
   if (n < 1_000_000) return Math.round(n / 1000) + 'k';
   return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'm';
+}
+
+// ============================================================================
+// Default banner — cosmic starfield
+// ============================================================================
+
+/**
+ * Static starfield rendered behind any profile that hasn't uploaded a
+ * banner. Mirrors the home-page Starfield motif (small white twinkling
+ * dots + faint nebula washes) at a banner-friendly scale. No cursor
+ * physics — just CSS keyframes on a subset of stars + two soft radial
+ * gradients for atmospheric depth.
+ *
+ * Constants are hand-tuned for a 3:1 banner: positions in percent so
+ * the layout adapts to mobile (144px tall) and sm+ (176px tall) without
+ * re-tweaking. Twinkle subset is small (~6 of 32) so the banner reads
+ * as alive, not noisy.
+ *
+ * Universal — every empty-banner profile gets the same scene. Calmer
+ * than the previous tier-coloured wash and visually cohesive with the
+ * home page.
+ */
+type BannerStar = {
+  /** Percent across the banner (0-100). */
+  x: number;
+  /** Percent down the banner (0-100). */
+  y: number;
+  /** Star diameter in px. */
+  size: number;
+  /** Override star colour. Defaults to white. */
+  color?: string;
+  /** Add a soft halo via box-shadow. Used sparingly on the brighter
+   *  stars so the field reads layered, not flat. */
+  glow?: boolean;
+  /** When set, the star pulses between min/max opacity over `dur`
+   *  seconds. ~6 of 32 stars twinkle so the field looks alive without
+   *  feeling busy. */
+  twinkle?: { min: number; max: number; dur: number };
+};
+
+const CYAN = '#a5f3fc';
+const AMBER = '#fde68a';
+const PINK = '#fbcfe8';
+
+const BANNER_STARS: BannerStar[] = [
+  // Top band.
+  { x: 4, y: 18, size: 1.5 },
+  { x: 12, y: 12, size: 2, glow: true, twinkle: { min: 0.45, max: 0.95, dur: 4.4 } },
+  { x: 22, y: 8, size: 1 },
+  { x: 32, y: 16, size: 1.5, color: CYAN, glow: true },
+  { x: 45, y: 12, size: 1.5 },
+  { x: 58, y: 18, size: 1 },
+  { x: 68, y: 10, size: 2, glow: true, twinkle: { min: 0.5, max: 1, dur: 3.2 } },
+  { x: 78, y: 14, size: 1.5 },
+  { x: 88, y: 20, size: 1 },
+  { x: 94, y: 8, size: 1.5, glow: true },
+  // Middle band.
+  { x: 8, y: 48, size: 1.5, glow: true, twinkle: { min: 0.4, max: 0.85, dur: 5.1 } },
+  { x: 18, y: 40, size: 1 },
+  { x: 28, y: 55, size: 2, color: AMBER, glow: true, twinkle: { min: 0.55, max: 1, dur: 3.8 } },
+  { x: 38, y: 45, size: 1 },
+  { x: 50, y: 50, size: 2.5, glow: true },
+  { x: 62, y: 38, size: 1.5 },
+  { x: 74, y: 58, size: 1, color: PINK },
+  { x: 84, y: 42, size: 1.5, glow: true },
+  { x: 92, y: 50, size: 2, glow: true, twinkle: { min: 0.5, max: 0.95, dur: 4.7 } },
+  // Bottom band.
+  { x: 6, y: 82, size: 1.5 },
+  { x: 16, y: 88, size: 1 },
+  { x: 26, y: 75, size: 2, glow: true },
+  { x: 36, y: 90, size: 1.5, color: CYAN, glow: true, twinkle: { min: 0.5, max: 0.95, dur: 4.0 } },
+  { x: 48, y: 80, size: 1 },
+  { x: 60, y: 86, size: 1.5, glow: true },
+  { x: 72, y: 72, size: 1 },
+  { x: 82, y: 84, size: 2, glow: true },
+  { x: 90, y: 92, size: 1 },
+  // Sparse fill — small unobtrusive dots so the band-to-band gaps don't
+  // feel empty.
+  { x: 2, y: 32, size: 1 },
+  { x: 42, y: 68, size: 1 },
+  { x: 56, y: 28, size: 1 },
+  { x: 86, y: 66, size: 1 },
+];
+
+function DefaultBannerStarfield() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      {/* Nebula washes — soft radial gradients in opposite corners
+          to break up the flat black background. Same cyan + violet
+          palette as the home-page Starfield so the two surfaces feel
+          like one product. */}
+      <span
+        className="absolute -left-12 -bottom-12 h-48 w-72 rounded-full blur-3xl"
+        style={{
+          background:
+            'radial-gradient(ellipse, rgba(34,211,238,0.18) 0%, transparent 65%)',
+        }}
+      />
+      <span
+        className="absolute -right-16 -top-12 h-44 w-72 rounded-full blur-3xl"
+        style={{
+          background:
+            'radial-gradient(ellipse, rgba(168,85,247,0.18) 0%, transparent 65%)',
+        }}
+      />
+
+      {/* Stars. */}
+      {BANNER_STARS.map((star, i) => {
+        const color = star.color ?? '#ffffff';
+        const baseStyle: React.CSSProperties = {
+          position: 'absolute',
+          left: `${star.x}%`,
+          top: `${star.y}%`,
+          width: star.size,
+          height: star.size,
+          borderRadius: '9999px',
+          backgroundColor: color,
+          marginLeft: -star.size / 2,
+          marginTop: -star.size / 2,
+          // Brighter stars get a soft halo. Skipped on the tiny dots so
+          // they read as background dust, not as bullet points.
+          boxShadow: star.glow
+            ? `0 0 ${star.size * 2.4}px ${color}, 0 0 ${star.size * 4.4}px ${color}66`
+            : undefined,
+          opacity: star.twinkle ? star.twinkle.max : star.size >= 2 ? 0.95 : 0.65,
+        };
+        if (!star.twinkle) {
+          return <span key={i} style={baseStyle} />;
+        }
+        const twinkleVars = {
+          ['--twinkle-min' as never]: star.twinkle.min,
+          ['--twinkle-max' as never]: star.twinkle.max,
+          ['--twinkle-dur' as never]: `${star.twinkle.dur}s`,
+        } as React.CSSProperties;
+        return (
+          <span
+            key={i}
+            className="banner-star-twinkle"
+            style={{ ...baseStyle, ...twinkleVars }}
+          />
+        );
+      })}
+    </div>
+  );
 }
